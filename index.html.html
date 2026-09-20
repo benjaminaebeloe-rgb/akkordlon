@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="da" class="h-full bg-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AkkordLøn - Registrering af Akkordarbejde</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase (Google-login + cloud-sync) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Mobile app optimizations */
+    -webkit-tap-highlight-color: transparent;
+    body {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    input, select, textarea {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Top App Bar -->
+  <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800">
+    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+          <i data-lucide="hammer" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight tracking-tight">AkkordLøn</h1>
+          <p class="text-[11px] text-slate-400 font-medium">Løn- & Timeregistrering</p>
+        </div>
+      </div>
+      
+      <!-- Account / Sync Button -->
+      <div class="flex items-center gap-2">
+        <div class="text-right bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">I dag</div>
+          <div id="headerTodayEarned" class="text-xs font-bold text-emerald-400">0 kr.</div>
+        </div>
+        <button onclick="openAccountModal()" id="accountBtn" class="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-white transition-colors relative">
+          <i data-lucide="user" class="w-4 h-4"></i>
+          <span id="syncDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Scrollable Content Area -->
+  <main class="flex-1 overflow-y-auto pb-24 custom-scrollbar">
+    <div class="max-w-md mx-auto p-4 space-y-4">
+
+      <!-- ========================================== -->
+      <!-- TAB 1: REGISTRERING (Log Work)             -->
+      <!-- ========================================== -->
+      <section id="tab-register" class="tab-content space-y-4">
+        
+        <!-- Header Banner -->
+        <div class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
+          <div class="relative z-10">
+            <h2 class="text-lg font-bold">Ny Registrering</h2>
+            <p class="text-xs text-slate-300 mt-0.5">Indtast dagens akkordarbejde og brugte timer</p>
+          </div>
+          <i data-lucide="file-plus" class="absolute -right-2 -bottom-2 w-24 h-24 text-white/5 pointer-events-none"></i>
+        </div>
+
+        <!-- Registration Form Card -->
+        <form id="logForm" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-4" onsubmit="handleSaveLog(event)">
+          
+          <!-- Date Field -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logDate">Dato</label>
+            <div class="relative">
+              <input type="date" id="logDate" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            </div>
+          </div>
+
+          <!-- Total Hours Field (fælles for hele registreringen) -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logHours">Timer i alt</label>
+            <input type="number" step="0.1" min="0.1" id="logHours" oninput="calculateLiveSummary()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+          </div>
+
+          <!-- Dynamic Rates Container -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Akkordsatser</label>
+              <button type="button" onclick="switchTab('rates')" class="text-xs text-brand-600 hover:text-brand-700 font-semibold flex items-center gap-1">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Administrer satser
+              </button>
+            </div>
+            
+            <div id="logRowsContainer" class="space-y-3">
+              <!-- Dynamiske rækker injiceres her via JS -->
+            </div>
+
+            <!-- "Plus" knap til flere satser -->
+            <button type="button" onclick="addLogRow()" class="w-full border-2 border-dashed border-slate-300 text-slate-500 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 hover:text-slate-700 transition-colors mt-3 text-xs">
+              <i data-lucide="plus" class="w-4 h-4"></i> Tilføj endnu en sats til dagen
+            </button>
+          </div>
+
+          <!-- Extra Note / Location -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logNote">Note / Byggeplads (valgfri)</label>
+            <input type="text" id="logNote" placeholder="f.eks. Sag 402 - Parcelhus i Roskilde" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+          </div>
+
+          <!-- Live Calculated Summary Card -->
+          <div class="bg-slate-900 rounded-xl p-4 text-white space-y-3">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Beregnet Løn for Registrering</div>
+            <div class="grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
+              <div>
+                <span class="text-[11px] text-slate-400 block">Samlet Akkordløn</span>
+                <span id="liveTotalDkk" class="text-xl font-black text-emerald-400">0,00 kr.</span>
+              </div>
+              <div class="border-l border-slate-800 pl-3">
+                <span class="text-[11px] text-slate-400 block">Effektiv Timeløn</span>
+                <span id="liveHourlyRate" class="text-xl font-black text-brand-400">0,00 kr./t</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all">
+            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+            <span>Gem Registrering</span>
+          </button>
+
+        </form>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: SATSER (Rate Management)            -->
+      <!-- ========================================== -->
+      <section id="tab-rates" class="tab-content space-y-4 hidden">
+        
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Akkordsatser</h2>
+            <p class="text-xs text-slate-500">Styr dine priser pr. enhed eller type</p>
+          </div>
+          <button onclick="openRateModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20">
+            <i data-lucide="plus" class="w-4 h-4"></i> Ny Sats
+          </button>
+        </div>
+
+        <!-- Rates List -->
+        <div id="ratesList" class="space-y-2.5">
+          <!-- Rendered dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 3: STATISTIK (Analytics Dashboard)     -->
+      <!-- ========================================== -->
+      <section id="tab-stats" class="tab-content space-y-4 hidden">
+        
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Statistik & Oversigt</h2>
+          <p class="text-xs text-slate-500">Analyse af timeløn, indtjening og præstation</p>
+        </div>
+
+        <!-- Time Filter Pills -->
+        <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <button onclick="setStatsFilter('today')" id="filter-today" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">I dag</button>
+          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Denne uge</button>
+          <button onclick="setStatsFilter('month')" id="filter-month" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne måned</button>
+          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Lønmåned (21.-20.)</button>
+          <button onclick="setStatsFilter('last30')" id="filter-last30" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Sidste 30 dage</button>
+          <button onclick="setStatsFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Altid</button>
+        </div>
+
+        <!-- Key Metrics Cards (2x2 Grid) -->
+        <div class="grid grid-cols-2 gap-3">
+          
+          <!-- Metric 1: Total Earnings -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Samlet Indtjening</div>
+            <div id="statTotalEarnings" class="text-xl font-extrabold text-slate-900 mt-1">0 kr.</div>
+            <div class="mt-2 flex items-center text-[10px] text-emerald-600 font-semibold gap-1">
+              <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+              <span>Brutto akkord</span>
+            </div>
+          </div>
+
+          <!-- Metric 2: Effective Hourly Wage -->
+          <div class="bg-emerald-500 text-white p-4 rounded-2xl shadow-md shadow-emerald-500/20 relative overflow-hidden">
+            <div class="text-[11px] font-semibold text-emerald-100 uppercase tracking-wider">Effektiv Timeløn</div>
+            <div id="statHourlyWage" class="text-xl font-extrabold text-white mt-1">0 kr./t</div>
+            <div class="mt-2 flex items-center text-[10px] text-emerald-100 font-medium gap-1">
+              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+              <span>Gennemsnit i perioden</span>
+            </div>
+          </div>
+
+          <!-- Metric 3: Total Hours -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Timer Arbejdet</div>
+            <div id="statTotalHours" class="text-xl font-extrabold text-slate-900 mt-1">0 t</div>
+            <div class="mt-2 text-[10px] text-slate-400 font-medium">Registreret tid</div>
+          </div>
+
+          <!-- Metric 4: Units Done -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Enheder Udført</div>
+            <div id="statTotalUnits" class="text-xl font-extrabold text-slate-900 mt-1">0 stk</div>
+            <div class="mt-2 text-[10px] text-slate-400 font-medium">Elementer / plader</div>
+          </div>
+
+        </div>
+
+        <!-- Chart Card -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Daglig Timeløn & Indtjening</h3>
+            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">Oversigt</span>
+          </div>
+          <div class="h-56 w-full relative">
+            <canvas id="statsChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Task Breakdown Table -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Fordeling pr. Akkordsats</h3>
+          <div id="taskBreakdownList" class="space-y-2 text-xs">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 4: HISTORIK (Log History)             -->
+      <!-- ========================================== -->
+      <section id="tab-history" class="tab-content space-y-4 hidden">
+        
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Arbejdshistorik</h2>
+            <p class="text-xs text-slate-500">Oversigt over alle dine registrerede dage</p>
+          </div>
+          <button onclick="exportToCSV()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksport
+          </button>
+        </div>
+
+        <!-- Search input -->
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+          <input type="text" id="historySearch" oninput="renderHistoryList()" placeholder="Søg i historik eller noter..." class="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Log List -->
+        <div id="historyList" class="space-y-3">
+          <!-- Rendered dynamically via JS -->
+        </div>
+
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Bottom Navigation Bar (Mobile Native Style) -->
+  <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
+    <div class="max-w-md mx-auto grid grid-cols-4 h-16">
+      
+      <button onclick="switchTab('register')" id="nav-register" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
+        <i data-lucide="pen-tool" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Registrer</span>
+      </button>
+
+      <button onclick="switchTab('rates')" id="nav-rates" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="tags" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Satser</span>
+      </button>
+
+      <button onclick="switchTab('stats')" id="nav-stats" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Statistik</span>
+      </button>
+
+      <button onclick="switchTab('history')" id="nav-history" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="history" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Historik</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- Auth Gate: vises ved opstart, indtil man har valgt login eller "fortsæt uden login" -->
+  <div id="authGate" class="fixed inset-0 bg-slate-900 z-[60] flex items-center justify-center p-6 hidden">
+    <div class="w-full max-w-xs text-center space-y-5">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+        <i data-lucide="hammer" class="w-7 h-7"></i>
+      </div>
+      <div>
+        <h2 class="text-white font-bold text-lg">AkkordLøn</h2>
+        <p class="text-slate-400 text-xs mt-1">Log ind med Google for at gemme dine data i skyen og tilgå dem fra alle dine enheder.</p>
+      </div>
+      <button onclick="signInWithGoogle()" class="w-full bg-white hover:bg-slate-100 text-slate-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2.5 transition-all text-sm">
+        <svg class="w-4 h-4" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.5 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.3C29.5 34.9 26.9 36 24 36c-5.3 0-9.8-3.4-11.4-8.1l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.3C39.9 36.9 44 31 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+        Log ind med Google
+      </button>
+      <button onclick="continueOffline()" class="w-full text-slate-400 hover:text-slate-200 font-semibold py-2 text-xs">
+        Fortsæt uden login (kun denne enhed)
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Account / Sync Status -->
+  <div id="accountModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Konto & Synkronisering</h3>
+        <button onclick="closeAccountModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="accountModalBody" class="space-y-3">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add / Edit Rate -->
+  <div id="rateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 id="rateModalTitle" class="font-bold text-slate-900 text-base">Ny Akkordsats</h3>
+        <button onclick="closeRateModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="rateForm" onsubmit="handleSaveRate(event)" class="space-y-3.5">
+        <input type="hidden" id="rateEditId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Opgave / Materiale Navn</label>
+          <input type="text" id="rateName" placeholder="f.eks. Eternit B6 Tagplader" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Enhed</label>
+            <input type="text" id="rateUnit" placeholder="stk, m², m, meter" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sats (kr. pr. enhed)</label>
+            <input type="number" step="0.01" id="ratePrice" placeholder="f.eks. 45.00" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeRateModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+          <button type="submit" class="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs shadow-md shadow-brand-600/20">Gem Sats</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custom Confirmation Dialog Modal -->
+  <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-xs rounded-2xl p-5 text-center space-y-4 shadow-xl">
+      <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h4 id="confirmModalTitle" class="font-bold text-slate-900 text-base">Er du sikker?</h4>
+        <p id="confirmModalMessage" class="text-xs text-slate-500 mt-1">Denne handling kan ikke fortrydes.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="confirmCancelBtn" class="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+        <button id="confirmOkBtn" class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs">Slet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Message Container -->
+  <div id="toastContainer" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-xs px-4"></div>
+
+  <script>
+    // ==========================================
+    // FIREBASE CONFIGURATION (Google-login + Cloud Sync)
+    // ==========================================
+    // 1) Opret et gratis projekt på https://console.firebase.google.com
+    // 2) Aktiver "Google" under Authentication > Sign-in method
+    // 3) Opret en Firestore-database (Authentication > Build > Firestore Database)
+    // 4) Registrer en "web app" under Project settings > General, og indsæt
+    //    dit config-objekt herunder i stedet for eksemplet:
+    const firebaseConfig = {
+      apiKey: "AIzaSyAkiOjJWHH0JeIz9WZcac5U99Occmgc_ls",
+      authDomain: "acord-app-44a7f.firebaseapp.com",
+      projectId: "acord-app-44a7f",
+      storageBucket: "acord-app-44a7f.firebasestorage.app",
+      messagingSenderId: "1010429307669",
+      appId: "1:1010429307669:web:09793d2bcd02fa3159171c",
+      measurementId: "G-9G3Z3132DW"
+    };
+
+    let firebaseReady = false;
+    let auth = null;
+    let db = null;
+    let currentUser = null;
+    let syncEnabled = false;
+
+    try {
+      if (firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('INDSÆT') === -1) {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+        firebaseReady = true;
+      }
+    } catch (err) {
+      console.error('Firebase kunne ikke initialiseres:', err);
+    }
+
+    // ==========================================
+    // DATA STATE & DEFAULT INITIALIZATION
+    // ==========================================
+    
+    const DEFAULT_RATES = [
+      { id: 'rate-1', name: 'Eternit B6 Tagplader', unit: 'stk', price: 42.50 },
+      { id: 'rate-2', name: 'Eternit B9 Tagplader', unit: 'stk', price: 48.00 },
+      { id: 'rate-3', name: 'Rygning / Mønning', unit: 'm', price: 65.00 },
+      { id: 'rate-4', name: 'Taglægtering', unit: 'm²', price: 18.50 },
+      { id: 'rate-5', name: 'Tagrender montering', unit: 'm', price: 85.00 }
+    ];
+
+    const DEFAULT_ENTRIES = [];
+
+    let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
+    let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
+    let currentStatsFilter = 'week';
+    let chartInstance = null;
+
+    // Save to LocalStorage (altid) + Firestore (hvis logget ind)
+    function saveData() {
+      localStorage.setItem('akkord_rates', JSON.stringify(rates));
+      localStorage.setItem('akkord_entries', JSON.stringify(entries));
+
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).set({
+          rates,
+          entries,
+          updatedAt: new Date().toISOString()
+        }).catch(err => {
+          console.error('Cloud-sync fejlede:', err);
+          showToast('Kunne ikke synkronisere til skyen', 'error');
+        });
+      }
+    }
+
+    function getFormattedDate(offsetDays = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      return d.toISOString().split('T')[0];
+    }
+
+    // ==========================================
+    // GOOGLE LOGIN & CLOUD SYNC
+    // ==========================================
+    function signInWithGoogle() {
+      if (!firebaseReady) {
+        showToast('Login er ikke sat op endnu (mangler Firebase-konfiguration)', 'error');
+        return;
+      }
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(err => {
+        console.error(err);
+        showToast('Login mislykkedes: ' + err.message, 'error');
+      });
+    }
+
+    function signOutUser() {
+      if (auth) auth.signOut();
+      closeAccountModal();
+      showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
+    }
+
+    function continueOffline() {
+      document.getElementById('authGate').classList.add('hidden');
+    }
+
+    function openAccountModal() {
+      renderAccountModalBody();
+      document.getElementById('accountModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeAccountModal() {
+      document.getElementById('accountModal').classList.add('hidden');
+    }
+
+    function renderAccountModalBody() {
+      const body = document.getElementById('accountModalBody');
+      if (!firebaseReady) {
+        body.innerHTML = `
+          <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
+        `;
+        return;
+      }
+      if (currentUser) {
+        body.innerHTML = `
+          <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <img src="${currentUser.photoURL || ''}" onerror="this.style.display='none'" class="w-10 h-10 rounded-full">
+            <div class="min-w-0">
+              <div class="font-bold text-sm text-slate-900 truncate">${escapeHtml(currentUser.displayName || 'Bruger')}</div>
+              <div class="text-xs text-slate-500 truncate">${escapeHtml(currentUser.email || '')}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
+            <i data-lucide="cloud" class="w-3.5 h-3.5"></i> Dine data synkroniseres til skyen
+          </div>
+          <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
+        `;
+      } else {
+        body.innerHTML = `
+          <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg">
+            <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i> Data gemmes kun lokalt på denne enhed
+          </div>
+          <button onclick="signInWithGoogle()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
+          </button>
+        `;
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function updateAccountIndicator() {
+      const dot = document.getElementById('syncDot');
+      if (!dot) return;
+      dot.classList.toggle('hidden', !currentUser);
+    }
+
+    // Henter data fra Firestore for den loggede-ind bruger og erstatter
+    // lokale data med brugerens cloud-data (eller opretter dem, hvis det
+    // er første login).
+    function loadUserDataFromCloud(user) {
+      currentUser = user;
+      syncEnabled = true;
+      updateAccountIndicator();
+
+      db.collection('users').doc(user.uid).get().then(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          rates = data.rates || DEFAULT_RATES;
+          entries = data.entries || DEFAULT_ENTRIES;
+        } else {
+          // Første login: upload evt. eksisterende lokale data til skyen
+          db.collection('users').doc(user.uid).set({ rates, entries, updatedAt: new Date().toISOString() });
+        }
+        refreshAllViews();
+        showToast('Logget ind som ' + (user.displayName || user.email));
+      }).catch(err => {
+        console.error('Kunne ikke hente cloud-data:', err);
+        showToast('Kunne ikke hente dine data fra skyen', 'error');
+      });
+    }
+
+    function refreshAllViews() {
+      populateRateSelect();
+      renderRatesList();
+      renderHistoryList();
+      updateHeaderBadge();
+      renderAccountModalBody();
+      const statsTab = document.getElementById('tab-stats');
+      if (statsTab && !statsTab.classList.contains('hidden')) {
+        renderStats();
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Selve app-opstarten (formular, historik osv.) - køres når vi ved om
+    // brugeren er logget ind, logget ud, eller har valgt at fortsætte uden login.
+    function startApp() {
+      initRegistrationForm();
+      updateHeaderBadge();
+      renderHistoryList();
+      updateAccountIndicator();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // ==========================================
+    // UI NAVIGATION CONTROLLER
+    // ==========================================
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.remove('text-brand-600');
+        el.classList.add('text-slate-400');
+      });
+
+      const activeTab = document.getElementById(`tab-${tabId}`);
+      const activeNav = document.getElementById(`nav-${tabId}`);
+
+      if (activeTab) activeTab.classList.remove('hidden');
+      if (activeNav) {
+        activeNav.classList.remove('text-slate-400');
+        activeNav.classList.add('text-brand-600');
+      }
+
+      if (tabId === 'stats') {
+        renderStats();
+      } else if (tabId === 'history') {
+        // Nulstiller søgefeltet og sørger for at alt vises med det samme
+        const searchInput = document.getElementById('historySearch');
+        if (searchInput) searchInput.value = '';
+        renderHistoryList();
+      } else if (tabId === 'rates') {
+        renderRatesList();
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      const bgColor = type === 'success' ? 'bg-slate-900 border-emerald-500' : 'bg-slate-900 border-red-500';
+      const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+      
+      toast.className = `${bgColor} border-l-4 text-white p-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold mb-2 transition-all transform duration-300 translate-y-[-10px] opacity-0`;
+      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 ${type==='success'?'text-emerald-400':'text-red-400'}"></i><span>${message}</span>`;
+      
+      container.appendChild(toast);
+      if (window.lucide) lucide.createIcons();
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-[-10px]', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-[-10px]');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function showConfirmModal(title, message, onConfirm) {
+      const modal = document.getElementById('confirmModal');
+      document.getElementById('confirmModalTitle').innerText = title;
+      document.getElementById('confirmModalMessage').innerText = message;
+      
+      modal.classList.remove('hidden');
+
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+      const okBtn = document.getElementById('confirmOkBtn');
+
+      const closeHandler = () => {
+        modal.classList.add('hidden');
+        cancelBtn.removeEventListener('click', closeHandler);
+        okBtn.removeEventListener('click', okHandler);
+      };
+
+      const okHandler = () => {
+        onConfirm();
+        closeHandler();
+      };
+
+      cancelBtn.addEventListener('click', closeHandler);
+      okBtn.addEventListener('click', okHandler);
+    }
+
+    // ==========================================
+    // LOG WORK FORM & CALCULATIONS
+    // ==========================================
+    function initRegistrationForm() {
+      const dateInput = document.getElementById('logDate');
+      if (!dateInput.value) {
+        dateInput.value = getFormattedDate(0);
+      }
+      
+      const container = document.getElementById('logRowsContainer');
+      if (container.children.length === 0) {
+        addLogRow();
+      } else {
+        populateRateSelect();
+      }
+    }
+
+    function getRateOptionsHtml() {
+      if (rates.length === 0) return '<option value="">Ingen satser oprettet - Tilføj under "Satser"</option>';
+      return rates.map(rate => `<option value="${rate.id}">${escapeHtml(rate.name)} (${rate.price.toFixed(2)} kr. / ${escapeHtml(rate.unit)})</option>`).join('');
+    }
+
+    function populateRateSelect() {
+      const optionsHtml = getRateOptionsHtml();
+      document.querySelectorAll('.log-rate-select').forEach(select => {
+        const currentVal = select.value;
+        select.innerHTML = optionsHtml;
+        if (currentVal) select.value = currentVal;
+        updateRowUnit(select);
+      });
+      calculateLiveSummary();
+    }
+
+    function addLogRow() {
+      const container = document.getElementById('logRowsContainer');
+      const row = document.createElement('div');
+      row.className = 'log-row bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 relative';
+      
+      row.innerHTML = `
+        <button type="button" onclick="removeLogRow(this)" class="remove-row-btn absolute -top-2.5 -right-2.5 bg-white text-red-500 rounded-full shadow-sm hover:text-red-600 p-0.5 border border-slate-200"><i data-lucide="x-circle" class="w-5 h-5"></i></button>
+        <div class="mb-3">
+          <select class="log-rate-select w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" onchange="updateRowUnit(this); calculateLiveSummary()" required>
+            ${getRateOptionsHtml()}
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Mængde (<span class="unit-label">...</span>)</label>
+          <input type="number" step="0.01" min="0.1" class="log-quantity w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" oninput="calculateLiveSummary()" required>
+        </div>
+      `;
+      container.appendChild(row);
+      
+      const newSelect = row.querySelector('.log-rate-select');
+      updateRowUnit(newSelect);
+      updateRemoveButtons();
+      
+      if (window.lucide) lucide.createIcons();
+      calculateLiveSummary();
+    }
+
+    function removeLogRow(btn) {
+      const row = btn.closest('.log-row');
+      if (document.querySelectorAll('.log-row').length > 1) {
+        row.remove();
+        updateRemoveButtons();
+        calculateLiveSummary();
+      }
+    }
+
+    function updateRemoveButtons() {
+      const rows = document.querySelectorAll('.log-row');
+      rows.forEach(row => {
+        const btn = row.querySelector('.remove-row-btn');
+        btn.style.display = rows.length === 1 ? 'none' : 'block';
+      });
+    }
+
+    function updateRowUnit(selectElement) {
+      const rateId = selectElement.value;
+      const rate = rates.find(r => r.id === rateId);
+      const unitLabel = selectElement.closest('.log-row').querySelector('.unit-label');
+      if (rate && unitLabel) {
+        unitLabel.textContent = rate.unit;
+      }
+    }
+
+    function calculateLiveSummary() {
+      let totalDkk = 0;
+
+      document.querySelectorAll('.log-row').forEach(row => {
+        const rateId = row.querySelector('.log-rate-select').value;
+        const quantity = parseFloat(row.querySelector('.log-quantity').value) || 0;
+        
+        const rate = rates.find(r => r.id === rateId);
+        if (rate && quantity > 0) {
+          totalDkk += (quantity * rate.price);
+        }
+      });
+
+      const totalHours = parseFloat(document.getElementById('logHours').value) || 0;
+      const hourlyRate = totalHours > 0 ? (totalDkk / totalHours) : 0;
+      document.getElementById('liveTotalDkk').textContent = formatCurrency(totalDkk);
+      document.getElementById('liveHourlyRate').textContent = formatCurrency(hourlyRate) + '/t';
+    }
+
+    function handleSaveLog(e) {
+      e.preventDefault();
+
+      const date = document.getElementById('logDate').value;
+      const note = document.getElementById('logNote').value.trim();
+      const totalHoursEntered = parseFloat(document.getElementById('logHours').value) || 0;
+      const rows = document.querySelectorAll('.log-row');
+      
+      let hasError = false;
+      let newEntries = [];
+
+      // Beregn den samlede akkordløn for alle rækker først, så timerne kan
+      // fordeles forholdsmæssigt ud på hver enkelt sats (i stedet for at
+      // skulle indtastes for hver enkelt akkordsats).
+      let rowsData = [];
+      let grandTotalDkk = 0;
+      rows.forEach(row => {
+        const rateId = row.querySelector('.log-rate-select').value;
+        const quantity = parseFloat(row.querySelector('.log-quantity').value);
+        const rate = rates.find(r => r.id === rateId);
+        if (!rate) {
+          hasError = true;
+          return;
+        }
+        const rowTotalDkk = quantity * rate.price;
+        grandTotalDkk += rowTotalDkk;
+        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk });
+      });
+
+      rowsData.forEach(({ rate, quantity, totalDkk }) => {
+        const hours = grandTotalDkk > 0
+          ? totalHoursEntered * (totalDkk / grandTotalDkk)
+          : (totalHoursEntered / rowsData.length);
+        const hourlyRate = hours > 0 ? (totalDkk / hours) : 0;
+
+        newEntries.push({
+          id: 'entry-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          date,
+          rateId: rate.id,
+          rateName: rate.name,
+          unit: rate.unit,
+          pricePerUnit: rate.price,
+          quantity,
+          hours,
+          totalDkk,
+          hourlyRate,
+          note
+        });
+      });
+
+      if (hasError) {
+        showToast('Vælg venligst en gyldig akkordsats', 'error');
+        return;
+      }
+
+      newEntries.reverse().forEach(entry => entries.unshift(entry));
+      saveData();
+
+      document.getElementById('logRowsContainer').innerHTML = '';
+      addLogRow();
+      document.getElementById('logNote').value = '';
+      document.getElementById('logHours').value = '';
+      calculateLiveSummary();
+      updateHeaderBadge();
+      renderHistoryList(); // Opdaterer historik med det samme, hvis man kigger på den
+
+      showToast('Registrering(er) gemt!');
+    }
+
+    // ==========================================
+    // RATES MANAGEMENT
+    // ==========================================
+    function renderRatesList() {
+      const list = document.getElementById('ratesList');
+      list.innerHTML = '';
+
+      if (rates.length === 0) {
+        list.innerHTML = `
+          <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
+            <i data-lucide="tag" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+            <p class="text-xs text-slate-500 font-medium">Ingen akkordsatser oprettet endnu.</p>
+            <button onclick="openRateModal()" class="mt-3 bg-brand-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Opret din første sats</button>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      rates.forEach(rate => {
+        const item = document.createElement('div');
+        item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center';
+        item.innerHTML = `
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(rate.name)}</h4>
+            <div class="text-xs text-slate-500 mt-0.5">
+              <span class="font-bold text-slate-800">${formatNumber(rate.price)} kr.</span> pr. ${escapeHtml(rate.unit)}
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="editRate('${rate.id}')" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+              <i data-lucide="edit-2" class="w-4 h-4"></i>
+            </button>
+            <button onclick="confirmDeleteRate('${rate.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openRateModal(rateId = null) {
+      const modal = document.getElementById('rateModal');
+      const title = document.getElementById('rateModalTitle');
+      const form = document.getElementById('rateForm');
+      
+      form.reset();
+      document.getElementById('rateEditId').value = '';
+
+      if (rateId) {
+        const rate = rates.find(r => r.id === rateId);
+        if (rate) {
+          title.textContent = 'Rediger Akkordsats';
+          document.getElementById('rateEditId').value = rate.id;
+          document.getElementById('rateName').value = rate.name;
+          document.getElementById('rateUnit').value = rate.unit;
+          document.getElementById('ratePrice').value = rate.price;
+        }
+      } else {
+        title.textContent = 'Ny Akkordsats';
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeRateModal() {
+      document.getElementById('rateModal').classList.add('hidden');
+    }
+
+    function handleSaveRate(e) {
+      e.preventDefault();
+
+      const editId = document.getElementById('rateEditId').value;
+      const name = document.getElementById('rateName').value.trim();
+      const unit = document.getElementById('rateUnit').value.trim();
+      const price = parseFloat(document.getElementById('ratePrice').value);
+
+      if (editId) {
+        const index = rates.findIndex(r => r.id === editId);
+        if (index !== -1) {
+          rates[index] = { ...rates[index], name, unit, price };
+        }
+      } else {
+        rates.push({
+          id: 'rate-' + Date.now(),
+          name,
+          unit,
+          price
+        });
+      }
+
+      saveData();
+      populateRateSelect();
+      renderRatesList();
+      closeRateModal();
+      showToast('Akkordsats gemt!');
+    }
+
+    function editRate(id) {
+      openRateModal(id);
+    }
+
+    function confirmDeleteRate(id) {
+      showConfirmModal(
+        'Slet sats?',
+        'Er du sikker på, at du vil slette denne akkordsats?',
+        () => {
+          rates = rates.filter(r => r.id !== id);
+          saveData();
+          populateRateSelect();
+          renderRatesList();
+          showToast('Sats slettet');
+        }
+      );
+    }
+
+    // ==========================================
+    // STATISTIK & ANALYTICS DASHBOARD
+    // ==========================================
+    function setStatsFilter(filter) {
+      currentStatsFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-slate-900', 'text-white', 'shadow-sm');
+        btn.classList.add('bg-slate-200', 'text-slate-700');
+      });
+
+      const activeBtn = document.getElementById(`filter-${filter}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-slate-200', 'text-slate-700');
+        activeBtn.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
+      }
+
+      renderStats();
+    }
+
+    function getFilteredEntries() {
+      const now = new Date();
+      const todayStr = getFormattedDate(0);
+
+      return entries.filter(entry => {
+        const entryDate = new Date(entry.date);
+
+        if (currentStatsFilter === 'today') {
+          return entry.date === todayStr;
+        }
+        if (currentStatsFilter === 'week') {
+          const diffDays = Math.floor((now - entryDate) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays < 7;
+        }
+        if (currentStatsFilter === 'month') {
+          return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
+        }
+        if (currentStatsFilter === 'paymonth') {
+          const d = new Date(now);
+          let start, end;
+          if (d.getDate() >= 21) {
+            start = new Date(d.getFullYear(), d.getMonth(), 21);
+            end = new Date(d.getFullYear(), d.getMonth() + 1, 20, 23, 59, 59);
+          } else {
+            start = new Date(d.getFullYear(), d.getMonth() - 1, 21);
+            end = new Date(d.getFullYear(), d.getMonth(), 20, 23, 59, 59);
+          }
+          const entryDateObj = new Date(entry.date + 'T12:00:00'); 
+          return entryDateObj >= start && entryDateObj <= end;
+        }
+        if (currentStatsFilter === 'last30') {
+          const diffDays = Math.floor((now - entryDate) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays < 30;
+        }
+        return true; 
+      });
+    }
+
+    function renderStats() {
+      const filtered = getFilteredEntries();
+
+      const totalEarnings = filtered.reduce((sum, e) => sum + e.totalDkk, 0);
+      const totalHours = filtered.reduce((sum, e) => sum + e.hours, 0);
+      const totalUnits = filtered.reduce((sum, e) => sum + e.quantity, 0);
+      const avgHourlyWage = totalHours > 0 ? (totalEarnings / totalHours) : 0;
+
+      document.getElementById('statTotalEarnings').textContent = formatCurrency(totalEarnings);
+      document.getElementById('statHourlyWage').textContent = formatCurrency(avgHourlyWage) + '/t';
+      document.getElementById('statTotalHours').textContent = formatNumber(totalHours) + ' t';
+      document.getElementById('statTotalUnits').textContent = formatNumber(totalUnits) + ' enheder';
+
+      renderTaskBreakdown(filtered);
+      renderChart(filtered);
+    }
+
+    function renderTaskBreakdown(filtered) {
+      const container = document.getElementById('taskBreakdownList');
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-2">Ingen data for denne periode.</p>';
+        return;
+      }
+
+      const groups = {};
+      filtered.forEach(e => {
+        if (!groups[e.rateName]) {
+          groups[e.rateName] = { quantity: 0, unit: e.unit, totalDkk: 0, hours: 0 };
+        }
+        groups[e.rateName].quantity += e.quantity;
+        groups[e.rateName].totalDkk += e.totalDkk;
+        groups[e.rateName].hours += e.hours;
+      });
+
+      Object.keys(groups).forEach(name => {
+        const g = groups[name];
+        const effHourly = g.hours > 0 ? (g.totalDkk / g.hours) : 0;
+
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center py-2 border-b border-slate-100 last:border-0';
+        row.innerHTML = `
+          <div>
+            <div class="font-bold text-slate-800">${escapeHtml(name)}</div>
+            <div class="text-[10px] text-slate-500">${formatNumber(g.quantity)} ${escapeHtml(g.unit)} • ${formatNumber(g.hours)}t</div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-slate-900">${formatCurrency(g.totalDkk)}</div>
+            <div class="text-[10px] text-brand-600 font-semibold">${formatCurrency(effHourly)}/t</div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function renderChart(filteredData) {
+      const ctx = document.getElementById('statsChart').getContext('2d');
+      const dateMap = {};
+      const sorted = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      sorted.forEach(e => {
+        if (!dateMap[e.date]) {
+          dateMap[e.date] = { dkk: 0, hours: 0 };
+        }
+        dateMap[e.date].dkk += e.totalDkk;
+        dateMap[e.date].hours += e.hours;
+      });
+
+      const labels = Object.keys(dateMap).map(d => {
+        const parts = d.split('-');
+        return `${parts[2]}/${parts[1]}`;
+      });
+
+      const hourlyRates = Object.keys(dateMap).map(d => {
+        const item = dateMap[d];
+        return item.hours > 0 ? (item.dkk / item.hours).toFixed(0) : 0;
+      });
+
+      const totalEarnings = Object.keys(dateMap).map(d => dateMap[d].dkk);
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.length ? labels : ['Ingen data'],
+          datasets: [
+            {
+              label: 'Timeløn (kr./t)',
+              data: hourlyRates.length ? hourlyRates : [0],
+              type: 'line',
+              borderColor: '#16a34a',
+              borderWidth: 3,
+              backgroundColor: 'rgba(22, 163, 74, 0.1)',
+              tension: 0.3,
+              yAxisID: 'y1',
+              pointRadius: 4,
+              pointBackgroundColor: '#16a34a'
+            },
+            {
+              label: 'Indtjening (kr.)',
+              data: totalEarnings.length ? totalEarnings : [0],
+              backgroundColor: '#334155',
+              borderRadius: 6,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                boxWidth: 12,
+                font: { size: 10, family: 'Inter' }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 10 } }
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              grid: { color: '#f1f5f9' },
+              ticks: { font: { size: 9 } }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              grid: { display: false },
+              ticks: { font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // HISTORIK (Log History) & EXPORT
+    // ==========================================
+    function renderHistoryList() {
+      const container = document.getElementById('historyList');
+      const searchInput = document.getElementById('historySearch');
+      const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+      container.innerHTML = '';
+
+      const filtered = entries.filter(e => {
+        if (!query) return true; // Viser ALT hvis søgefeltet er tomt
+        return e.rateName.toLowerCase().includes(query) || 
+               (e.note && e.note.toLowerCase().includes(query)) ||
+               e.date.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
+            <i data-lucide="file-text" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+            <p class="text-xs text-slate-500 font-medium">Ingen registreringer fundet.</p>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      filtered.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
+        
+        const dateParts = entry.date.split('-');
+        const formattedDate = `${dateParts[2]}. ${getDanishMonthName(parseInt(dateParts[1]) - 1)} ${dateParts[0]}`;
+
+        item.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">${formattedDate}</span>
+              <h4 class="font-bold text-slate-900 text-sm mt-0.5">${escapeHtml(entry.rateName)}</h4>
+            </div>
+            <div class="text-right">
+              <span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>
+              <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                ${formatCurrency(entry.hourlyRate)}/t
+              </span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-600">
+            <div>
+              <span class="font-semibold text-slate-800">${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)}</span>
+              <span class="text-slate-400 mx-1">•</span>
+              <span>${formatNumber(entry.hours)} timer</span>
+            </div>
+            <button onclick="confirmDeleteEntry('${entry.id}')" class="text-slate-400 hover:text-red-600 p-1">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          ${entry.note ? `<div class="text-[11px] bg-slate-50 p-2 rounded-lg text-slate-500 italic mt-1">"${escapeHtml(entry.note)}"</div>` : ''}
+        `;
+
+        container.appendChild(item);
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function confirmDeleteEntry(id) {
+      showConfirmModal(
+        'Slet registrering?',
+        'Er du sikker på, at du vil slette denne registrering fra historikken?',
+        () => {
+          entries = entries.filter(e => e.id !== id);
+          saveData();
+          renderHistoryList();
+          updateHeaderBadge();
+          showToast('Registrering slettet');
+        }
+      );
+    }
+
+    function updateHeaderBadge() {
+      const todayStr = getFormattedDate(0);
+      const todayTotal = entries
+        .filter(e => e.date === todayStr)
+        .reduce((sum, e) => sum + e.totalDkk, 0);
+
+      document.getElementById('headerTodayEarned').textContent = formatCurrency(todayTotal);
+    }
+
+    function exportToCSV() {
+      if (entries.length === 0) {
+        showToast('Ingen data at eksportere', 'error');
+        return;
+      }
+
+      let csv = 'Dato;Opgave;Mængde;Enhed;Timer;Total DKK;Timeløn DKK/t;Note\n';
+
+      entries.forEach(e => {
+        csv += `"${e.date}";"${e.rateName}";"${e.quantity}";"${e.unit}";"${e.hours}";"${e.totalDkk.toFixed(2)}";"${e.hourlyRate.toFixed(2)}";"${e.note || ''}"\n`;
+      });
+
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `AkkordLøn_Eksport_${getFormattedDate(0)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showToast('CSV fil downloadet!');
+    }
+
+    // ==========================================
+    // UTILITIES & HELPER FUNCTIONS
+    // ==========================================
+    function formatCurrency(val) {
+      return new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(val || 0);
+    }
+
+    function formatNumber(val) {
+      return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 }).format(val || 0);
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function getDanishMonthName(index) {
+      const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+      return months[index] || '';
+    }
+
+    // Application Initialization on Window Load
+    let appStarted = false;
+
+    window.onload = function() {
+      if (window.lucide) lucide.createIcons();
+
+      if (!firebaseReady) {
+        // Ingen Firebase-konfiguration sat op endnu - kør appen som normalt (kun lokalt)
+        startApp();
+        appStarted = true;
+        return;
+      }
+
+      auth.onAuthStateChanged(function(user) {
+        if (user) {
+          document.getElementById('authGate').classList.add('hidden');
+          loadUserDataFromCloud(user);
+        } else {
+          currentUser = null;
+          syncEnabled = false;
+          updateAccountIndicator();
+          renderAccountModalBody();
+          if (!appStarted) {
+            document.getElementById('authGate').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+          }
+        }
+
+        if (!appStarted) {
+          startApp();
+          appStarted = true;
+        }
+      });
+    };
+
+  </script>
+</body>
+</html>
