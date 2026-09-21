@@ -172,8 +172,8 @@
                 <span id="liveTotalDkk" class="text-xl font-black text-emerald-400">0,00 kr.</span>
               </div>
               <div class="border-l border-slate-800 pl-3">
-                <span class="text-[11px] text-slate-400 block">Effektiv Timeløn</span>
-                <span id="liveHourlyRate" class="text-xl font-black text-brand-400">0,00 kr./t</span>
+                <span class="text-[10px] text-slate-500 block">Effektiv timeløn</span>
+                <span id="liveHourlyRate" class="text-sm font-semibold text-slate-400">0,00 kr./t</span>
               </div>
             </div>
             <div id="liveTimelonWrap" class="hidden border-t border-slate-800 pt-3">
@@ -225,9 +225,9 @@
         <!-- Time Filter Pills -->
         <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           <button onclick="setStatsFilter('today')" id="filter-today" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">I dag</button>
-          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Denne uge</button>
+          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne uge</button>
           <button onclick="setStatsFilter('month')" id="filter-month" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne måned</button>
-          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Lønmåned (21.-20.)</button>
+          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Lønmåned (21.-20.)</button>
           <button onclick="setStatsFilter('last30')" id="filter-last30" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Sidste 30 dage</button>
           <button onclick="setStatsFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Altid</button>
           <button onclick="toggleCustomDatePicker()" id="filter-custom" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700 flex items-center gap-1">
@@ -262,13 +262,10 @@
           </div>
 
           <!-- Metric 2: Effective Hourly Wage -->
-          <div class="bg-emerald-500 text-white p-4 rounded-2xl shadow-md shadow-emerald-500/20 relative overflow-hidden">
-            <div class="text-[11px] font-semibold text-emerald-100 uppercase tracking-wider">Effektiv Timeløn</div>
-            <div id="statHourlyWage" class="text-xl font-extrabold text-white mt-1">0 kr./t</div>
-            <div class="mt-2 flex items-center text-[10px] text-emerald-100 font-medium gap-1">
-              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-              <span>Gennemsnit i perioden</span>
-            </div>
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effektiv Timeløn</div>
+            <div id="statHourlyWage" class="text-xl font-extrabold text-slate-900 mt-1">0 kr./t</div>
+            <div class="mt-2 text-[10px] text-slate-400 font-medium">Gennemsnit i perioden</div>
           </div>
 
           <!-- Metric 3: Total Hours -->
@@ -341,6 +338,10 @@
       <!-- ========================================== -->
       <section id="tab-history" class="tab-content space-y-4 hidden">
         
+        <button id="historyBackToOwnBtn" onclick="stopViewingEmployee()" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-800 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til mine egne registreringer
+        </button>
+
         <div class="flex justify-between items-center">
           <div>
             <h2 class="text-lg font-bold text-slate-900">Arbejdshistorik</h2>
@@ -390,6 +391,10 @@
         <div id="employeesList" class="space-y-2.5">
           <!-- Rendered dynamically via JS -->
         </div>
+
+        <button onclick="confirmDeleteCompany()" class="w-full py-2.5 text-red-600 font-semibold text-xs hover:bg-red-50 rounded-xl border border-red-100">
+          Slet virksomhed
+        </button>
 
       </section>
 
@@ -650,7 +655,7 @@
 
     let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
     let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
-    let currentStatsFilter = 'week';
+    let currentStatsFilter = 'paymonth';
     let customDateRange = null; // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } for "Vælg periode"
     let chartInstance = null;
 
@@ -747,6 +752,11 @@
     }
 
     function signOutUser() {
+      // Nulstil evt. "kigger på medarbejder"-tilstand, så man ikke sidder
+      // fast i skrivebeskyttet visning efter log-ud/log-ind som en anden.
+      if (viewingEmployee) {
+        stopViewingEmployee();
+      }
       detachRealtimeListeners();
       if (auth) auth.signOut();
       closeAccountModal();
@@ -807,8 +817,11 @@
         body.innerHTML = `
           <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <img src="${currentUser.photoURL || ''}" onerror="this.style.display='none'" class="w-10 h-10 rounded-full">
-            <div class="min-w-0">
-              <div class="font-bold text-sm text-slate-900 truncate">${escapeHtml(currentUser.displayName || 'Bruger')}</div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-sm text-slate-900 truncate">${escapeHtml(currentUser.displayName || 'Bruger')}</span>
+                ${myCompany ? '<span class="text-[9px] font-black uppercase tracking-wider bg-brand-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">Administrator</span>' : ''}
+              </div>
               <div class="text-xs text-slate-500 truncate">${escapeHtml(currentUser.email || '')}</div>
             </div>
           </div>
@@ -874,6 +887,19 @@
       currentUser = user;
       syncEnabled = true;
       updateAccountIndicator();
+      applyCachedCompanyInfo(user.uid);
+
+      // Sikrer at et nyt login aldrig arver en efterladt "kigger på
+      // medarbejder"-tilstand fra en tidligere bruger i samme fane.
+      if (viewingEmployee) {
+        viewingEmployee = null;
+        ownEntries = null;
+        ownRates = null;
+        document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+        document.getElementById('nav-register').classList.remove('hidden');
+        document.getElementById('nav-rates').classList.remove('hidden');
+        document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+      }
 
       const userDocRef = db.collection('users').doc(user.uid);
 
@@ -938,6 +964,22 @@
     // ==========================================
     let myMembershipCompanyName = null; // navn på virksomheden man er tilknyttet som medarbejder (hvis nogen)
 
+    // Genskaber administrator-status med det samme fra en lokal cache, så man
+    // ikke oplever et kort "glimt" af at fremstå som almindelig medarbejder,
+    // mens Firestore-opslaget stadig er undervejs. Den rigtige, aktuelle
+    // status bekræftes altid bagefter af loadCompanyInfo().
+    function applyCachedCompanyInfo(uid) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('akkord_myCompany') || 'null');
+        if (cached && cached.ownerId === uid) {
+          myCompany = cached;
+          document.getElementById('nav-employees').classList.remove('hidden');
+          document.getElementById('navGrid').classList.remove('grid-cols-4');
+          document.getElementById('navGrid').classList.add('grid-cols-5');
+        }
+      } catch (err) { /* ignorer ugyldig cache */ }
+    }
+
     // Tjekker om brugeren ejer en virksomhed, og/eller er tilknyttet én som
     // medarbejder. Køres efter login, og opdaterer kontomenu + Medarbejdere-fanen.
     function loadCompanyInfo() {
@@ -947,11 +989,13 @@
         if (!snapshot.empty) {
           const doc = snapshot.docs[0];
           myCompany = { id: doc.id, ...doc.data() };
+          localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
           document.getElementById('nav-employees').classList.remove('hidden');
           document.getElementById('navGrid').classList.remove('grid-cols-4');
           document.getElementById('navGrid').classList.add('grid-cols-5');
         } else {
           myCompany = null;
+          localStorage.removeItem('akkord_myCompany');
           document.getElementById('nav-employees').classList.add('hidden');
           document.getElementById('navGrid').classList.remove('grid-cols-5');
           document.getElementById('navGrid').classList.add('grid-cols-4');
@@ -963,7 +1007,16 @@
         const companyId = doc.exists ? doc.data().companyId : null;
         if (companyId) {
           db.collection('companies').doc(companyId).get().then(companyDoc => {
-            myMembershipCompanyName = companyDoc.exists ? companyDoc.data().name : null;
+            if (companyDoc.exists) {
+              myMembershipCompanyName = companyDoc.data().name;
+            } else {
+              // Virksomheden er blevet slettet af ejeren - ryd op i egen
+              // tilknytning (egne satser/registreringer er upåvirkede).
+              myMembershipCompanyName = null;
+              db.collection('users').doc(currentUser.uid).update({
+                companyId: firebase.firestore.FieldValue.delete()
+              }).catch(() => {});
+            }
             renderAccountModalBody();
           });
         } else {
@@ -1000,6 +1053,7 @@
         createdAt: new Date().toISOString()
       }).then(() => {
         myCompany = { id: companyRef.id, ownerId: currentUser.uid, name, inviteCode };
+        localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
         document.getElementById('nav-employees').classList.remove('hidden');
         document.getElementById('navGrid').classList.remove('grid-cols-4');
         document.getElementById('navGrid').classList.add('grid-cols-5');
@@ -1008,6 +1062,40 @@
       }).catch(err => {
         console.error('Kunne ikke oprette virksomhed:', err);
         showToast('Kunne ikke oprette virksomhed', 'error');
+      });
+    }
+
+    function confirmDeleteCompany() {
+      if (!myCompany) return;
+      showConfirmModal(
+        'Slet virksomhed?',
+        `Er du sikker på, at du vil slette "${myCompany.name}"? Alle medarbejdere bliver frigjort fra virksomheden og mister din adgang til deres data - men de beholder selv alle deres egne satser og registreringer. Dette kan ikke fortrydes.`,
+        deleteCompany,
+        'Slet virksomhed'
+      );
+    }
+
+    function deleteCompany() {
+      if (!myCompany || !db) return;
+      const companyId = myCompany.id;
+      const companyName = myCompany.name;
+
+      db.collection('companies').doc(companyId).collection('employees').get().then(snapshot => {
+        return Promise.all(snapshot.docs.map(d => d.ref.delete()));
+      }).then(() => {
+        return db.collection('companies').doc(companyId).delete();
+      }).then(() => {
+        myCompany = null;
+        localStorage.removeItem('akkord_myCompany');
+        document.getElementById('nav-employees').classList.add('hidden');
+        document.getElementById('navGrid').classList.remove('grid-cols-5');
+        document.getElementById('navGrid').classList.add('grid-cols-4');
+        renderAccountModalBody();
+        switchTab('register');
+        showToast('"' + companyName + '" er slettet - medarbejderne beholder deres egne data');
+      }).catch(err => {
+        console.error('Kunne ikke slette virksomheden:', err);
+        showToast('Kunne ikke slette virksomheden', 'error');
       });
     }
 
@@ -1127,6 +1215,7 @@
         document.getElementById('viewingEmployeeName').textContent = name;
         document.getElementById('nav-register').classList.add('hidden');
         document.getElementById('nav-rates').classList.add('hidden');
+        document.getElementById('historyBackToOwnBtn').classList.remove('hidden');
 
         switchTab('history');
         refreshAllViews();
@@ -1147,6 +1236,7 @@
       document.getElementById('viewingEmployeeBanner').classList.add('hidden');
       document.getElementById('nav-register').classList.remove('hidden');
       document.getElementById('nav-rates').classList.remove('hidden');
+      document.getElementById('historyBackToOwnBtn').classList.add('hidden');
 
       if (currentUser && db) {
         attachRealtimeListeners(db.collection('users').doc(currentUser.uid));
@@ -2397,6 +2487,20 @@
           currentUser = null;
           syncEnabled = false;
           detachRealtimeListeners();
+          // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
+          // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
+          // uanset hvordan log-ud'et skete.
+          if (viewingEmployee) {
+            viewingEmployee = null;
+            entries = ownEntries || entries;
+            rates = ownRates || rates;
+            ownEntries = null;
+            ownRates = null;
+            document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+            document.getElementById('nav-register').classList.remove('hidden');
+            document.getElementById('nav-rates').classList.remove('hidden');
+            document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+          }
           updateAccountIndicator();
           renderAccountModalBody();
           if (!appStarted) {
