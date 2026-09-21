@@ -63,6 +63,15 @@
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
 
+  <!-- Read-Only Banner: vist mens en arbejdsgiver kigger på en medarbejders data -->
+  <div id="viewingEmployeeBanner" class="hidden sticky top-0 z-50 bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-2 shadow-md">
+    <div class="flex items-center gap-2 text-xs font-semibold min-w-0">
+      <i data-lucide="eye" class="w-4 h-4 flex-shrink-0"></i>
+      <span class="truncate">Viser <span id="viewingEmployeeName" class="font-black"></span>s data (skrivebeskyttet)</span>
+    </div>
+    <button onclick="stopViewingEmployee()" class="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0">Tilbage</button>
+  </div>
+
   <!-- Top App Bar -->
   <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800">
     <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
@@ -355,12 +364,41 @@
 
       </section>
 
+      <!-- ========================================== -->
+      <!-- TAB 5: MEDARBEJDERE (kun for arbejdsgivere) -->
+      <!-- ========================================== -->
+      <section id="tab-employees" class="tab-content space-y-4 hidden">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Mine Medarbejdere</h2>
+          <p class="text-xs text-slate-500">Se dine medarbejderes registreringer og statistik</p>
+        </div>
+
+        <!-- Invite Code Card -->
+        <div class="bg-slate-900 rounded-2xl p-4 text-white space-y-2">
+          <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din invitationskode</div>
+          <div class="flex items-center justify-between gap-2">
+            <span id="companyInviteCodeDisplay" class="text-2xl font-black tracking-[0.2em] text-emerald-400">------</span>
+            <button onclick="copyInviteCode()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Kopiér
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400">Del denne kode med en medarbejder - de indtaster den under deres egen konto-menu (👤-ikonet) for at blive tilknyttet.</p>
+        </div>
+
+        <!-- Employees List -->
+        <div id="employeesList" class="space-y-2.5">
+          <!-- Rendered dynamically via JS -->
+        </div>
+
+      </section>
+
     </div>
   </main>
 
   <!-- Bottom Navigation Bar (Mobile Native Style) -->
   <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
-    <div class="max-w-md mx-auto grid grid-cols-4 h-16">
+    <div id="navGrid" class="max-w-md mx-auto grid grid-cols-4 h-16">
       
       <button onclick="switchTab('register')" id="nav-register" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
         <i data-lucide="pen-tool" class="w-5 h-5"></i>
@@ -380,6 +418,11 @@
       <button onclick="switchTab('history')" id="nav-history" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="history" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Historik</span>
+      </button>
+
+      <button onclick="switchTab('employees')" id="nav-employees" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Medarbejdere</span>
       </button>
 
     </div>
@@ -560,6 +603,10 @@
     let db = null;
     let currentUser = null;
     let syncEnabled = false;
+    let myCompany = null; // { id, name, inviteCode } - udfyldt hvis brugeren ejer en virksomhed
+    let viewingEmployee = null; // { uid, name } - sat mens en arbejdsgiver kigger på en medarbejders data (skrivebeskyttet)
+    let ownEntries = null; // midlertidig opbevaring af egne data, mens man kigger på en medarbejder
+    let ownRates = null;
 
     try {
       if (firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('INDSÆT') === -1) {
@@ -729,6 +776,34 @@
         return;
       }
       if (currentUser) {
+        let companySectionHtml = '';
+        if (myCompany) {
+          companySectionHtml = `
+            <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-slate-900 truncate">${escapeHtml(myCompany.name)}</div>
+                <div class="text-[10px] text-slate-500">Du er ejer</div>
+              </div>
+              <button onclick="closeAccountModal(); switchTab('employees');" class="text-brand-600 text-xs font-bold whitespace-nowrap">Se medarbejdere →</button>
+            </div>
+          `;
+        } else if (myMembershipCompanyName) {
+          companySectionHtml = `
+            <div class="bg-slate-50 rounded-xl p-3">
+              <div class="text-xs font-bold text-slate-900">${escapeHtml(myMembershipCompanyName)}</div>
+              <div class="text-[10px] text-slate-500">Du er tilknyttet som medarbejder</div>
+            </div>
+          `;
+        } else {
+          companySectionHtml = `
+            <button onclick="promptCreateCompany()" class="w-full py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">+ Opret virksomhed</button>
+            <div class="flex gap-2">
+              <input type="text" id="joinCompanyCodeInput" placeholder="Indtast kode" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500">
+              <button onclick="handleRedeemInviteCode()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap">Tilknyt</button>
+            </div>
+          `;
+        }
+
         body.innerHTML = `
           <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <img src="${currentUser.photoURL || ''}" onerror="this.style.display='none'" class="w-10 h-10 rounded-full">
@@ -739,6 +814,10 @@
           </div>
           <div class="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
             <i data-lucide="cloud" class="w-3.5 h-3.5"></i> Dine data synkroniseres til skyen
+          </div>
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Virksomhed</div>
+            ${companySectionHtml}
           </div>
           <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
         `;
@@ -811,6 +890,7 @@
 
         const finishLogin = () => {
           attachRealtimeListeners(userDocRef);
+          loadCompanyInfo();
           showToast('Logget ind som ' + (user.displayName || user.email));
         };
 
@@ -853,6 +933,229 @@
       if (window.lucide) lucide.createIcons();
     }
 
+    // ==========================================
+    // VIRKSOMHED & MEDARBEJDERE
+    // ==========================================
+    let myMembershipCompanyName = null; // navn på virksomheden man er tilknyttet som medarbejder (hvis nogen)
+
+    // Tjekker om brugeren ejer en virksomhed, og/eller er tilknyttet én som
+    // medarbejder. Køres efter login, og opdaterer kontomenu + Medarbejdere-fanen.
+    function loadCompanyInfo() {
+      if (!currentUser || !db) return;
+
+      db.collection('companies').where('ownerId', '==', currentUser.uid).limit(1).get().then(snapshot => {
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0];
+          myCompany = { id: doc.id, ...doc.data() };
+          document.getElementById('nav-employees').classList.remove('hidden');
+          document.getElementById('navGrid').classList.remove('grid-cols-4');
+          document.getElementById('navGrid').classList.add('grid-cols-5');
+        } else {
+          myCompany = null;
+          document.getElementById('nav-employees').classList.add('hidden');
+          document.getElementById('navGrid').classList.remove('grid-cols-5');
+          document.getElementById('navGrid').classList.add('grid-cols-4');
+        }
+        renderAccountModalBody();
+      }).catch(err => console.error('Kunne ikke tjekke virksomhedsejerskab:', err));
+
+      db.collection('users').doc(currentUser.uid).get().then(doc => {
+        const companyId = doc.exists ? doc.data().companyId : null;
+        if (companyId) {
+          db.collection('companies').doc(companyId).get().then(companyDoc => {
+            myMembershipCompanyName = companyDoc.exists ? companyDoc.data().name : null;
+            renderAccountModalBody();
+          });
+        } else {
+          myMembershipCompanyName = null;
+        }
+      }).catch(err => console.error('Kunne ikke tjekke virksomheds-tilknytning:', err));
+    }
+
+    function generateInviteCode() {
+      // Undgår tegn der let forveksles (0/O, 1/I)
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
+    }
+
+    function promptCreateCompany() {
+      const name = prompt('Navngiv din virksomhed (fx dit firmanavn):');
+      if (!name || !name.trim()) return;
+      createCompany(name.trim());
+    }
+
+    function createCompany(name) {
+      if (!currentUser || !db) return;
+      const companyRef = db.collection('companies').doc();
+      const inviteCode = generateInviteCode();
+
+      companyRef.set({
+        ownerId: currentUser.uid,
+        name,
+        inviteCode,
+        createdAt: new Date().toISOString()
+      }).then(() => {
+        myCompany = { id: companyRef.id, ownerId: currentUser.uid, name, inviteCode };
+        document.getElementById('nav-employees').classList.remove('hidden');
+        document.getElementById('navGrid').classList.remove('grid-cols-4');
+        document.getElementById('navGrid').classList.add('grid-cols-5');
+        renderAccountModalBody();
+        showToast('Virksomheden "' + name + '" er oprettet!');
+      }).catch(err => {
+        console.error('Kunne ikke oprette virksomhed:', err);
+        showToast('Kunne ikke oprette virksomhed', 'error');
+      });
+    }
+
+    function handleRedeemInviteCode() {
+      const input = document.getElementById('joinCompanyCodeInput');
+      if (!input) return;
+      const code = input.value.trim().toUpperCase();
+      if (!code) {
+        showToast('Indtast venligst en kode', 'error');
+        return;
+      }
+      if (!currentUser || !db) {
+        showToast('Du skal være logget ind med Google for at tilknytte en kode', 'error');
+        return;
+      }
+
+      db.collection('companies').where('inviteCode', '==', code).limit(1).get().then(snapshot => {
+        if (snapshot.empty) {
+          showToast('Koden blev ikke fundet - tjek at den er skrevet korrekt', 'error');
+          return;
+        }
+        const companyDoc = snapshot.docs[0];
+        const companyId = companyDoc.id;
+        const companyName = companyDoc.data().name;
+
+        db.collection('users').doc(currentUser.uid).set({ companyId }, { merge: true }).then(() => {
+          db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            joinedAt: new Date().toISOString()
+          }).then(() => {
+            myMembershipCompanyName = companyName;
+            input.value = '';
+            renderAccountModalBody();
+            showToast('Du er nu tilknyttet ' + companyName + '!');
+          });
+        });
+      }).catch(err => {
+        console.error('Kunne ikke tilknytte koden:', err);
+        showToast('Kunne ikke tilknytte koden', 'error');
+      });
+    }
+
+    function copyInviteCode() {
+      if (!myCompany) return;
+      navigator.clipboard.writeText(myCompany.inviteCode).then(() => {
+        showToast('Koden er kopieret!');
+      }).catch(() => {
+        showToast('Kunne ikke kopiere - koden er ' + myCompany.inviteCode, 'error');
+      });
+    }
+
+    // Henter og viser listen af medarbejdere tilknyttet ens virksomhed
+    function loadEmployeesList() {
+      const codeDisplay = document.getElementById('companyInviteCodeDisplay');
+      const container = document.getElementById('employeesList');
+      if (!myCompany) {
+        if (container) {
+          container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Du skal oprette en virksomhed under kontomenuen (👤-ikonet) for at tilføje medarbejdere.</p>';
+        }
+        return;
+      }
+
+      if (codeDisplay) codeDisplay.textContent = myCompany.inviteCode;
+
+      db.collection('companies').doc(myCompany.id).collection('employees').get().then(snapshot => {
+        const list = snapshot.docs.map(d => ({ uid: d.id, ...d.data() }));
+        renderEmployeesList(list);
+      }).catch(err => {
+        console.error('Kunne ikke hente medarbejdere:', err);
+      });
+    }
+
+    function renderEmployeesList(list) {
+      const container = document.getElementById('employeesList');
+      if (!container) return;
+
+      if (list.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen medarbejdere endnu. Del din kode ovenfor med dem, så de kan tilknytte sig.</p>';
+        return;
+      }
+
+      container.innerHTML = list.map(emp => `
+        <button onclick="viewEmployeeData('${emp.uid}', '${escapeHtml(emp.name || emp.email || 'Medarbejder').replace(/'/g, "\\'")}')" class="w-full text-left bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <div class="min-w-0">
+            <div class="font-bold text-slate-900 text-sm truncate">${escapeHtml(emp.name || 'Unavngivet')}</div>
+            <div class="text-xs text-slate-500 truncate">${escapeHtml(emp.email || '')}</div>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+        </button>
+      `).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
+    // Kobler egne live-lyttere fra, mens man kigger, for at undgå at de
+    // overskriver den viste medarbejders data.
+    function viewEmployeeData(uid, name) {
+      if (!myCompany || !db) return;
+
+      ownEntries = entries;
+      ownRates = rates;
+      detachRealtimeListeners();
+
+      const empDocRef = db.collection('users').doc(uid);
+
+      Promise.all([
+        empDocRef.get(),
+        empDocRef.collection('entries').get()
+      ]).then(([doc, snapshot]) => {
+        rates = (doc.exists && doc.data().rates) ? doc.data().rates : [];
+        entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        viewingEmployee = { uid, name };
+        document.getElementById('viewingEmployeeBanner').classList.remove('hidden');
+        document.getElementById('viewingEmployeeName').textContent = name;
+        document.getElementById('nav-register').classList.add('hidden');
+        document.getElementById('nav-rates').classList.add('hidden');
+
+        switchTab('history');
+        refreshAllViews();
+        showToast('Viser data for ' + name);
+      }).catch(err => {
+        console.error('Kunne ikke hente medarbejderens data:', err);
+        showToast('Kunne ikke hente medarbejderens data', 'error');
+      });
+    }
+
+    function stopViewingEmployee() {
+      viewingEmployee = null;
+      entries = ownEntries || [];
+      rates = ownRates || DEFAULT_RATES;
+      ownEntries = null;
+      ownRates = null;
+
+      document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+      document.getElementById('nav-register').classList.remove('hidden');
+      document.getElementById('nav-rates').classList.remove('hidden');
+
+      if (currentUser && db) {
+        attachRealtimeListeners(db.collection('users').doc(currentUser.uid));
+      }
+
+      refreshAllViews();
+      switchTab('register');
+    }
+
     // Selve app-opstarten (formular, historik osv.) - køres når vi ved om
     // brugeren er logget ind, logget ud, eller har valgt at fortsætte uden login.
     function startApp() {
@@ -891,6 +1194,8 @@
         renderHistoryList();
       } else if (tabId === 'rates') {
         renderRatesList();
+      } else if (tabId === 'employees') {
+        loadEmployeesList();
       }
 
       if (window.lucide) lucide.createIcons();
@@ -1079,6 +1384,11 @@
     function handleSaveLog(e) {
       e.preventDefault();
 
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke tilføje registreringer for en medarbejder', 'error');
+        return;
+      }
+
       const date = document.getElementById('logDate').value;
       const note = document.getElementById('logNote').value.trim();
       const totalHoursEntered = parseFloat(document.getElementById('logHours').value) || 0;
@@ -1261,6 +1571,11 @@
     function handleSaveRate(e) {
       e.preventDefault();
 
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders satser', 'error');
+        return;
+      }
+
       const editId = document.getElementById('rateEditId').value;
       const name = document.getElementById('rateName').value.trim();
       const unit = document.getElementById('rateUnit').value.trim();
@@ -1319,6 +1634,10 @@
     }
 
     function confirmDeleteRate(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders satser', 'error');
+        return;
+      }
       showConfirmModal(
         'Slet sats?',
         'Er du sikker på, at du vil slette denne akkordsats?',
@@ -1657,6 +1976,10 @@
     }
 
     function confirmDeleteEntry(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders registreringer', 'error');
+        return;
+      }
       showConfirmModal(
         'Slet registrering?',
         'Er du sikker på, at du vil slette denne registrering fra historikken?',
@@ -1675,6 +1998,10 @@
     // EDIT HISTORY ENTRY
     // ==========================================
     function openEditEntryModal(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders registreringer', 'error');
+        return;
+      }
       const entry = entries.find(e => e.id === id);
       if (!entry) return;
 
@@ -1760,6 +2087,11 @@
 
     function handleSaveEditedEntry(e) {
       e.preventDefault();
+
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders registreringer', 'error');
+        return;
+      }
 
       const id = document.getElementById('editEntryId').value;
       const entry = entries.find(en => en.id === id);
