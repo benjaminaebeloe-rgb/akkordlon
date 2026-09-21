@@ -9,6 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (til rigtig Excel-eksport med flere faneblade) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Firebase (Google-login + cloud-sync) -->
@@ -77,7 +79,7 @@
       <!-- Account / Sync Button -->
       <div class="flex items-center gap-2">
         <div class="text-right bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
-          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">I dag</div>
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Din løn</div>
           <div id="headerTodayEarned" class="text-xs font-bold text-emerald-400">0 kr.</div>
         </div>
         <button onclick="openAccountModal()" id="accountBtn" class="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-white transition-colors relative">
@@ -119,8 +121,12 @@
 
           <!-- Total Hours Field (fælles for hele registreringen) -->
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logHours">Timer i alt</label>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logHours">Timer i alt (hele dagen)</label>
             <input type="number" step="0.1" min="0.1" id="logHours" oninput="calculateLiveSummary()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            <div id="hoursWarning" class="hidden mt-2 text-[11px] text-red-700 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
+              <span>Timeløn-timerne overstiger dagens samlede timer - akkordens timer bliver sat til 0.</span>
+            </div>
           </div>
 
           <!-- Dynamic Rates Container -->
@@ -153,13 +159,17 @@
             <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Beregnet Løn for Registrering</div>
             <div class="grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
               <div>
-                <span class="text-[11px] text-slate-400 block">Samlet Akkordløn</span>
+                <span class="text-[11px] text-slate-400 block">Akkordløn i alt</span>
                 <span id="liveTotalDkk" class="text-xl font-black text-emerald-400">0,00 kr.</span>
               </div>
               <div class="border-l border-slate-800 pl-3">
                 <span class="text-[11px] text-slate-400 block">Effektiv Timeløn</span>
                 <span id="liveHourlyRate" class="text-xl font-black text-brand-400">0,00 kr./t</span>
               </div>
+            </div>
+            <div id="liveTimelonWrap" class="hidden border-t border-slate-800 pt-3">
+              <span class="text-[11px] text-slate-400 block">Timeløn i alt (holdes uden for akkordløn)</span>
+              <span id="liveTimelonDkk" class="text-base font-bold text-sky-400">0,00 kr.</span>
             </div>
           </div>
 
@@ -211,6 +221,22 @@
           <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Lønmåned (21.-20.)</button>
           <button onclick="setStatsFilter('last30')" id="filter-last30" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Sidste 30 dage</button>
           <button onclick="setStatsFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Altid</button>
+          <button onclick="toggleCustomDatePicker()" id="filter-custom" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700 flex items-center gap-1">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Vælg periode
+          </button>
+        </div>
+
+        <!-- Custom Date Range Picker -->
+        <div id="customDatePicker" class="hidden bg-white border border-slate-200 rounded-xl p-3 flex items-end gap-2 flex-wrap">
+          <div class="flex-1 min-w-[120px]">
+            <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Fra</label>
+            <input type="date" id="customStartDate" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div class="flex-1 min-w-[120px]">
+            <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Til</label>
+            <input type="date" id="customEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <button onclick="applyCustomDateFilter()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap">Anvend</button>
         </div>
 
         <!-- Key Metrics Cards (2x2 Grid) -->
@@ -271,6 +297,34 @@
           </div>
         </div>
 
+        <!-- Export Lønperiode (til lønseddel) -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Eksportér Lønperiode</h3>
+            <p class="text-[11px] text-slate-500 mt-1">Vælg den måned lønnen udbetales i - eksporterer lønperioden 21.-20. som en Excel-fil (.xlsx) med data, satser og noter samlet, klar til brug for din lønseddel.</p>
+          </div>
+          <div class="flex gap-2 items-end">
+            <div class="flex-1">
+              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lønmåned</label>
+              <input type="month" id="exportPayMonth" oninput="updatePayPeriodPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+            <button onclick="exportPayPeriodExcel()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 whitespace-nowrap">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
+          </div>
+
+          <div id="payPeriodPreview" class="hidden grid grid-cols-2 gap-2">
+            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Kr. i alt</div>
+              <div id="payPeriodPreviewDkk" class="text-sm font-extrabold text-slate-900 mt-0.5">0,00 kr.</div>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Timer i alt</div>
+              <div id="payPeriodPreviewHours" class="text-sm font-extrabold text-slate-900 mt-0.5">0 t</div>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <!-- ========================================== -->
@@ -283,7 +337,7 @@
             <h2 class="text-lg font-bold text-slate-900">Arbejdshistorik</h2>
             <p class="text-xs text-slate-500">Oversigt over alle dine registrerede dage</p>
           </div>
-          <button onclick="exportToCSV()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+          <button onclick="exportToExcel()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
             <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksport
           </button>
         </div>
@@ -403,6 +457,65 @@
     </div>
   </div>
 
+  <!-- Modal: Edit History Entry -->
+  <div id="editEntryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Rediger Registrering</h3>
+        <button onclick="closeEditEntryModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="editEntryForm" onsubmit="handleSaveEditedEntry(event)" class="space-y-3.5">
+        <input type="hidden" id="editEntryId">
+
+        <div id="editEntryMergeWarning" class="hidden text-[11px] text-amber-800 font-semibold bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+          <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
+          <span id="editEntryMergeWarningText"></span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Dato</label>
+          <input type="date" id="editEntryDate" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Akkordsats</label>
+          <select id="editEntryRate" onchange="updateEditEntryFields()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <!-- Rendered dynamically via JS -->
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mængde (<span id="editEntryUnitLabel">...</span>)</label>
+            <input type="number" step="0.01" min="0.01" id="editEntryQuantity" oninput="updateEditEntryFields()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div id="editEntryHoursWrap">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Timer</label>
+            <input type="number" step="0.1" min="0" id="editEntryHours" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Note (Valgfri)</label>
+          <textarea id="editEntryNote" rows="2" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+        </div>
+
+        <div id="editEntryPreview" class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center text-xs">
+          <span class="text-slate-400 font-semibold uppercase tracking-wider">Ny totalsum</span>
+          <span id="editEntryPreviewDkk" class="font-black text-emerald-400 text-base">0,00 kr.</span>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeEditEntryModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+          <button type="submit" class="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs shadow-md shadow-brand-600/20">Gem Ændring</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Custom Confirmation Dialog Modal -->
   <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
     <div class="bg-white w-full max-w-xs rounded-2xl p-5 text-center space-y-4 shadow-xl">
@@ -453,6 +566,13 @@
         firebase.initializeApp(firebaseConfig);
         auth = firebase.auth();
         db = firebase.firestore();
+        // Gør at registreringer lavet uden forbindelse (fx på et tag uden
+        // signal) gemmes lokalt i Firestores egen cache og automatisk
+        // sendes til skyen, så snart forbindelsen kommer tilbage - uden man
+        // selv skal gøre noget.
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+          console.warn('Offline-understøttelse kunne ikke aktiveres:', err.code);
+        });
         firebaseReady = true;
       }
     } catch (err) {
@@ -464,11 +584,19 @@
     // ==========================================
     
     const DEFAULT_RATES = [
-      { id: 'rate-1', name: 'Eternit B6 Tagplader', unit: 'stk', price: 42.50 },
-      { id: 'rate-2', name: 'Eternit B9 Tagplader', unit: 'stk', price: 48.00 },
-      { id: 'rate-3', name: 'Rygning / Mønning', unit: 'm', price: 65.00 },
-      { id: 'rate-4', name: 'Taglægtering', unit: 'm²', price: 18.50 },
-      { id: 'rate-5', name: 'Tagrender montering', unit: 'm', price: 85.00 }
+      { id: 'rate-1', name: 'Plader med lærling', unit: 'stk', price: 15 },
+      { id: 'rate-2', name: 'Enkel plader med lærling', unit: 'stk', price: 30 },
+      { id: 'rate-3', name: 'Rykninger med lærling', unit: 'stk', price: 40 },
+      { id: 'rate-4', name: 'Opstart med lærling', unit: 'stk', price: 500 },
+      { id: 'rate-5', name: 'Plader med svend', unit: 'stk', price: 12.5 },
+      { id: 'rate-6', name: 'Enkel plader med svend', unit: 'stk', price: 25 },
+      { id: 'rate-7', name: 'Rykninger med svend', unit: 'stk', price: 34 },
+      { id: 'rate-8', name: 'Opstart med svend', unit: 'stk', price: 350 },
+      { id: 'rate-9', name: 'Plader 3 mand', unit: 'stk', price: 10 },
+      { id: 'rate-10', name: 'Enkel plader 3 mand', unit: 'stk', price: 20 },
+      { id: 'rate-11', name: 'Rykninger 3 mand', unit: 'stk', price: 30 },
+      { id: 'rate-12', name: 'Opstart 3 mand', unit: 'stk', price: 300 },
+      { id: 'rate-13', name: 'Timeløn', unit: 'Timer', price: 200 }
     ];
 
     const DEFAULT_ENTRIES = [];
@@ -476,22 +604,50 @@
     let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
     let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
     let currentStatsFilter = 'week';
+    let customDateRange = null; // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } for "Vælg periode"
     let chartInstance = null;
 
-    // Save to LocalStorage (altid) + Firestore (hvis logget ind)
+    // Gemmer altid lokalt (satser + registreringer) som backup/cache
     function saveData() {
       localStorage.setItem('akkord_rates', JSON.stringify(rates));
       localStorage.setItem('akkord_entries', JSON.stringify(entries));
+    }
 
+    // Satser er få og ændres sjældent - de ligger samlet i selve brugerens
+    // hoveddokument, som derfor forbliver småt.
+    function syncRatesToCloud() {
       if (syncEnabled && currentUser && db) {
         db.collection('users').doc(currentUser.uid).set({
           rates,
-          entries,
           updatedAt: new Date().toISOString()
-        }).catch(err => {
-          console.error('Cloud-sync fejlede:', err);
-          showToast('Kunne ikke synkronisere til skyen', 'error');
+        }, { merge: true }).catch(err => {
+          console.error('Cloud-sync fejlede (satser):', err);
+          showToast('Kunne ikke synkronisere satser til skyen', 'error');
         });
+      }
+    }
+
+    // Hver registrering gemmes som sit eget lille dokument i en
+    // undersamling, så hoveddokumentet aldrig vokser sig for stort, uanset
+    // hvor mange års historik man samler op - og hver gemning/redigering
+    // kun rører netop den ene registrering.
+    function syncEntryToCloud(entry) {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('entries').doc(entry.id).set(entry)
+          .catch(err => {
+            console.error('Cloud-sync fejlede (registrering):', err);
+            showToast('Kunne ikke synkronisere registreringen til skyen', 'error');
+          });
+      }
+    }
+
+    function deleteEntryFromCloud(entryId) {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('entries').doc(entryId).delete()
+          .catch(err => {
+            console.error('Cloud-sync fejlede (sletning):', err);
+            showToast('Kunne ikke slette registreringen i skyen', 'error');
+          });
       }
     }
 
@@ -499,6 +655,33 @@
       const d = new Date();
       d.setDate(d.getDate() + offsetDays);
       return d.toISOString().split('T')[0];
+    }
+
+    // "Timeløn" satsen står helt for sig selv og blandes aldrig med de
+    // andre satser i beregningerne (egne timer, egen sats).
+    function isTimelonName(name) {
+      return !!name && name.trim().toLowerCase() === 'timeløn';
+    }
+
+    // "Opstart"-satser (eller satser der starter med "Opstart") tæller med
+    // i den samlede akkordløn/effektive timeløn, men får ikke selv nogen
+    // timer eller timeløn tildelt - de vises kun som antal i perioden.
+    function isOpstartName(name) {
+      return !!name && name.trim().toLowerCase().indexOf('opstart') === 0;
+    }
+
+    // Lønperiode: fra den 21. i en måned til den 20. i den næste
+    function getPayPeriodRange(refDate) {
+      const d = new Date(refDate);
+      let start, end;
+      if (d.getDate() >= 21) {
+        start = new Date(d.getFullYear(), d.getMonth(), 21);
+        end = new Date(d.getFullYear(), d.getMonth() + 1, 20, 23, 59, 59);
+      } else {
+        start = new Date(d.getFullYear(), d.getMonth() - 1, 21);
+        end = new Date(d.getFullYear(), d.getMonth(), 20, 23, 59, 59);
+      }
+      return { start, end };
     }
 
     // ==========================================
@@ -517,6 +700,7 @@
     }
 
     function signOutUser() {
+      detachRealtimeListeners();
       if (auth) auth.signOut();
       closeAccountModal();
       showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
@@ -580,22 +764,76 @@
     // Henter data fra Firestore for den loggede-ind bruger og erstatter
     // lokale data med brugerens cloud-data (eller opretter dem, hvis det
     // er første login).
+    let ratesUnsubscribe = null;
+    let entriesUnsubscribe = null;
+
+    function detachRealtimeListeners() {
+      if (ratesUnsubscribe) { ratesUnsubscribe(); ratesUnsubscribe = null; }
+      if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+    }
+
+    // Abonnerer på løbende opdateringer af satser og registreringer, så
+    // ændringer lavet på én enhed (fx telefonen) automatisk dukker op på
+    // alle andre åbne enheder (fx pc'en) - uden man selv skal genindlæse.
+    function attachRealtimeListeners(userDocRef) {
+      detachRealtimeListeners(); // undgå dubletter hvis funktionen kaldes flere gange
+
+      ratesUnsubscribe = userDocRef.onSnapshot(doc => {
+        if (doc.exists && doc.data().rates) {
+          rates = doc.data().rates;
+          refreshAllViews();
+        }
+      }, err => console.error('Live-opdatering af satser fejlede:', err));
+
+      entriesUnsubscribe = userDocRef.collection('entries').onSnapshot(snapshot => {
+        entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
+        refreshAllViews();
+      }, err => console.error('Live-opdatering af registreringer fejlede:', err));
+    }
+
     function loadUserDataFromCloud(user) {
       currentUser = user;
       syncEnabled = true;
       updateAccountIndicator();
 
-      db.collection('users').doc(user.uid).get().then(doc => {
-        if (doc.exists) {
-          const data = doc.data();
-          rates = data.rates || DEFAULT_RATES;
-          entries = data.entries || DEFAULT_ENTRIES;
-        } else {
-          // Første login: upload evt. eksisterende lokale data til skyen
-          db.collection('users').doc(user.uid).set({ rates, entries, updatedAt: new Date().toISOString() });
+      const userDocRef = db.collection('users').doc(user.uid);
+
+      userDocRef.get().then(doc => {
+        const data = doc.exists ? doc.data() : null;
+        if (data && data.rates) {
+          rates = data.rates;
         }
-        refreshAllViews();
-        showToast('Logget ind som ' + (user.displayName || user.email));
+
+        // Ældre version af appen gemte alle registreringer som ét stort
+        // array direkte i brugerens dokument - findes det, migreres de én
+        // gang over i deres egen undersamling herunder.
+        const legacyEntries = data && Array.isArray(data.entries) ? data.entries : null;
+
+        const finishLogin = () => {
+          attachRealtimeListeners(userDocRef);
+          showToast('Logget ind som ' + (user.displayName || user.email));
+        };
+
+        userDocRef.collection('entries').get().then(snapshot => {
+          if (!snapshot.empty) {
+            finishLogin();
+          } else if (legacyEntries && legacyEntries.length > 0) {
+            Promise.all(legacyEntries.map(entry =>
+              userDocRef.collection('entries').doc(entry.id).set(entry)
+            )).then(() => {
+              // Ryd op i hoveddokumentet, så det gamle entries-felt ikke ligger og fylder
+              userDocRef.set({ rates, updatedAt: new Date().toISOString() });
+              finishLogin();
+            });
+          } else if (!doc.exists) {
+            // Første login: upload evt. eksisterende lokale data til skyen
+            userDocRef.set({ rates, updatedAt: new Date().toISOString() });
+            entries.forEach(entry => syncEntryToCloud(entry));
+            finishLogin();
+          } else {
+            finishLogin();
+          }
+        });
       }).catch(err => {
         console.error('Kunne ikke hente cloud-data:', err);
         showToast('Kunne ikke hente dine data fra skyen', 'error');
@@ -681,7 +919,7 @@
       }, 3000);
     }
 
-    function showConfirmModal(title, message, onConfirm) {
+    function showConfirmModal(title, message, onConfirm, confirmLabel = 'Slet') {
       const modal = document.getElementById('confirmModal');
       document.getElementById('confirmModalTitle').innerText = title;
       document.getElementById('confirmModalMessage').innerText = message;
@@ -690,6 +928,7 @@
 
       const cancelBtn = document.getElementById('confirmCancelBtn');
       const okBtn = document.getElementById('confirmOkBtn');
+      okBtn.innerText = confirmLabel;
 
       const closeHandler = () => {
         modal.classList.add('hidden');
@@ -793,7 +1032,9 @@
     }
 
     function calculateLiveSummary() {
-      let totalDkk = 0;
+      let akkordDkk = 0; // Almindelige satser + Opstart-satser
+      let timelonDkk = 0; // "Timeløn"-satsen, holdes helt for sig selv
+      let timelonHours = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
 
       document.querySelectorAll('.log-row').forEach(row => {
         const rateId = row.querySelector('.log-rate-select').value;
@@ -801,14 +1042,38 @@
         
         const rate = rates.find(r => r.id === rateId);
         if (rate && quantity > 0) {
-          totalDkk += (quantity * rate.price);
+          const rowDkk = quantity * rate.price;
+          if (isTimelonName(rate.name)) {
+            timelonDkk += rowDkk;
+            timelonHours += quantity;
+          } else {
+            akkordDkk += rowDkk;
+          }
         }
       });
 
-      const totalHours = parseFloat(document.getElementById('logHours').value) || 0;
-      const hourlyRate = totalHours > 0 ? (totalDkk / totalHours) : 0;
-      document.getElementById('liveTotalDkk').textContent = formatCurrency(totalDkk);
+      // "Timer i alt" er for HELE dagen - Timeløn-timerne trækkes fra,
+      // så kun de resterende timer bruges til akkordens effektive timeløn.
+      const totalDayHours = parseFloat(document.getElementById('logHours').value) || 0;
+      const akkordHours = Math.max(0, totalDayHours - timelonHours);
+      const hourlyRate = akkordHours > 0 ? (akkordDkk / akkordHours) : 0;
+      document.getElementById('liveTotalDkk').textContent = formatCurrency(akkordDkk);
       document.getElementById('liveHourlyRate').textContent = formatCurrency(hourlyRate) + '/t';
+
+      const hoursWarning = document.getElementById('hoursWarning');
+      if (timelonHours > totalDayHours) {
+        hoursWarning.classList.remove('hidden');
+      } else {
+        hoursWarning.classList.add('hidden');
+      }
+
+      const timelonWrap = document.getElementById('liveTimelonWrap');
+      if (timelonDkk > 0) {
+        timelonWrap.classList.remove('hidden');
+        document.getElementById('liveTimelonDkk').textContent = formatCurrency(timelonDkk);
+      } else {
+        timelonWrap.classList.add('hidden');
+      }
     }
 
     function handleSaveLog(e) {
@@ -825,8 +1090,14 @@
       // Beregn den samlede akkordløn for alle rækker først, så timerne kan
       // fordeles forholdsmæssigt ud på hver enkelt sats (i stedet for at
       // skulle indtastes for hver enkelt akkordsats).
+      // "Timeløn" holdes helt uden for denne fordeling (egne timer, egen sats).
+      // "Opstart"-satser lægges oveni de rigtige akkordrækkers egen totalsum
+      // (så fx "10 plader" selv står med de fulde kr, inkl. opstart-tillægget),
+      // og får derfor ikke selv nogen timer eller timeløn - kun antal.
       let rowsData = [];
-      let grandTotalDkk = 0;
+      let grandTotalDkk = 0; // Kun "normale" satser (ekskl. Timeløn og Opstart)
+      let opstartTotalDkk = 0;
+      let timelonHoursSum = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
       rows.forEach(row => {
         const rateId = row.querySelector('.log-rate-select').value;
         const quantity = parseFloat(row.querySelector('.log-quantity').value);
@@ -836,15 +1107,54 @@
           return;
         }
         const rowTotalDkk = quantity * rate.price;
-        grandTotalDkk += rowTotalDkk;
-        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk });
+        const timelon = isTimelonName(rate.name);
+        const opstart = isOpstartName(rate.name);
+        if (opstart) {
+          opstartTotalDkk += rowTotalDkk;
+        } else if (timelon) {
+          timelonHoursSum += quantity;
+        } else {
+          grandTotalDkk += rowTotalDkk;
+        }
+        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk, timelon, opstart });
       });
 
-      rowsData.forEach(({ rate, quantity, totalDkk }) => {
-        const hours = grandTotalDkk > 0
-          ? totalHoursEntered * (totalDkk / grandTotalDkk)
-          : (totalHoursEntered / rowsData.length);
-        const hourlyRate = hours > 0 ? (totalDkk / hours) : 0;
+      if (hasError) {
+        showToast('Vælg venligst en gyldig akkordsats', 'error');
+        return;
+      }
+
+      const normalRowsCount = rowsData.filter(r => !r.timelon && !r.opstart).length;
+      // "Timer i alt" er for HELE dagen - de timer der er brugt på Timeløn
+      // trækkes fra, så kun resten fordeles ud på akkordsatserne.
+      const akkordHoursAvailable = Math.max(0, totalHoursEntered - timelonHoursSum);
+
+      rowsData.forEach(({ rate, quantity, totalDkk, timelon, opstart }) => {
+        let hours, hourlyRate, storedTotalDkk;
+        if (timelon) {
+          // Timeløn: Mængden ER timerne, til den faste timesats
+          hours = quantity;
+          storedTotalDkk = totalDkk;
+          hourlyRate = hours > 0 ? (storedTotalDkk / hours) : rate.price;
+        } else if (opstart) {
+          // Opstart: kronerne lægges over på akkordrækken(erne) herunder,
+          // så denne række kun tæller som antal - ingen timer/timeløn/kr her.
+          // (Hvis der ikke er nogen akkordrække at lægge dem over på, beholdes
+          // beløbet her, så pengene ikke bare forsvinder.)
+          hours = 0;
+          hourlyRate = 0;
+          storedTotalDkk = normalRowsCount > 0 ? 0 : totalDkk;
+        } else {
+          hours = grandTotalDkk > 0
+            ? akkordHoursAvailable * (totalDkk / grandTotalDkk)
+            : (normalRowsCount > 0 ? akkordHoursAvailable / normalRowsCount : 0);
+          // Denne rækkes andel af Opstart-tillægget, lagt oveni dens egen totalsum
+          const opstartShare = grandTotalDkk > 0
+            ? opstartTotalDkk * (totalDkk / grandTotalDkk)
+            : (normalRowsCount > 0 ? opstartTotalDkk / normalRowsCount : 0);
+          storedTotalDkk = totalDkk + opstartShare;
+          hourlyRate = hours > 0 ? (storedTotalDkk / hours) : 0;
+        }
 
         newEntries.push({
           id: 'entry-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -855,19 +1165,15 @@
           pricePerUnit: rate.price,
           quantity,
           hours,
-          totalDkk,
+          totalDkk: storedTotalDkk,
           hourlyRate,
           note
         });
       });
 
-      if (hasError) {
-        showToast('Vælg venligst en gyldig akkordsats', 'error');
-        return;
-      }
-
       newEntries.reverse().forEach(entry => entries.unshift(entry));
       saveData();
+      newEntries.forEach(entry => syncEntryToCloud(entry));
 
       document.getElementById('logRowsContainer').innerHTML = '';
       addLogRow();
@@ -960,25 +1266,52 @@
       const unit = document.getElementById('rateUnit').value.trim();
       const price = parseFloat(document.getElementById('ratePrice').value);
 
-      if (editId) {
-        const index = rates.findIndex(r => r.id === editId);
-        if (index !== -1) {
-          rates[index] = { ...rates[index], name, unit, price };
+      const applyAndSaveRate = () => {
+        if (editId) {
+          const index = rates.findIndex(r => r.id === editId);
+          if (index !== -1) {
+            rates[index] = { ...rates[index], name, unit, price };
+          }
+        } else {
+          rates.push({
+            id: 'rate-' + Date.now(),
+            name,
+            unit,
+            price
+          });
         }
-      } else {
-        rates.push({
-          id: 'rate-' + Date.now(),
-          name,
-          unit,
-          price
-        });
+
+        saveData();
+        syncRatesToCloud();
+        populateRateSelect();
+        renderRatesList();
+        closeRateModal();
+        showToast('Akkordsats gemt!');
+      };
+
+      // Advarsel hvis en omdøbning fjerner Timeløn/Opstart-satsens særlige
+      // beregning (kun nye registreringer påvirkes - allerede gemte data er upåvirkede).
+      if (editId) {
+        const existing = rates.find(r => r.id === editId);
+        if (existing && existing.name !== name) {
+          const oldWasTimelon = isTimelonName(existing.name);
+          const oldWasOpstart = isOpstartName(existing.name);
+          const stillSpecial = (oldWasTimelon && isTimelonName(name)) || (oldWasOpstart && isOpstartName(name));
+
+          if ((oldWasTimelon || oldWasOpstart) && !stillSpecial) {
+            const typeLabel = oldWasTimelon ? 'Timeløn' : 'Opstart';
+            showConfirmModal(
+              'Omdøber en særlig sats?',
+              `"${existing.name}" har lige nu ${typeLabel}s særlige beregning. Omdøber du den til "${name}", mister den denne særlige opførsel for alle NYE registreringer (allerede gemte registreringer ændres ikke). Vil du fortsætte?`,
+              applyAndSaveRate,
+              'Fortsæt'
+            );
+            return;
+          }
+        }
       }
 
-      saveData();
-      populateRateSelect();
-      renderRatesList();
-      closeRateModal();
-      showToast('Akkordsats gemt!');
+      applyAndSaveRate();
     }
 
     function editRate(id) {
@@ -992,6 +1325,7 @@
         () => {
           rates = rates.filter(r => r.id !== id);
           saveData();
+          syncRatesToCloud();
           populateRateSelect();
           renderRatesList();
           showToast('Sats slettet');
@@ -1015,7 +1349,39 @@
         activeBtn.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
       }
 
+      if (filter !== 'custom') {
+        document.getElementById('customDatePicker').classList.add('hidden');
+      }
+
       renderStats();
+    }
+
+    function toggleCustomDatePicker() {
+      const picker = document.getElementById('customDatePicker');
+      picker.classList.toggle('hidden');
+      if (!picker.classList.contains('hidden')) {
+        if (!document.getElementById('customEndDate').value) {
+          document.getElementById('customEndDate').value = getFormattedDate(0);
+        }
+        if (!document.getElementById('customStartDate').value) {
+          document.getElementById('customStartDate').value = getFormattedDate(-30);
+        }
+      }
+    }
+
+    function applyCustomDateFilter() {
+      const start = document.getElementById('customStartDate').value;
+      const end = document.getElementById('customEndDate').value;
+      if (!start || !end) {
+        showToast('Vælg venligst både en start- og slutdato', 'error');
+        return;
+      }
+      if (start > end) {
+        showToast('Startdato skal være før slutdato', 'error');
+        return;
+      }
+      customDateRange = { start, end };
+      setStatsFilter('custom');
     }
 
     function getFilteredEntries() {
@@ -1036,21 +1402,16 @@
           return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
         }
         if (currentStatsFilter === 'paymonth') {
-          const d = new Date(now);
-          let start, end;
-          if (d.getDate() >= 21) {
-            start = new Date(d.getFullYear(), d.getMonth(), 21);
-            end = new Date(d.getFullYear(), d.getMonth() + 1, 20, 23, 59, 59);
-          } else {
-            start = new Date(d.getFullYear(), d.getMonth() - 1, 21);
-            end = new Date(d.getFullYear(), d.getMonth(), 20, 23, 59, 59);
-          }
+          const { start, end } = getPayPeriodRange(now);
           const entryDateObj = new Date(entry.date + 'T12:00:00'); 
           return entryDateObj >= start && entryDateObj <= end;
         }
         if (currentStatsFilter === 'last30') {
           const diffDays = Math.floor((now - entryDate) / (1000 * 60 * 60 * 24));
           return diffDays >= 0 && diffDays < 30;
+        }
+        if (currentStatsFilter === 'custom' && customDateRange) {
+          return entry.date >= customDateRange.start && entry.date <= customDateRange.end;
         }
         return true; 
       });
@@ -1061,7 +1422,13 @@
 
       const totalEarnings = filtered.reduce((sum, e) => sum + e.totalDkk, 0);
       const totalHours = filtered.reduce((sum, e) => sum + e.hours, 0);
-      const totalUnits = filtered.reduce((sum, e) => sum + e.quantity, 0);
+
+      // Enheder Udført: Timeløn (timer) og Opstart (antal opstarter) tæller
+      // ikke med her, kun de rigtige akkordsatsers mængde.
+      const unitEntries = filtered.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+      const totalUnits = unitEntries.reduce((sum, e) => sum + e.quantity, 0);
+
+      // Effektiv Timeløn (samlet gennemsnit): Timeløn tæller med her.
       const avgHourlyWage = totalHours > 0 ? (totalEarnings / totalHours) : 0;
 
       document.getElementById('statTotalEarnings').textContent = formatCurrency(totalEarnings);
@@ -1085,7 +1452,7 @@
       const groups = {};
       filtered.forEach(e => {
         if (!groups[e.rateName]) {
-          groups[e.rateName] = { quantity: 0, unit: e.unit, totalDkk: 0, hours: 0 };
+          groups[e.rateName] = { quantity: 0, unit: e.unit, totalDkk: 0, hours: 0, isOpstart: isOpstartName(e.rateName) };
         }
         groups[e.rateName].quantity += e.quantity;
         groups[e.rateName].totalDkk += e.totalDkk;
@@ -1094,18 +1461,24 @@
 
       Object.keys(groups).forEach(name => {
         const g = groups[name];
-        const effHourly = g.hours > 0 ? (g.totalDkk / g.hours) : 0;
+        // Opstart-satser viser sig kun som antal - pengene er lagt over på akkordraekken(erne)
+        const showHoursAndRate = !g.isOpstart && g.hours > 0;
+        const effHourly = showHoursAndRate ? (g.totalDkk / g.hours) : 0;
 
         const row = document.createElement('div');
         row.className = 'flex justify-between items-center py-2 border-b border-slate-100 last:border-0';
         row.innerHTML = `
           <div>
             <div class="font-bold text-slate-800">${escapeHtml(name)}</div>
-            <div class="text-[10px] text-slate-500">${formatNumber(g.quantity)} ${escapeHtml(g.unit)} • ${formatNumber(g.hours)}t</div>
+            <div class="text-[10px] text-slate-500">${formatNumber(g.quantity)} ${escapeHtml(g.unit)}${showHoursAndRate ? ' • ' + formatNumber(g.hours) + 't' : ''}</div>
           </div>
           <div class="text-right">
-            <div class="font-bold text-slate-900">${formatCurrency(g.totalDkk)}</div>
-            <div class="text-[10px] text-brand-600 font-semibold">${formatCurrency(effHourly)}/t</div>
+            ${g.isOpstart
+              ? (g.totalDkk > 0
+                  ? `<div class="font-bold text-slate-900">${formatCurrency(g.totalDkk)}</div>`
+                  : '<div class="text-[10px] text-slate-400 italic">Lagt til akkordløn</div>')
+              : `<div class="font-bold text-slate-900">${formatCurrency(g.totalDkk)}</div>${showHoursAndRate ? `<div class="text-[10px] text-brand-600 font-semibold">${formatCurrency(effHourly)}/t</div>` : ''}`
+            }
           </div>
         `;
         container.appendChild(row);
@@ -1238,6 +1611,8 @@
         const dateParts = entry.date.split('-');
         const formattedDate = `${dateParts[2]}. ${getDanishMonthName(parseInt(dateParts[1]) - 1)} ${dateParts[0]}`;
 
+        const isOpstartEntry = isOpstartName(entry.rateName);
+
         item.innerHTML = `
           <div class="flex justify-between items-start">
             <div>
@@ -1245,22 +1620,31 @@
               <h4 class="font-bold text-slate-900 text-sm mt-0.5">${escapeHtml(entry.rateName)}</h4>
             </div>
             <div class="text-right">
-              <span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>
-              <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                ${formatCurrency(entry.hourlyRate)}/t
-              </span>
+              ${isOpstartEntry
+                ? (entry.totalDkk > 0
+                    ? `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>`
+                    : '<span class="text-[11px] font-semibold text-slate-400 italic">Lagt til akkordløn</span>')
+                : `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>
+                   <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                     ${formatCurrency(entry.hourlyRate)}/t
+                   </span>`
+              }
             </div>
           </div>
 
           <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-600">
             <div>
               <span class="font-semibold text-slate-800">${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)}</span>
-              <span class="text-slate-400 mx-1">•</span>
-              <span>${formatNumber(entry.hours)} timer</span>
+              ${isOpstartEntry ? '' : `<span class="text-slate-400 mx-1">•</span><span>${formatNumber(entry.hours)} timer</span>`}
             </div>
-            <button onclick="confirmDeleteEntry('${entry.id}')" class="text-slate-400 hover:text-red-600 p-1">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+            <div class="flex items-center gap-1">
+              <button onclick="openEditEntryModal('${entry.id}')" class="text-slate-400 hover:text-brand-600 p-1">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button onclick="confirmDeleteEntry('${entry.id}')" class="text-slate-400 hover:text-red-600 p-1">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
           </div>
 
           ${entry.note ? `<div class="text-[11px] bg-slate-50 p-2 rounded-lg text-slate-500 italic mt-1">"${escapeHtml(entry.note)}"</div>` : ''}
@@ -1279,6 +1663,7 @@
         () => {
           entries = entries.filter(e => e.id !== id);
           saveData();
+          deleteEntryFromCloud(id);
           renderHistoryList();
           updateHeaderBadge();
           showToast('Registrering slettet');
@@ -1286,37 +1671,357 @@
       );
     }
 
-    function updateHeaderBadge() {
-      const todayStr = getFormattedDate(0);
-      const todayTotal = entries
-        .filter(e => e.date === todayStr)
-        .reduce((sum, e) => sum + e.totalDkk, 0);
+    // ==========================================
+    // EDIT HISTORY ENTRY
+    // ==========================================
+    function openEditEntryModal(id) {
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
 
-      document.getElementById('headerTodayEarned').textContent = formatCurrency(todayTotal);
+      document.getElementById('editEntryId').value = entry.id;
+      document.getElementById('editEntryDate').value = entry.date;
+      document.getElementById('editEntryQuantity').value = entry.quantity;
+      document.getElementById('editEntryNote').value = entry.note || '';
+
+      const select = document.getElementById('editEntryRate');
+      select.innerHTML = rates.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+      // Vælg den sats registreringen oprindeligt blev lavet med, hvis den stadig findes
+      if (entry.rateId && rates.some(r => r.id === entry.rateId)) {
+        select.value = entry.rateId;
+      }
+
+      document.getElementById('editEntryHours').value = entry.hours;
+
+      // Advarsel hvis denne registrering hænger sammen med en Opstart-tillæg
+      // fra samme dags registrering, og redigering derfor vil "løsrive" den.
+      const warningEl = document.getElementById('editEntryMergeWarning');
+      const warningTextEl = document.getElementById('editEntryMergeWarningText');
+      const isTimelonEntry = isTimelonName(entry.rateName);
+      const isOpstartEntry = isOpstartName(entry.rateName);
+      let mergeWarning = '';
+
+      if (!isTimelonEntry && !isOpstartEntry) {
+        const rawDkk = entry.quantity * entry.pricePerUnit;
+        if (Math.abs(entry.totalDkk - rawDkk) > 0.01) {
+          mergeWarning = `Denne registrering har et Opstart-tillæg på ${formatCurrency(entry.totalDkk - rawDkk)} lagt oveni fra samme dag. Gemmer du en ændring her, løsrives den fra den sammenhæng, og totalsummen genberegnes til kun mængde × sats.`;
+        }
+      } else if (isOpstartEntry && entry.totalDkk === 0) {
+        mergeWarning = 'Denne Opstart-registrering er lagt oveni en anden akkordrække fra samme dag (viser 0 kr. her med vilje). Gemmer du en ændring, får den sit eget kronebeløb igen - tjek at pengene ikke bliver talt dobbelt sammen med den anden registrering.';
+      }
+
+      if (mergeWarning) {
+        warningTextEl.textContent = mergeWarning;
+        warningEl.classList.remove('hidden');
+      } else {
+        warningEl.classList.add('hidden');
+      }
+
+      updateEditEntryFields();
+      document.getElementById('editEntryModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
     }
 
-    function exportToCSV() {
+    function closeEditEntryModal() {
+      document.getElementById('editEntryModal').classList.add('hidden');
+    }
+
+    // Opdaterer enheds-label, viser/skjuler Timer-feltet afhængigt af sats-type,
+    // og opdaterer live-forhåndsvisningen af den nye totalsum.
+    function updateEditEntryFields() {
+      const rateId = document.getElementById('editEntryRate').value;
+      const rate = rates.find(r => r.id === rateId);
+      if (!rate) return;
+
+      document.getElementById('editEntryUnitLabel').textContent = rate.unit;
+
+      const quantity = parseFloat(document.getElementById('editEntryQuantity').value) || 0;
+      const hoursWrap = document.getElementById('editEntryHoursWrap');
+      const hoursInput = document.getElementById('editEntryHours');
+      const previewEl = document.getElementById('editEntryPreviewDkk');
+
+      const timelon = isTimelonName(rate.name);
+      const opstart = isOpstartName(rate.name);
+
+      if (timelon) {
+        // Timeløn: Mængden ER timerne, feltet er ikke nødvendigt at røre selv
+        hoursWrap.classList.add('hidden');
+        hoursInput.value = quantity;
+        previewEl.textContent = formatCurrency(quantity * rate.price);
+      } else if (opstart) {
+        // Opstart: ingen timer, beløbet vises for sig selv ved redigering
+        hoursWrap.classList.add('hidden');
+        hoursInput.value = 0;
+        previewEl.textContent = formatCurrency(quantity * rate.price);
+      } else {
+        hoursWrap.classList.remove('hidden');
+        previewEl.textContent = formatCurrency(quantity * rate.price);
+      }
+    }
+
+    function handleSaveEditedEntry(e) {
+      e.preventDefault();
+
+      const id = document.getElementById('editEntryId').value;
+      const entry = entries.find(en => en.id === id);
+      if (!entry) return;
+
+      const rateId = document.getElementById('editEntryRate').value;
+      const rate = rates.find(r => r.id === rateId);
+      if (!rate) {
+        showToast('Vælg venligst en gyldig akkordsats', 'error');
+        return;
+      }
+
+      const date = document.getElementById('editEntryDate').value;
+      const quantity = parseFloat(document.getElementById('editEntryQuantity').value);
+      const note = document.getElementById('editEntryNote').value.trim();
+      const totalDkk = quantity * rate.price;
+
+      const timelon = isTimelonName(rate.name);
+      const opstart = isOpstartName(rate.name);
+
+      let hours, hourlyRate;
+      if (timelon) {
+        hours = quantity;
+        hourlyRate = hours > 0 ? (totalDkk / hours) : rate.price;
+      } else if (opstart) {
+        hours = 0;
+        hourlyRate = 0;
+      } else {
+        hours = parseFloat(document.getElementById('editEntryHours').value) || 0;
+        hourlyRate = hours > 0 ? (totalDkk / hours) : 0;
+      }
+
+      entry.date = date;
+      entry.rateId = rate.id;
+      entry.rateName = rate.name;
+      entry.unit = rate.unit;
+      entry.pricePerUnit = rate.price;
+      entry.quantity = quantity;
+      entry.hours = hours;
+      entry.totalDkk = totalDkk;
+      entry.hourlyRate = hourlyRate;
+      entry.note = note;
+
+      saveData();
+      syncEntryToCloud(entry);
+      closeEditEntryModal();
+      renderHistoryList();
+      updateHeaderBadge();
+      showToast('Registrering opdateret');
+    }
+
+    function updateHeaderBadge() {
+      const { start, end } = getPayPeriodRange(new Date());
+      const periodTotal = entries
+        .filter(e => {
+          const d = new Date(e.date + 'T12:00:00');
+          return d >= start && d <= end;
+        })
+        .reduce((sum, e) => sum + e.totalDkk, 0);
+
+      document.getElementById('headerTodayEarned').textContent = formatCurrency(periodTotal);
+    }
+
+    // Gør note-tekster robuste at gruppere på: "456", " 456 " og "Sag 456"
+    // med forskellig store/små bogstaver bliver til samme gruppe, mens den
+    // først-sete skrivemåde bruges til at vise gruppen med.
+    function normalizeNoteKey(note) {
+      return note.trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function groupEntriesByNote(entriesList) {
+      const groups = {};
+      entriesList.forEach(e => {
+        const rawNote = (e.note || '').trim().replace(/\s+/g, ' ');
+        if (!rawNote) return;
+        const key = normalizeNoteKey(rawNote);
+        if (!groups[key]) {
+          groups[key] = { displayNote: rawNote, rates: {}, hours: 0, totalDkk: 0 };
+        }
+        if (!groups[key].rates[e.rateName]) {
+          groups[key].rates[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
+        }
+        groups[key].rates[e.rateName].quantity += e.quantity;
+        groups[key].rates[e.rateName].hours += e.hours;
+        groups[key].rates[e.rateName].totalDkk += e.totalDkk;
+        groups[key].hours += e.hours;
+        groups[key].totalDkk += e.totalDkk;
+      });
+      return groups;
+    }
+
+    // Bygger en rigtig Excel-arbejdsbog (.xlsx) med tre faneblade: rådata,
+    // en opsummering pr. akkordsats, og en opsummering pr. note/sag.
+    // Tal skrives som rigtige Excel-tal (ikke tekst), så Excel selv viser
+    // dem med komma eller punktum efter brugerens egne indstillinger, og
+    // SheetJS håndterer al escaping af specialtegn (citationstegn,
+    // semikolon m.m.) automatisk.
+    function buildEntriesWorkbook(entriesList, options = {}) {
+      const includeHourlyRateColumn = options.includeHourlyRateColumn !== false;
+      const periodLabel = options.periodLabel || null;
+      const includeTotalRow = !!options.includeTotalRow;
+
+      // --- Faneblad 1: Data ---
+      const dataHeader = includeHourlyRateColumn
+        ? ['Dato', 'Opgave', 'Mængde', 'Enhed', 'Timer', 'Total DKK', 'Timeløn DKK/t', 'Note']
+        : ['Dato', 'Opgave', 'Mængde', 'Enhed', 'Timer', 'Total DKK', 'Note'];
+
+      const aoa = [];
+      if (periodLabel) {
+        aoa.push(['Lønperiode', periodLabel]);
+        aoa.push([]);
+      }
+      aoa.push(dataHeader);
+
+      entriesList.forEach(e => {
+        const row = [e.date, e.rateName, e.quantity, e.unit, e.hours, Number(e.totalDkk.toFixed(2))];
+        if (includeHourlyRateColumn) row.push(Number(e.hourlyRate.toFixed(2)));
+        row.push(e.note || '');
+        aoa.push(row);
+      });
+
+      if (includeTotalRow) {
+        const sumHours = entriesList.reduce((s, e) => s + e.hours, 0);
+        const sumDkk = entriesList.reduce((s, e) => s + e.totalDkk, 0);
+        const totalRow = includeHourlyRateColumn
+          ? ['Samlet', '', '', '', sumHours, Number(sumDkk.toFixed(2)), '', '']
+          : ['Samlet', '', '', '', sumHours, Number(sumDkk.toFixed(2)), ''];
+        aoa.push([]);
+        aoa.push(totalRow);
+      }
+
+      const dataSheet = XLSX.utils.aoa_to_sheet(aoa);
+
+      // --- Faneblad 2: Pr. Sats ---
+      const rateGroups = {};
+      entriesList.forEach(e => {
+        if (!rateGroups[e.rateName]) {
+          rateGroups[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
+        }
+        rateGroups[e.rateName].quantity += e.quantity;
+        rateGroups[e.rateName].hours += e.hours;
+        rateGroups[e.rateName].totalDkk += e.totalDkk;
+      });
+      const rateRows = [['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']];
+      Object.keys(rateGroups).forEach(name => {
+        const g = rateGroups[name];
+        rateRows.push([name, g.quantity, g.unit, g.hours, Number(g.totalDkk.toFixed(2))]);
+      });
+      const rateSheet = XLSX.utils.aoa_to_sheet(rateRows);
+
+      // --- Faneblad 3: Pr. Note (kun hvis der findes noter) ---
+      // Hver note/sag vises som sin egen overskrift med en lille tabel
+      // under sig, i stedet for at stå gentaget i en kolonne på hver række.
+      const noteGroups = groupEntriesByNote(entriesList);
+      let noteSheet = null;
+      if (Object.keys(noteGroups).length > 0) {
+        const noteRows = [];
+        const noteMerges = [];
+        Object.keys(noteGroups).forEach(key => {
+          const noteData = noteGroups[key];
+          const headingRowIndex = noteRows.length;
+          noteRows.push([noteData.displayNote]);
+          noteMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
+          noteRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
+          Object.keys(noteData.rates).forEach(rateName => {
+            const r = noteData.rates[rateName];
+            noteRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
+          });
+          noteRows.push(['I alt', '', '', noteData.hours, Number(noteData.totalDkk.toFixed(2))]);
+          noteRows.push([]);
+        });
+        noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
+        noteSheet['!merges'] = noteMerges;
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, dataSheet, 'Data');
+      XLSX.utils.book_append_sheet(wb, rateSheet, 'Pr. Sats');
+      if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
+
+      return wb;
+    }
+
+    function exportToExcel() {
       if (entries.length === 0) {
         showToast('Ingen data at eksportere', 'error');
         return;
       }
 
-      let csv = 'Dato;Opgave;Mængde;Enhed;Timer;Total DKK;Timeløn DKK/t;Note\n';
+      const wb = buildEntriesWorkbook(entries, { includeHourlyRateColumn: true });
+      XLSX.writeFile(wb, `AkkordLøn_Eksport_${getFormattedDate(0)}.xlsx`);
 
-      entries.forEach(e => {
-        csv += `"${e.date}";"${e.rateName}";"${e.quantity}";"${e.unit}";"${e.hours}";"${e.totalDkk.toFixed(2)}";"${e.hourlyRate.toFixed(2)}";"${e.note || ''}"\n`;
+      showToast('Excel-fil downloadet!');
+    }
+
+    // Finder lønperioden (21.-20.) og de tilhørende registreringer for et
+    // "YYYY-MM" input fra <input type="month">. Bruges af både eksporten
+    // og forhåndsvisnings-boksene.
+    function getPayPeriodDataForMonthInput(monthInput) {
+      if (!monthInput) return null;
+      const [yearStr, monthStr] = monthInput.split('-');
+      const year = parseInt(yearStr, 10);
+      const monthIndex0 = parseInt(monthStr, 10) - 1;
+      const { start, end } = getPayPeriodRange(new Date(year, monthIndex0, 15));
+
+      const periodEntries = entries
+        .filter(e => {
+          const d = new Date(e.date + 'T12:00:00');
+          return d >= start && d <= end;
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      return { year, monthIndex0, start, end, periodEntries };
+    }
+
+    // Live-forhåndsvisning af kr. og timer for den valgte lønmåned,
+    // opdateres med det samme man vælger en måned.
+    function updatePayPeriodPreview() {
+      const monthInput = document.getElementById('exportPayMonth').value;
+      const preview = document.getElementById('payPeriodPreview');
+      const data = getPayPeriodDataForMonthInput(monthInput);
+
+      if (!data) {
+        preview.classList.add('hidden');
+        return;
+      }
+
+      const sumDkk = data.periodEntries.reduce((sum, e) => sum + e.totalDkk, 0);
+      const sumHours = data.periodEntries.reduce((sum, e) => sum + e.hours, 0);
+
+      document.getElementById('payPeriodPreviewDkk').textContent = formatCurrency(sumDkk);
+      document.getElementById('payPeriodPreviewHours').textContent = formatNumber(sumHours) + ' t';
+      preview.classList.remove('hidden');
+    }
+
+    const formatDateShort = (d) => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+
+    // Eksporterer lønperioden (21.-20.) for den valgte lønudbetalingsmåned,
+    // fx "September" giver perioden 21. august - 20. september.
+    function exportPayPeriodExcel() {
+      const monthInput = document.getElementById('exportPayMonth').value; // "YYYY-MM"
+      if (!monthInput) {
+        showToast('Vælg venligst en lønmåned', 'error');
+        return;
+      }
+
+      const { year, monthIndex0, start, end, periodEntries } = getPayPeriodDataForMonthInput(monthInput);
+
+      if (periodEntries.length === 0) {
+        showToast('Ingen registreringer i denne lønperiode', 'error');
+        return;
+      }
+
+      const periodLabel = `${formatDateShort(start)} til ${formatDateShort(end)}`;
+      const wb = buildEntriesWorkbook(periodEntries, {
+        includeHourlyRateColumn: false,
+        periodLabel,
+        includeTotalRow: true
       });
+      XLSX.writeFile(wb, `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}.xlsx`);
 
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `AkkordLøn_Eksport_${getFormattedDate(0)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      showToast('CSV fil downloadet!');
+      showToast('Lønperiode eksporteret!');
     }
 
     // ==========================================
@@ -1359,6 +2064,7 @@
         } else {
           currentUser = null;
           syncEnabled = false;
+          detachRealtimeListeners();
           updateAccountIndicator();
           renderAccountModalBody();
           if (!appStarted) {
