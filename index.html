@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AkkordLøn - Registrering af Akkordarbejde</title>
 
+  <!-- Sætter mørkt tema med det samme (hvis valgt), før noget andet indlæses,
+       så man undgår et kort glimt af det forkerte tema ved opstart. -->
+  <script>
+    if (localStorage.getItem('akkord_theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+
   <!-- PWA: gør det muligt at "installere" appen på hjemmeskærmen -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
@@ -68,6 +76,52 @@
     .custom-scrollbar::-webkit-scrollbar-thumb {
       background: #cbd5e1;
       border-radius: 4px;
+    }
+
+    /* ============================================
+       MØRKT TEMA
+       Aktiveres ved at sætte class="dark" på <html>.
+       Overstyrer kun de klasser der reelt bruges i appen -
+       de elementer der allerede er mørke (bg-slate-800/900,
+       header m.m.) er uændrede, da de allerede passer fint ind.
+       ============================================ */
+    .dark { color-scheme: dark; }
+    html.dark, .dark body { background-color: #0f172a; }
+
+    .dark .bg-white { background-color: #1e293b; }
+    .dark .bg-slate-50 { background-color: #0f172a; }
+    .dark .bg-slate-50\/70 { background-color: rgba(15, 23, 42, 0.7); }
+    .dark .bg-slate-100 { background-color: #0f172a; }
+    .dark .bg-slate-200 { background-color: #334155; }
+
+    .dark .text-slate-900 { color: #f1f5f9; }
+    .dark .text-slate-800 { color: #e2e8f0; }
+    .dark .text-slate-700 { color: #cbd5e1; }
+    .dark .text-slate-600 { color: #cbd5e1; }
+    .dark .text-slate-500 { color: #94a3b8; }
+    .dark .text-slate-400 { color: #64748b; }
+    .dark .text-slate-300 { color: #475569; }
+    .dark .text-slate-200 { color: #334155; }
+
+    .dark .border-slate-100 { border-color: #334155; }
+    .dark .border-slate-200 { border-color: #334155; }
+    .dark .border-slate-200\/80 { border-color: rgba(51, 65, 85, 0.8); }
+    .dark .border-slate-300 { border-color: #475569; }
+
+    .dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.15); }
+    .dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.15); }
+    .dark .bg-red-100 { background-color: rgba(239, 68, 68, 0.22); }
+    .dark .bg-amber-50 { background-color: rgba(245, 158, 11, 0.15); }
+    .dark .bg-brand-50 { background-color: rgba(22, 163, 74, 0.15); }
+
+    .dark .text-emerald-700 { color: #34d399; }
+    .dark .text-red-700 { color: #f87171; }
+    .dark .text-red-600 { color: #f87171; }
+    .dark .text-red-500 { color: #f87171; }
+    .dark .text-amber-800 { color: #fbbf24; }
+
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #475569;
     }
   </style>
 </head>
@@ -540,6 +594,27 @@
     </div>
   </div>
 
+  <!-- Modal: Sags-kommentarer -->
+  <div id="caseCommentsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[85vh]">
+      <div class="flex justify-between items-center border-b border-slate-100 p-5 pb-3 flex-shrink-0">
+        <h3 id="caseCommentsTitle" class="font-bold text-slate-900 text-base">Sag</h3>
+        <button onclick="closeCaseCommentsModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="caseCommentsList" class="space-y-2 overflow-y-auto flex-1 px-5 py-3">
+        <!-- Rendered dynamically via JS -->
+      </div>
+      <div class="flex gap-2 p-4 border-t border-slate-100 flex-shrink-0">
+        <input type="text" id="caseCommentInput" placeholder="Skriv en kommentar..." onkeydown="if(event.key==='Enter'){handleSendCaseComment();}" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+        <button onclick="handleSendCaseComment()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl flex items-center justify-center flex-shrink-0">
+          <i data-lucide="send" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Add / Edit Rate -->
   <div id="rateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
     <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
@@ -834,6 +909,7 @@
       }
       detachRealtimeListeners();
       detachCasesListeners();
+      closeCaseCommentsModal();
       if (auth) auth.signOut();
       closeAccountModal();
       showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
@@ -855,10 +931,24 @@
 
     function renderAccountModalBody() {
       const body = document.getElementById('accountModalBody');
+
+      const themeToggleHtml = `
+        <div class="border-t border-slate-100 pt-3 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+            <i data-lucide="moon" class="w-4 h-4"></i> Mørkt tema
+          </div>
+          <button type="button" onclick="toggleTheme()" id="themeToggleBtn" class="w-11 h-6 rounded-full bg-slate-200 relative transition-colors flex-shrink-0">
+            <span id="themeToggleDot" class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"></span>
+          </button>
+        </div>
+      `;
+
       if (!firebaseReady) {
         body.innerHTML = `
           <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
+          ${themeToggleHtml}
         `;
+        updateThemeToggleUI();
         return;
       }
       if (currentUser) {
@@ -910,6 +1000,7 @@
             <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Virksomhed</div>
             ${companySectionHtml}
           </div>
+          ${themeToggleHtml}
           <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
         `;
       } else {
@@ -920,9 +1011,47 @@
           <button onclick="signInWithGoogle()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
             <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
           </button>
+          ${themeToggleHtml}
         `;
       }
+      updateThemeToggleUI();
       if (window.lucide) lucide.createIcons();
+    }
+
+    // ==========================================
+    // MØRKT TEMA
+    // ==========================================
+    function isDarkMode() {
+      return document.documentElement.classList.contains('dark');
+    }
+
+    function applyTheme(theme) {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      localStorage.setItem('akkord_theme', theme);
+      updateThemeToggleUI();
+    }
+
+    function toggleTheme() {
+      applyTheme(isDarkMode() ? 'light' : 'dark');
+    }
+
+    function updateThemeToggleUI() {
+      const btn = document.getElementById('themeToggleBtn');
+      const dot = document.getElementById('themeToggleDot');
+      if (!btn || !dot) return;
+      if (isDarkMode()) {
+        btn.classList.remove('bg-slate-200');
+        btn.classList.add('bg-brand-600');
+        dot.style.transform = 'translateX(20px)';
+      } else {
+        btn.classList.remove('bg-brand-600');
+        btn.classList.add('bg-slate-200');
+        dot.style.transform = 'translateX(0)';
+      }
     }
 
     function updateAccountIndicator() {
@@ -1649,6 +1778,9 @@
               : `<div class="flex-1 min-w-0">${infoBlock}</div>`
             }
             <div class="flex items-center gap-1 flex-shrink-0">
+              <button onclick="openCaseComments('${c.id}', '${safeName}', ${c.number})" class="text-slate-400 hover:text-brand-600 p-1.5">
+                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+              </button>
               <button onclick="promptRenameCase('${c.id}', '${safeName}')" class="text-slate-400 hover:text-brand-600 p-1.5">
                 <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
               </button>
@@ -1675,18 +1807,24 @@
         return;
       }
 
-      container.innerHTML = list.map(c => `
+      container.innerHTML = list.map(c => {
+        const safeName = escapeHtml(c.name).replace(/'/g, "\\'");
+        return `
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
-          <button onclick="viewCaseDetails('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+          <button onclick="viewCaseDetails('${c.id}', '${safeName}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
             <div class="min-w-0">
               <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
               <div class="text-[10px] text-slate-500 truncate">Afsluttet af ${escapeHtml(c.completedByName || 'ukendt')}</div>
             </div>
             <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
           </button>
+          <button onclick="openCaseComments('${c.id}', '${safeName}', ${c.number})" class="text-slate-400 hover:text-brand-600 p-1.5 flex-shrink-0">
+            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+          </button>
           <button onclick="reopenCase('${c.id}')" class="text-[10px] font-bold text-brand-600 px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 whitespace-nowrap flex-shrink-0">Genåbn</button>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       if (window.lucide) lucide.createIcons();
     }
@@ -1906,6 +2044,86 @@
       currentCaseDetails = null;
     }
 
+    // ==========================================
+    // SAGS-KOMMENTARER
+    // ==========================================
+    let currentCommentsCaseId = null;
+    let currentCommentsUnsubscribe = null;
+
+    function openCaseComments(caseId, caseName, caseNumber) {
+      currentCommentsCaseId = caseId;
+      document.getElementById('caseCommentsTitle').textContent = '#' + caseNumber + ' · ' + caseName;
+      document.getElementById('caseCommentsModal').classList.remove('hidden');
+      document.getElementById('caseCommentsList').innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Henter kommentarer...</p>';
+      document.getElementById('caseCommentInput').value = '';
+
+      const ref = getCasesRef();
+      if (!ref) return;
+
+      if (currentCommentsUnsubscribe) currentCommentsUnsubscribe();
+      currentCommentsUnsubscribe = ref.doc(caseId).collection('comments').orderBy('createdAt', 'asc').onSnapshot(snapshot => {
+        const comments = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderCaseComments(comments);
+      }, err => {
+        console.error('Kunne ikke hente kommentarer:', err);
+        document.getElementById('caseCommentsList').innerHTML = '<p class="text-red-500 text-center py-4 text-xs">Kunne ikke hente kommentarer.</p>';
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderCaseComments(comments) {
+      const container = document.getElementById('caseCommentsList');
+      if (comments.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen kommentarer endnu - skriv den første herunder.</p>';
+        return;
+      }
+      container.innerHTML = comments.map(c => `
+        <div class="bg-slate-50 rounded-xl p-2.5">
+          <div class="flex justify-between items-baseline gap-2">
+            <span class="text-xs font-bold text-slate-800">${escapeHtml(c.authorName || 'Ukendt')}</span>
+            <span class="text-[10px] text-slate-400 flex-shrink-0">${formatCommentTime(c.createdAt)}</span>
+          </div>
+          <p class="text-xs text-slate-600 mt-0.5 break-words">${escapeHtml(c.text)}</p>
+        </div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function formatCommentTime(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function closeCaseCommentsModal() {
+      document.getElementById('caseCommentsModal').classList.add('hidden');
+      if (currentCommentsUnsubscribe) { currentCommentsUnsubscribe(); currentCommentsUnsubscribe = null; }
+      currentCommentsCaseId = null;
+    }
+
+    function handleSendCaseComment() {
+      const input = document.getElementById('caseCommentInput');
+      const text = input.value.trim();
+      if (!text || !currentCommentsCaseId || !currentUser) return;
+
+      const ref = getCasesRef();
+      if (!ref) return;
+
+      input.value = ''; // ryddes med det samme, så det føles hurtigt at skrive
+
+      ref.doc(currentCommentsCaseId).collection('comments').add({
+        text,
+        authorUid: currentUser.uid,
+        authorName: currentUser.displayName || currentUser.email || 'Ukendt',
+        createdAt: new Date().toISOString()
+      }).catch(err => {
+        console.error('Kunne ikke sende kommentar:', err);
+        showToast('Kunne ikke sende kommentar', 'error');
+        input.value = text; // læg teksten tilbage, så den ikke bare forsvinder
+      });
+    }
+
     // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
     // Kobler egne live-lyttere fra, mens man kigger, for at undgå at de
     // overskriver den viste medarbejders data.
@@ -1970,6 +2188,13 @@
       updateAccountIndicator();
       updateHourlyRateEmphasis();
       if (window.lucide) lucide.createIcons();
+
+      // Hvis appen er åbnet via en genvej (langt tryk på app-ikonet), hop
+      // direkte til den rigtige fane.
+      const action = new URLSearchParams(window.location.search).get('action');
+      if (action === 'register' || action === 'cases' || action === 'stats' || action === 'history') {
+        switchTab(action);
+      }
     }
 
     // ==========================================
@@ -3251,6 +3476,7 @@
           syncEnabled = false;
           detachRealtimeListeners();
           detachCasesListeners();
+          closeCaseCommentsModal();
           // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
           // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
           // uanset hvordan log-ud'et skete.

@@ -33,5 +33,21 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ny registrering",
+      "short_name": "Registrer",
+      "description": "Opret en ny registrering af akkordarbejde",
+      "url": "./index.html?action=register",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Sager",
+      "short_name": "Sager",
+      "description": "Se og administrer sager",
+      "url": "./index.html?action=cases",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }
