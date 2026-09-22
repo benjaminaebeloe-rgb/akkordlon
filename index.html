@@ -1554,25 +1554,38 @@
       }
 
       const admin = isCaseAdmin();
-      container.innerHTML = openCases.map(c => `
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between gap-2">
+      container.innerHTML = openCases.map(c => {
+        const safeName = escapeHtml(c.name).replace(/'/g, "\\'");
+        const infoBlock = `
           <div class="min-w-0">
             <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
             <div class="text-[10px] text-slate-500 truncate">Oprettet af ${escapeHtml(c.createdByName || 'ukendt')}</div>
           </div>
-          ${admin ? `
+        `;
+
+        return `
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+            ${admin
+              ? `<button onclick="viewCaseDetails('${c.id}', '${safeName}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+                   ${infoBlock}
+                   <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+                 </button>`
+              : `<div class="flex-1 min-w-0">${infoBlock}</div>`
+            }
             <div class="flex items-center gap-1 flex-shrink-0">
-              <button onclick="promptRenameCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-brand-600 p-1.5">
+              <button onclick="promptRenameCase('${c.id}', '${safeName}')" class="text-slate-400 hover:text-brand-600 p-1.5">
                 <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
               </button>
-              <button onclick="confirmCompleteCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-[10px] font-bold text-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 whitespace-nowrap">Færdigmeld</button>
-              <button onclick="confirmDeleteCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-red-600 p-1.5">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
-              </button>
+              ${admin ? `
+                <button onclick="confirmCompleteCase('${c.id}', '${safeName}')" class="text-[10px] font-bold text-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 whitespace-nowrap">Færdigmeld</button>
+                <button onclick="confirmDeleteCase('${c.id}', '${safeName}')" class="text-slate-400 hover:text-red-600 p-1.5">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              ` : ''}
             </div>
-          ` : ''}
-        </div>
-      `).join('');
+          </div>
+        `;
+      }).join('');
 
       if (window.lucide) lucide.createIcons();
     }
