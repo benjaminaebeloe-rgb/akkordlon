@@ -4,6 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>AkkordLøn - Registrering af Akkordarbejde</title>
+
+  <!-- PWA: gør det muligt at "installere" appen på hjemmeskærmen -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AkkordLøn">
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -3211,6 +3221,16 @@
 
     // Application Initialization on Window Load
     let appStarted = false;
+
+    // Registrerer service workeren, så appen kan "installeres" på
+    // hjemmeskærmen og åbne i fuldskærm som en rigtig app.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.warn('Service worker kunne ikke registreres:', err);
+        });
+      });
+    }
 
     window.onload = function() {
       if (window.lucide) lucide.createIcons();
