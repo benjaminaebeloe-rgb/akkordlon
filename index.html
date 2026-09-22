@@ -177,7 +177,7 @@
                 <span id="liveTotalDkk" class="text-xl font-black text-emerald-400">0,00 kr.</span>
               </div>
               <div class="border-l border-slate-800 pl-3">
-                <span class="text-[10px] text-slate-500 block">Effektiv timeløn</span>
+                <span id="liveHourlyRateLabel" class="text-[10px] text-slate-500 block">Effektiv timeløn</span>
                 <span id="liveHourlyRate" class="text-sm font-semibold text-slate-400">0,00 kr./t</span>
               </div>
             </div>
@@ -304,10 +304,10 @@
           </div>
 
           <!-- Metric 2: Effective Hourly Wage -->
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effektiv Timeløn</div>
+          <div id="statHourlyWageCard" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div id="statHourlyWageLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effektiv Timeløn</div>
             <div id="statHourlyWage" class="text-xl font-extrabold text-slate-900 mt-1">0 kr./t</div>
-            <div class="mt-2 text-[10px] text-slate-400 font-medium">Gennemsnit i perioden</div>
+            <div id="statHourlyWageSubtext" class="mt-2 text-[10px] text-slate-400 font-medium">Gennemsnit i perioden</div>
           </div>
 
           <!-- Metric 3: Total Hours -->
@@ -613,6 +613,7 @@
           <select id="editEntryCase" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
             <option value="">Ingen sag</option>
           </select>
+          <input type="hidden" id="editEntryCaseFallback">
         </div>
 
         <div id="editEntryPreview" class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center text-xs">
@@ -822,6 +823,7 @@
         stopViewingEmployee();
       }
       detachRealtimeListeners();
+      detachCasesListeners();
       if (auth) auth.signOut();
       closeAccountModal();
       showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
@@ -1016,11 +1018,52 @@
       renderHistoryList();
       updateHeaderBadge();
       renderAccountModalBody();
+      updateHourlyRateEmphasis();
       const statsTab = document.getElementById('tab-stats');
       if (statsTab && !statsTab.classList.contains('hidden')) {
         renderStats();
       }
       if (window.lucide) lucide.createIcons();
+    }
+
+    // "Effektiv Timeløn" er iøjnefaldende og fremhævet for almindelige
+    // medarbejdere (vigtig for dem), men holdes dæmpet/neutral for
+    // administratorer, der har et bredere overblik at forholde sig til.
+    function updateHourlyRateEmphasis() {
+      const isAdmin = !!myCompany;
+
+      const liveLabel = document.getElementById('liveHourlyRateLabel');
+      const liveValue = document.getElementById('liveHourlyRate');
+      if (liveLabel && liveValue) {
+        if (isAdmin) {
+          liveLabel.className = 'text-[10px] text-slate-500 block';
+          liveValue.className = 'text-sm font-semibold text-slate-400';
+        } else {
+          liveLabel.className = 'text-[11px] text-slate-400 block';
+          liveValue.className = 'text-xl font-black text-brand-400';
+        }
+      }
+
+      const statCard = document.getElementById('statHourlyWageCard');
+      const statLabel = document.getElementById('statHourlyWageLabel');
+      const statValue = document.getElementById('statHourlyWage');
+      const statSubtext = document.getElementById('statHourlyWageSubtext');
+      if (statCard && statLabel && statValue && statSubtext) {
+        if (isAdmin) {
+          statCard.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm';
+          statLabel.className = 'text-[11px] font-semibold text-slate-400 uppercase tracking-wider';
+          statValue.className = 'text-xl font-extrabold text-slate-900 mt-1';
+          statSubtext.className = 'mt-2 text-[10px] text-slate-400 font-medium';
+          statSubtext.innerHTML = 'Gennemsnit i perioden';
+        } else {
+          statCard.className = 'bg-emerald-500 text-white p-4 rounded-2xl shadow-md shadow-emerald-500/20 relative overflow-hidden';
+          statLabel.className = 'text-[11px] font-semibold text-emerald-100 uppercase tracking-wider';
+          statValue.className = 'text-xl font-extrabold text-white mt-1';
+          statSubtext.className = 'mt-2 flex items-center text-[10px] text-emerald-100 font-medium gap-1';
+          statSubtext.innerHTML = '<i data-lucide="zap" class="w-3.5 h-3.5"></i><span>Gennemsnit i perioden</span>';
+          if (window.lucide) lucide.createIcons();
+        }
+      }
     }
 
     // ==========================================
@@ -1369,17 +1412,36 @@
         showToast('Giv sagen et navn først', 'error');
         return;
       }
-      createCase(name, () => { input.value = ''; });
+      checkDuplicateAndCreateCase(name, () => { input.value = ''; });
     }
 
     function promptCreateCase() {
       const name = prompt('Navngiv sagen (fx vejnavn eller kundenavn):');
       if (!name || !name.trim()) return;
-      createCase(name.trim(), (newCase) => {
+      checkDuplicateAndCreateCase(name.trim(), (newCase) => {
         // Vælg den nye sag med det samme i registreringsformularen
         const select = document.getElementById('logCase');
         if (select) select.value = newCase.id;
       });
+    }
+
+    // Advarer hvis en åben sag med et meget lignende navn allerede findes,
+    // så man ikke ved en fejl opretter to sager for den samme opgave.
+    function checkDuplicateAndCreateCase(name, onDone) {
+      const normalized = name.trim().toLowerCase();
+      const duplicate = openCases.find(c => c.name.trim().toLowerCase() === normalized);
+
+      if (duplicate) {
+        showConfirmModal(
+          'Sag findes måske allerede',
+          `Der findes allerede en åben sag der hedder "${duplicate.name}" (#${duplicate.number}). Vil du oprette "${name}" som en ny, separat sag alligevel?`,
+          () => createCase(name, onDone),
+          'Opret alligevel'
+        );
+        return;
+      }
+
+      createCase(name, onDone);
     }
 
     // Opretter en sag med automatisk fortløbende nummer (via transaktion, så
@@ -1409,7 +1471,6 @@
         });
       }).then(number => {
         showToast('Sag #' + number + ' oprettet');
-        loadCases();
         if (onDone) onDone({ id: newCaseRef.id, number, name });
       }).catch(err => {
         console.error('Kunne ikke oprette sag:', err);
@@ -1419,7 +1480,19 @@
 
     // Henter både åbne sager (til alle) og afsluttede sager (kun til admins),
     // og opdaterer sags-listerne samt sags-dropdown i registreringsformularen.
+    let casesUnsubscribe = null;
+    let completedCasesUnsubscribe = null;
+
+    function detachCasesListeners() {
+      if (casesUnsubscribe) { casesUnsubscribe(); casesUnsubscribe = null; }
+      if (completedCasesUnsubscribe) { completedCasesUnsubscribe(); completedCasesUnsubscribe = null; }
+    }
+
+    // Abonnerer på løbende opdateringer af sager, så en ny/ændret/afsluttet
+    // sag, en kollega opretter, dukker op automatisk uden at skulle genindlæses.
     function loadCases() {
+      detachCasesListeners();
+
       if (!currentUser || !db) {
         const container = document.getElementById('openCasesList');
         if (container) {
@@ -1432,31 +1505,41 @@
       const casesRef = getCasesRef();
       if (!casesRef) return;
 
-      casesRef.where('status', '==', 'open').get().then(snapshot => {
+      casesUnsubscribe = casesRef.where('status', '==', 'open').onSnapshot(snapshot => {
         openCases = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.number - b.number);
         renderOpenCasesList();
         populateCaseSelect(document.getElementById('logCase'));
-        populateCaseSelect(document.getElementById('editEntryCase'));
-      }).catch(err => console.error('Kunne ikke hente åbne sager:', err));
+      }, err => console.error('Live-opdatering af sager fejlede:', err));
 
       const completedSection = document.getElementById('completedCasesSection');
       if (isCaseAdmin()) {
         completedSection.classList.remove('hidden');
-        casesRef.where('status', '==', 'completed').get().then(snapshot => {
+        completedCasesUnsubscribe = casesRef.where('status', '==', 'completed').onSnapshot(snapshot => {
           const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.number - a.number);
           renderCompletedCasesList(list);
-        }).catch(err => console.error('Kunne ikke hente afsluttede sager:', err));
+        }, err => console.error('Live-opdatering af afsluttede sager fejlede:', err));
       } else {
         completedSection.classList.add('hidden');
       }
     }
 
-    function populateCaseSelect(selectEl) {
+    // extraCase (valgfri): en sag der ikke længere er "åben" (fx slettet
+    // eller afsluttet), men som en bestemt registrering stadig hører til -
+    // vises som en ekstra mulighed, så den ikke bare forsvinder fra listen.
+    function populateCaseSelect(selectEl, extraCase) {
       if (!selectEl) return;
       const currentValue = selectEl.value;
-      selectEl.innerHTML = '<option value="">Ingen sag</option>' +
-        openCases.map(c => `<option value="${c.id}">#${c.number} · ${escapeHtml(c.name)}</option>`).join('');
-      if (openCases.some(c => c.id === currentValue)) {
+      let optionsHtml = openCases.map(c => `<option value="${c.id}">#${c.number} · ${escapeHtml(c.name)}</option>`).join('');
+
+      if (extraCase && extraCase.id && !openCases.some(c => c.id === extraCase.id)) {
+        optionsHtml += `<option value="${extraCase.id}">#${extraCase.number} · ${escapeHtml(extraCase.name)} (lukket)</option>`;
+      }
+
+      selectEl.innerHTML = '<option value="">Ingen sag</option>' + optionsHtml;
+
+      if (extraCase && extraCase.id) {
+        selectEl.value = extraCase.id;
+      } else if (openCases.some(c => c.id === currentValue)) {
         selectEl.value = currentValue;
       }
     }
@@ -1479,6 +1562,9 @@
           </div>
           ${admin ? `
             <div class="flex items-center gap-1 flex-shrink-0">
+              <button onclick="promptRenameCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-brand-600 p-1.5">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+              </button>
               <button onclick="confirmCompleteCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-[10px] font-bold text-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 whitespace-nowrap">Færdigmeld</button>
               <button onclick="confirmDeleteCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-red-600 p-1.5">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -1501,13 +1587,16 @@
       }
 
       container.innerHTML = list.map(c => `
-        <button onclick="viewCaseDetails('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}', ${c.number})" class="w-full text-left bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
-          <div class="min-w-0">
-            <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
-            <div class="text-[10px] text-slate-500 truncate">Afsluttet af ${escapeHtml(c.completedByName || 'ukendt')}</div>
-          </div>
-          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
-        </button>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+          <button onclick="viewCaseDetails('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+            <div class="min-w-0">
+              <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
+              <div class="text-[10px] text-slate-500 truncate">Afsluttet af ${escapeHtml(c.completedByName || 'ukendt')}</div>
+            </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+          </button>
+          <button onclick="reopenCase('${c.id}')" class="text-[10px] font-bold text-brand-600 px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 whitespace-nowrap flex-shrink-0">Genåbn</button>
+        </div>
       `).join('');
 
       if (window.lucide) lucide.createIcons();
@@ -1532,10 +1621,42 @@
         completedAt: new Date().toISOString()
       }).then(() => {
         showToast('Sagen er færdigmeldt');
-        loadCases();
       }).catch(err => {
         console.error('Kunne ikke færdigmelde sag:', err);
         showToast('Kunne ikke færdigmelde sag', 'error');
+      });
+    }
+
+    function reopenCase(caseId) {
+      const ref = getCasesRef();
+      if (!ref) return;
+      ref.doc(caseId).update({
+        status: 'open',
+        completedBy: null,
+        completedByName: null,
+        completedAt: null
+      }).then(() => {
+        showToast('Sagen er genåbnet');
+      }).catch(err => {
+        console.error('Kunne ikke genåbne sag:', err);
+        showToast('Kunne ikke genåbne sag', 'error');
+      });
+    }
+
+    function promptRenameCase(caseId, currentName) {
+      const newName = prompt('Nyt navn for sagen:', currentName);
+      if (!newName || !newName.trim() || newName.trim() === currentName) return;
+      renameCase(caseId, newName.trim());
+    }
+
+    function renameCase(caseId, newName) {
+      const ref = getCasesRef();
+      if (!ref) return;
+      ref.doc(caseId).update({ name: newName }).then(() => {
+        showToast('Sagsnavn opdateret');
+      }).catch(err => {
+        console.error('Kunne ikke omdøbe sag:', err);
+        showToast('Kunne ikke omdøbe sag', 'error');
       });
     }
 
@@ -1552,7 +1673,6 @@
       if (!ref) return;
       ref.doc(caseId).delete().then(() => {
         showToast('Sag slettet');
-        loadCases();
       }).catch(err => {
         console.error('Kunne ikke slette sag:', err);
         showToast('Kunne ikke slette sag', 'error');
@@ -1561,6 +1681,8 @@
 
     // Samler statistik for en afsluttet sag på tværs af ALLE medarbejdere:
     // periode, samlet antal enheder, og hvem der har arbejdet på den.
+    let currentCaseDetails = null; // gemmer data til drill-down pr. medarbejder
+
     function viewCaseDetails(caseId, caseName, caseNumber) {
       document.getElementById('caseDetailsTitle').textContent = '#' + caseNumber + ' · ' + caseName;
       const body = document.getElementById('caseDetailsBody');
@@ -1579,68 +1701,120 @@
       peoplePromise.then(people => {
         return Promise.all(people.map(p =>
           db.collection('users').doc(p.uid).collection('entries').where('caseId', '==', caseId).get()
-            .then(snap => ({ person: p, entries: snap.docs.map(d => d.data()) }))
+            .then(snap => ({ person: p, entries: snap.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date)) }))
         ));
       }).then(results => {
-        let allEntries = [];
-        let peopleInvolved = [];
-        results.forEach(r => {
-          if (r.entries.length > 0) {
-            allEntries = allEntries.concat(r.entries);
-            peopleInvolved.push({ name: r.person.name, count: r.entries.length });
-          }
-        });
+        const peopleWithEntries = results.filter(r => r.entries.length > 0);
+        const allEntries = peopleWithEntries.flatMap(r => r.entries);
 
         if (allEntries.length === 0) {
           body.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen registreringer fundet på denne sag.</p>';
+          currentCaseDetails = null;
           return;
         }
 
-        const dates = allEntries.map(e => e.date).sort();
-        const periodFrom = dates[0];
-        const periodTo = dates[dates.length - 1];
-
-        // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
-        // Opstart tæller ikke med i antal enheder.
-        const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
-        const totalUnits = unitEntries.reduce((sum, e) => sum + e.quantity, 0);
-        const totalDkk = allEntries.reduce((sum, e) => sum + e.totalDkk, 0);
-
-        body.innerHTML = `
-          <div class="grid grid-cols-2 gap-2">
-            <div class="bg-slate-50 rounded-xl p-3">
-              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Periode</div>
-              <div class="text-sm font-bold text-slate-900 mt-0.5">${formatDateShort(new Date(periodFrom + 'T12:00:00'))} - ${formatDateShort(new Date(periodTo + 'T12:00:00'))}</div>
-            </div>
-            <div class="bg-slate-50 rounded-xl p-3">
-              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Antal Enheder</div>
-              <div class="text-sm font-bold text-slate-900 mt-0.5">${formatNumber(totalUnits)}</div>
-            </div>
-          </div>
-          <div class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center">
-            <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Samlet Værdi</span>
-            <span class="font-black text-emerald-400">${formatCurrency(totalDkk)}</span>
-          </div>
-          <div>
-            <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Folk på sagen</div>
-            <div class="space-y-1.5">
-              ${peopleInvolved.map(p => `
-                <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-xs">
-                  <span class="font-semibold text-slate-800">${escapeHtml(p.name)}</span>
-                  <span class="text-slate-500">${p.count} registrering${p.count === 1 ? '' : 'er'}</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `;
+        currentCaseDetails = { caseName, caseNumber, people: peopleWithEntries };
+        renderCaseDetailsSummary();
       }).catch(err => {
         console.error('Kunne ikke hente sagsdata:', err);
         body.innerHTML = '<p class="text-red-500 text-center py-4 text-xs">Kunne ikke hente data for sagen.</p>';
       });
     }
 
+    function renderCaseDetailsSummary() {
+      const body = document.getElementById('caseDetailsBody');
+      if (!currentCaseDetails) return;
+      const allEntries = currentCaseDetails.people.flatMap(p => p.entries);
+
+      const dates = allEntries.map(e => e.date).sort();
+      const periodFrom = dates[0];
+      const periodTo = dates[dates.length - 1];
+      const totalDkk = allEntries.reduce((sum, e) => sum + e.totalDkk, 0);
+
+      // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
+      // Opstart tæller ikke med - men nu opdelt pr. akkordsats i stedet for
+      // ét samlet tal, så man kan se PRÆCIS hvilke enheder der er lavet.
+      const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+      const unitGroups = {};
+      unitEntries.forEach(e => {
+        if (!unitGroups[e.rateName]) unitGroups[e.rateName] = { quantity: 0, unit: e.unit };
+        unitGroups[e.rateName].quantity += e.quantity;
+      });
+
+      body.innerHTML = `
+        <div class="bg-slate-50 rounded-xl p-3">
+          <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Periode</div>
+          <div class="text-sm font-bold text-slate-900 mt-0.5">${formatDateShort(new Date(periodFrom + 'T12:00:00'))} - ${formatDateShort(new Date(periodTo + 'T12:00:00'))}</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Enheder Udført</div>
+          <div class="space-y-1.5">
+            ${Object.keys(unitGroups).map(name => `
+              <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-xs">
+                <span class="font-semibold text-slate-800">${escapeHtml(name)}</span>
+                <span class="text-slate-500">${formatNumber(unitGroups[name].quantity)} ${escapeHtml(unitGroups[name].unit)}</span>
+              </div>
+            `).join('') || '<p class="text-slate-400 text-center py-2 text-xs">Ingen akkord-enheder på denne sag.</p>'}
+          </div>
+        </div>
+
+        <div class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center">
+          <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Samlet Værdi</span>
+          <span class="font-black text-emerald-400">${formatCurrency(totalDkk)}</span>
+        </div>
+
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Folk på sagen</div>
+          <div class="space-y-1.5">
+            ${currentCaseDetails.people.map((p, i) => `
+              <button onclick="renderCaseDetailsPersonHistory(${i})" class="w-full flex justify-between items-center bg-slate-50 hover:bg-slate-100 rounded-lg px-3 py-2 text-xs transition-colors">
+                <span class="font-semibold text-slate-800">${escapeHtml(p.person.name)}</span>
+                <span class="flex items-center gap-1 text-slate-500">
+                  ${p.entries.length} registrering${p.entries.length === 1 ? '' : 'er'}
+                  <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Viser én medarbejders konkrete registreringer på sagen (drill-down)
+    function renderCaseDetailsPersonHistory(personIndex) {
+      if (!currentCaseDetails) return;
+      const person = currentCaseDetails.people[personIndex];
+      if (!person) return;
+
+      const body = document.getElementById('caseDetailsBody');
+      body.innerHTML = `
+        <button onclick="renderCaseDetailsSummary()" class="text-xs font-semibold text-brand-600 flex items-center gap-1 mb-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til sagen
+        </button>
+        <div class="text-sm font-bold text-slate-900">${escapeHtml(person.person.name)}</div>
+        <div class="space-y-2">
+          ${person.entries.map(e => `
+            <div class="bg-white border border-slate-200 rounded-xl p-3">
+              <div class="flex justify-between items-start">
+                <div>
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${e.date}</div>
+                  <div class="font-bold text-slate-900 text-sm">${escapeHtml(e.rateName)}</div>
+                </div>
+                <span class="font-extrabold text-emerald-600 text-sm">${formatCurrency(e.totalDkk)}</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">${formatNumber(e.quantity)} ${escapeHtml(e.unit)} · ${formatNumber(e.hours)} timer</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
+
     function closeCaseDetailsModal() {
       document.getElementById('caseDetailsModal').classList.add('hidden');
+      currentCaseDetails = null;
     }
 
     // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
@@ -1705,6 +1879,7 @@
       updateHeaderBadge();
       renderHistoryList();
       updateAccountIndicator();
+      updateHourlyRateEmphasis();
       if (window.lucide) lucide.createIcons();
     }
 
@@ -2557,8 +2732,9 @@
       document.getElementById('editEntryId').value = entry.id;
       document.getElementById('editEntryDate').value = entry.date;
       document.getElementById('editEntryQuantity').value = entry.quantity;
-      populateCaseSelect(document.getElementById('editEntryCase'));
-      document.getElementById('editEntryCase').value = entry.caseId || '';
+      const entryCaseRef = entry.caseId ? { id: entry.caseId, number: entry.caseNumber, name: entry.caseName } : null;
+      populateCaseSelect(document.getElementById('editEntryCase'), entryCaseRef);
+      document.getElementById('editEntryCaseFallback').value = entryCaseRef ? JSON.stringify(entryCaseRef) : '';
 
       const select = document.getElementById('editEntryRate');
       select.innerHTML = rates.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
@@ -2657,7 +2833,14 @@
       const date = document.getElementById('editEntryDate').value;
       const quantity = parseFloat(document.getElementById('editEntryQuantity').value);
       const selectedCaseId = document.getElementById('editEntryCase').value;
-      const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+      let selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+      if (!selectedCase && selectedCaseId) {
+        // Sagen er måske lukket/slettet siden - brug den bevarede reference i stedet
+        try {
+          const fallback = JSON.parse(document.getElementById('editEntryCaseFallback').value || 'null');
+          if (fallback && fallback.id === selectedCaseId) selectedCase = fallback;
+        } catch (err) { /* ignorer ugyldig fallback */ }
+      }
       const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
       const totalDkk = quantity * rate.price;
 
@@ -2952,6 +3135,7 @@
           currentUser = null;
           syncEnabled = false;
           detachRealtimeListeners();
+          detachCasesListeners();
           // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
           // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
           // uanset hvordan log-ud'et skete.
