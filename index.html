@@ -63,6 +63,15 @@
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
 
+  <!-- Read-Only Banner: vist mens en arbejdsgiver kigger på en medarbejders data -->
+  <div id="viewingEmployeeBanner" class="hidden sticky top-0 z-50 bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-2 shadow-md">
+    <div class="flex items-center gap-2 text-xs font-semibold min-w-0">
+      <i data-lucide="eye" class="w-4 h-4 flex-shrink-0"></i>
+      <span class="truncate">Viser <span id="viewingEmployeeName" class="font-black"></span>s data (skrivebeskyttet)</span>
+    </div>
+    <button onclick="stopViewingEmployee()" class="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0">Tilbage</button>
+  </div>
+
   <!-- Top App Bar -->
   <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800">
     <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
@@ -148,10 +157,15 @@
             </button>
           </div>
 
-          <!-- Extra Note / Location -->
+          <!-- Sag (erstatter det tidligere frie notefelt) -->
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logNote">Note / Byggeplads (valgfri)</label>
-            <input type="text" id="logNote" placeholder="f.eks. Sag 402 - Parcelhus i Roskilde" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs font-semibold uppercase tracking-wider text-slate-500" for="logCase">Sag (valgfri)</label>
+              <button type="button" onclick="promptCreateCase()" class="text-[11px] text-brand-600 font-semibold hover:text-brand-700">+ Ny sag</button>
+            </div>
+            <select id="logCase" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+              <option value="">Ingen sag</option>
+            </select>
           </div>
 
           <!-- Live Calculated Summary Card -->
@@ -163,8 +177,8 @@
                 <span id="liveTotalDkk" class="text-xl font-black text-emerald-400">0,00 kr.</span>
               </div>
               <div class="border-l border-slate-800 pl-3">
-                <span class="text-[11px] text-slate-400 block">Effektiv Timeløn</span>
-                <span id="liveHourlyRate" class="text-xl font-black text-brand-400">0,00 kr./t</span>
+                <span class="text-[10px] text-slate-500 block">Effektiv timeløn</span>
+                <span id="liveHourlyRate" class="text-sm font-semibold text-slate-400">0,00 kr./t</span>
               </div>
             </div>
             <div id="liveTimelonWrap" class="hidden border-t border-slate-800 pt-3">
@@ -204,6 +218,43 @@
       </section>
 
       <!-- ========================================== -->
+      <!-- TAB: SAGER                                 -->
+      <!-- ========================================== -->
+      <section id="tab-cases" class="tab-content space-y-4 hidden">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Sager</h2>
+          <p class="text-xs text-slate-500">Opret en sag pr. byggeplads/kunde, og vælg den når du registrerer</p>
+        </div>
+
+        <!-- New Case Form -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider" for="newCaseName">Ny sag</label>
+          <div class="flex gap-2">
+            <input type="text" id="newCaseName" placeholder="f.eks. Vejgade 12 eller Kundenavn" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <button onclick="handleCreateCase()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap shadow-md shadow-brand-600/20">Opret</button>
+          </div>
+        </div>
+
+        <!-- Open Cases -->
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Åbne sager</h3>
+          <div id="openCasesList" class="space-y-2.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Completed Cases (kun synlig for administratorer) -->
+        <div id="completedCasesSection" class="hidden">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Afsluttede sager</h3>
+          <div id="completedCasesList" class="space-y-2.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
       <!-- TAB 3: STATISTIK (Analytics Dashboard)     -->
       <!-- ========================================== -->
       <section id="tab-stats" class="tab-content space-y-4 hidden">
@@ -216,9 +267,9 @@
         <!-- Time Filter Pills -->
         <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
           <button onclick="setStatsFilter('today')" id="filter-today" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">I dag</button>
-          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Denne uge</button>
+          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne uge</button>
           <button onclick="setStatsFilter('month')" id="filter-month" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne måned</button>
-          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Lønmåned (21.-20.)</button>
+          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Lønmåned (21.-20.)</button>
           <button onclick="setStatsFilter('last30')" id="filter-last30" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Sidste 30 dage</button>
           <button onclick="setStatsFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Altid</button>
           <button onclick="toggleCustomDatePicker()" id="filter-custom" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700 flex items-center gap-1">
@@ -253,13 +304,10 @@
           </div>
 
           <!-- Metric 2: Effective Hourly Wage -->
-          <div class="bg-emerald-500 text-white p-4 rounded-2xl shadow-md shadow-emerald-500/20 relative overflow-hidden">
-            <div class="text-[11px] font-semibold text-emerald-100 uppercase tracking-wider">Effektiv Timeløn</div>
-            <div id="statHourlyWage" class="text-xl font-extrabold text-white mt-1">0 kr./t</div>
-            <div class="mt-2 flex items-center text-[10px] text-emerald-100 font-medium gap-1">
-              <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-              <span>Gennemsnit i perioden</span>
-            </div>
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effektiv Timeløn</div>
+            <div id="statHourlyWage" class="text-xl font-extrabold text-slate-900 mt-1">0 kr./t</div>
+            <div class="mt-2 text-[10px] text-slate-400 font-medium">Gennemsnit i perioden</div>
           </div>
 
           <!-- Metric 3: Total Hours -->
@@ -332,6 +380,10 @@
       <!-- ========================================== -->
       <section id="tab-history" class="tab-content space-y-4 hidden">
         
+        <button id="historyBackToOwnBtn" onclick="stopViewingEmployee()" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-800 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til mine egne registreringer
+        </button>
+
         <div class="flex justify-between items-center">
           <div>
             <h2 class="text-lg font-bold text-slate-900">Arbejdshistorik</h2>
@@ -355,12 +407,45 @@
 
       </section>
 
+      <!-- ========================================== -->
+      <!-- TAB 5: MEDARBEJDERE (kun for arbejdsgivere) -->
+      <!-- ========================================== -->
+      <section id="tab-employees" class="tab-content space-y-4 hidden">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Mine Medarbejdere</h2>
+          <p class="text-xs text-slate-500">Se dine medarbejderes registreringer og statistik</p>
+        </div>
+
+        <!-- Invite Code Card -->
+        <div class="bg-slate-900 rounded-2xl p-4 text-white space-y-2">
+          <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din invitationskode</div>
+          <div class="flex items-center justify-between gap-2">
+            <span id="companyInviteCodeDisplay" class="text-2xl font-black tracking-[0.2em] text-emerald-400">------</span>
+            <button onclick="copyInviteCode()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Kopiér
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400">Del denne kode med en medarbejder - de indtaster den under deres egen konto-menu (👤-ikonet) for at blive tilknyttet.</p>
+        </div>
+
+        <!-- Employees List -->
+        <div id="employeesList" class="space-y-2.5">
+          <!-- Rendered dynamically via JS -->
+        </div>
+
+        <button id="deleteCompanyBtn" onclick="confirmDeleteCompany()" class="hidden w-full py-2.5 text-red-600 font-semibold text-xs hover:bg-red-50 rounded-xl border border-red-100">
+          Slet virksomhed
+        </button>
+
+      </section>
+
     </div>
   </main>
 
   <!-- Bottom Navigation Bar (Mobile Native Style) -->
   <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
-    <div class="max-w-md mx-auto grid grid-cols-4 h-16">
+    <div id="navGrid" class="max-w-md mx-auto grid grid-cols-5 h-16">
       
       <button onclick="switchTab('register')" id="nav-register" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
         <i data-lucide="pen-tool" class="w-5 h-5"></i>
@@ -372,6 +457,11 @@
         <span class="text-[10px] font-semibold mt-1">Satser</span>
       </button>
 
+      <button onclick="switchTab('cases')" id="nav-cases" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Sager</span>
+      </button>
+
       <button onclick="switchTab('stats')" id="nav-stats" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Statistik</span>
@@ -380,6 +470,11 @@
       <button onclick="switchTab('history')" id="nav-history" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="history" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Historik</span>
+      </button>
+
+      <button onclick="switchTab('employees')" id="nav-employees" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Medarbejdere</span>
       </button>
 
     </div>
@@ -415,6 +510,21 @@
         </button>
       </div>
       <div id="accountModalBody" class="space-y-3">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Case Details (kun for administratorer, på afsluttede sager) -->
+  <div id="caseDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 id="caseDetailsTitle" class="font-bold text-slate-900 text-base">Sag</h3>
+        <button onclick="closeCaseDetailsModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="caseDetailsBody" class="space-y-3">
         <!-- Rendered dynamically via JS -->
       </div>
     </div>
@@ -499,8 +609,10 @@
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Note (Valgfri)</label>
-          <textarea id="editEntryNote" rows="2" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sag (Valgfri)</label>
+          <select id="editEntryCase" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">Ingen sag</option>
+          </select>
         </div>
 
         <div id="editEntryPreview" class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center text-xs">
@@ -560,6 +672,10 @@
     let db = null;
     let currentUser = null;
     let syncEnabled = false;
+    let myCompany = null; // { id, name, inviteCode } - udfyldt hvis brugeren ejer en virksomhed
+    let viewingEmployee = null; // { uid, name } - sat mens en arbejdsgiver kigger på en medarbejders data (skrivebeskyttet)
+    let ownEntries = null; // midlertidig opbevaring af egne data, mens man kigger på en medarbejder
+    let ownRates = null;
 
     try {
       if (firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('INDSÆT') === -1) {
@@ -603,7 +719,7 @@
 
     let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
     let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
-    let currentStatsFilter = 'week';
+    let currentStatsFilter = 'paymonth';
     let customDateRange = null; // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } for "Vælg periode"
     let chartInstance = null;
 
@@ -700,6 +816,11 @@
     }
 
     function signOutUser() {
+      // Nulstil evt. "kigger på medarbejder"-tilstand, så man ikke sidder
+      // fast i skrivebeskyttet visning efter log-ud/log-ind som en anden.
+      if (viewingEmployee) {
+        stopViewingEmployee();
+      }
       detachRealtimeListeners();
       if (auth) auth.signOut();
       closeAccountModal();
@@ -729,16 +850,51 @@
         return;
       }
       if (currentUser) {
+        let companySectionHtml = '';
+        if (myCompany) {
+          companySectionHtml = `
+            <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-slate-900 truncate">${escapeHtml(myCompany.name)}</div>
+                <div class="text-[10px] text-slate-500">${myCompany.isOwner ? 'Du er opretter og administrator' : 'Du er administrator'}</div>
+              </div>
+              <button onclick="closeAccountModal(); switchTab('employees');" class="text-brand-600 text-xs font-bold whitespace-nowrap">Se medarbejdere →</button>
+            </div>
+          `;
+        } else if (myMembershipCompanyName) {
+          companySectionHtml = `
+            <div class="bg-slate-50 rounded-xl p-3">
+              <div class="text-xs font-bold text-slate-900">${escapeHtml(myMembershipCompanyName)}</div>
+              <div class="text-[10px] text-slate-500">Du er tilknyttet som medarbejder</div>
+            </div>
+          `;
+        } else {
+          companySectionHtml = `
+            <button onclick="promptCreateCompany()" class="w-full py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">+ Opret virksomhed</button>
+            <div class="flex gap-2">
+              <input type="text" id="joinCompanyCodeInput" placeholder="Indtast kode" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500">
+              <button onclick="handleRedeemInviteCode()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap">Tilknyt</button>
+            </div>
+          `;
+        }
+
         body.innerHTML = `
           <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <img src="${currentUser.photoURL || ''}" onerror="this.style.display='none'" class="w-10 h-10 rounded-full">
-            <div class="min-w-0">
-              <div class="font-bold text-sm text-slate-900 truncate">${escapeHtml(currentUser.displayName || 'Bruger')}</div>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-sm text-slate-900 truncate">${escapeHtml(currentUser.displayName || 'Bruger')}</span>
+                ${myCompany ? '<span class="text-[9px] font-black uppercase tracking-wider bg-brand-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">Administrator</span>' : ''}
+              </div>
               <div class="text-xs text-slate-500 truncate">${escapeHtml(currentUser.email || '')}</div>
             </div>
           </div>
           <div class="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
             <i data-lucide="cloud" class="w-3.5 h-3.5"></i> Dine data synkroniseres til skyen
+          </div>
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Virksomhed</div>
+            ${companySectionHtml}
           </div>
           <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
         `;
@@ -795,6 +951,19 @@
       currentUser = user;
       syncEnabled = true;
       updateAccountIndicator();
+      applyCachedCompanyInfo(user.uid);
+
+      // Sikrer at et nyt login aldrig arver en efterladt "kigger på
+      // medarbejder"-tilstand fra en tidligere bruger i samme fane.
+      if (viewingEmployee) {
+        viewingEmployee = null;
+        ownEntries = null;
+        ownRates = null;
+        document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+        document.getElementById('nav-register').classList.remove('hidden');
+        document.getElementById('nav-rates').classList.remove('hidden');
+        document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+      }
 
       const userDocRef = db.collection('users').doc(user.uid);
 
@@ -811,6 +980,7 @@
 
         const finishLogin = () => {
           attachRealtimeListeners(userDocRef);
+          loadCompanyInfo();
           showToast('Logget ind som ' + (user.displayName || user.email));
         };
 
@@ -853,6 +1023,681 @@
       if (window.lucide) lucide.createIcons();
     }
 
+    // ==========================================
+    // VIRKSOMHED & MEDARBEJDERE
+    // ==========================================
+    let myMembershipCompanyName = null; // navn på virksomheden man er tilknyttet som medarbejder (hvis nogen)
+    let myCompanyId = null; // sat for ALLE medlemmer af en virksomhed (admin eller ej) - bruges til Sager
+
+    // Genskaber administrator-status med det samme fra en lokal cache, så man
+    // ikke oplever et kort "glimt" af at fremstå som almindelig medarbejder,
+    // mens Firestore-opslaget stadig er undervejs. Den rigtige, aktuelle
+    // status bekræftes altid bagefter af loadCompanyInfo().
+    function applyCachedCompanyInfo(uid) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('akkord_myCompany') || 'null');
+        if (cached && cached.cachedForUid === uid) {
+          myCompany = cached;
+          showEmployeesTab();
+        }
+      } catch (err) { /* ignorer ugyldig cache */ }
+    }
+
+    // Tjekker om brugeren ejer en virksomhed, og/eller er tilknyttet én som
+    // medarbejder. Køres efter login, og opdaterer kontomenu + Medarbejdere-fanen.
+    // Viser/skjuler Medarbejdere-fanen i bundnavigationen
+    function showEmployeesTab() {
+      document.getElementById('nav-employees').classList.remove('hidden');
+      document.getElementById('navGrid').classList.remove('grid-cols-5');
+      document.getElementById('navGrid').classList.add('grid-cols-6');
+    }
+    function hideEmployeesTab() {
+      document.getElementById('nav-employees').classList.add('hidden');
+      document.getElementById('navGrid').classList.remove('grid-cols-6');
+      document.getElementById('navGrid').classList.add('grid-cols-5');
+    }
+
+    // Tjekker hvilken virksomhed brugeren er tilknyttet (companyId), og om
+    // deres rolle dér er "admin" eller almindelig "employee". En admin kan
+    // sagtens også selv lave sine egne registreringer som alle andre - det
+    // er kun rollen der afgør, om man kan se de andres data.
+    function loadCompanyInfo() {
+      if (!currentUser || !db) return;
+
+      db.collection('users').doc(currentUser.uid).get().then(doc => {
+        const companyId = doc.exists ? doc.data().companyId : null;
+
+        if (!companyId) {
+          myCompany = null;
+          myMembershipCompanyName = null;
+          myCompanyId = null;
+          localStorage.removeItem('akkord_myCompany');
+          hideEmployeesTab();
+          renderAccountModalBody();
+          loadCases();
+          return;
+        }
+
+        Promise.all([
+          db.collection('companies').doc(companyId).get(),
+          db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).get()
+        ]).then(([companyDoc, myEmployeeDoc]) => {
+          if (!companyDoc.exists) {
+            // Virksomheden er blevet slettet - ryd op i egen tilknytning
+            // (egne satser/registreringer er upåvirkede).
+            myCompany = null;
+            myMembershipCompanyName = null;
+            myCompanyId = null;
+            localStorage.removeItem('akkord_myCompany');
+            hideEmployeesTab();
+            db.collection('users').doc(currentUser.uid).update({
+              companyId: firebase.firestore.FieldValue.delete()
+            }).catch(() => {});
+            renderAccountModalBody();
+            loadCases();
+            return;
+          }
+
+          const companyData = companyDoc.data();
+          const isOwner = companyData.ownerId === currentUser.uid;
+          const role = myEmployeeDoc.exists ? myEmployeeDoc.data().role : null;
+          const isAdmin = isOwner || role === 'admin';
+
+          myMembershipCompanyName = companyData.name;
+          myCompanyId = companyId;
+
+          if (isAdmin) {
+            myCompany = { id: companyId, ...companyData, isOwner, cachedForUid: currentUser.uid };
+            localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
+            showEmployeesTab();
+          } else {
+            myCompany = null;
+            localStorage.removeItem('akkord_myCompany');
+            hideEmployeesTab();
+          }
+
+          renderAccountModalBody();
+          loadCases();
+        }).catch(err => console.error('Kunne ikke tjekke virksomhedsrolle:', err));
+      }).catch(err => console.error('Kunne ikke tjekke virksomheds-tilknytning:', err));
+    }
+
+    function generateInviteCode() {
+      // Undgår tegn der let forveksles (0/O, 1/I)
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
+    }
+
+    function promptCreateCompany() {
+      const name = prompt('Navngiv din virksomhed (fx dit firmanavn):');
+      if (!name || !name.trim()) return;
+      createCompany(name.trim());
+    }
+
+    function createCompany(name) {
+      if (!currentUser || !db) return;
+      const companyRef = db.collection('companies').doc();
+      const inviteCode = generateInviteCode();
+
+      companyRef.set({
+        ownerId: currentUser.uid,
+        name,
+        inviteCode,
+        createdAt: new Date().toISOString()
+      }).then(() => {
+        return Promise.all([
+          db.collection('users').doc(currentUser.uid).set({ companyId: companyRef.id }, { merge: true }),
+          companyRef.collection('employees').doc(currentUser.uid).set({
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            role: 'admin',
+            joinedAt: new Date().toISOString()
+          })
+        ]);
+      }).then(() => {
+        myCompany = { id: companyRef.id, ownerId: currentUser.uid, name, inviteCode, isOwner: true, cachedForUid: currentUser.uid };
+        myMembershipCompanyName = name;
+        localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
+        showEmployeesTab();
+        renderAccountModalBody();
+        showToast('Virksomheden "' + name + '" er oprettet!');
+      }).catch(err => {
+        console.error('Kunne ikke oprette virksomhed:', err);
+        showToast('Kunne ikke oprette virksomhed', 'error');
+      });
+    }
+
+    function confirmDeleteCompany() {
+      if (!myCompany) return;
+      showConfirmModal(
+        'Slet virksomhed?',
+        `Er du sikker på, at du vil slette "${myCompany.name}"? Alle medarbejdere bliver frigjort fra virksomheden og mister din adgang til deres data - men de beholder selv alle deres egne satser og registreringer. Dette kan ikke fortrydes.`,
+        deleteCompany,
+        'Slet virksomhed'
+      );
+    }
+
+    function deleteCompany() {
+      if (!myCompany || !db) return;
+      const companyId = myCompany.id;
+      const companyName = myCompany.name;
+
+      db.collection('companies').doc(companyId).collection('employees').get().then(snapshot => {
+        return Promise.all(snapshot.docs.map(d => d.ref.delete()));
+      }).then(() => {
+        return db.collection('companies').doc(companyId).delete();
+      }).then(() => {
+        myCompany = null;
+        localStorage.removeItem('akkord_myCompany');
+        hideEmployeesTab();
+        renderAccountModalBody();
+        switchTab('register');
+        showToast('"' + companyName + '" er slettet - medarbejderne beholder deres egne data');
+      }).catch(err => {
+        console.error('Kunne ikke slette virksomheden:', err);
+        showToast('Kunne ikke slette virksomheden', 'error');
+      });
+    }
+
+    function handleRedeemInviteCode() {
+      const input = document.getElementById('joinCompanyCodeInput');
+      if (!input) return;
+      const code = input.value.trim().toUpperCase();
+      if (!code) {
+        showToast('Indtast venligst en kode', 'error');
+        return;
+      }
+      if (!currentUser || !db) {
+        showToast('Du skal være logget ind med Google for at tilknytte en kode', 'error');
+        return;
+      }
+
+      db.collection('companies').where('inviteCode', '==', code).limit(1).get().then(snapshot => {
+        if (snapshot.empty) {
+          showToast('Koden blev ikke fundet - tjek at den er skrevet korrekt', 'error');
+          return;
+        }
+        const companyDoc = snapshot.docs[0];
+        const companyId = companyDoc.id;
+        const companyName = companyDoc.data().name;
+
+        db.collection('users').doc(currentUser.uid).set({ companyId }, { merge: true }).then(() => {
+          db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            role: 'employee',
+            joinedAt: new Date().toISOString()
+          }).then(() => {
+            myMembershipCompanyName = companyName;
+            input.value = '';
+            renderAccountModalBody();
+            showToast('Du er nu tilknyttet ' + companyName + '!');
+          });
+        });
+      }).catch(err => {
+        console.error('Kunne ikke tilknytte koden:', err);
+        showToast('Kunne ikke tilknytte koden', 'error');
+      });
+    }
+
+    function copyInviteCode() {
+      if (!myCompany) return;
+      navigator.clipboard.writeText(myCompany.inviteCode).then(() => {
+        showToast('Koden er kopieret!');
+      }).catch(() => {
+        showToast('Kunne ikke kopiere - koden er ' + myCompany.inviteCode, 'error');
+      });
+    }
+
+    // Henter og viser listen af medarbejdere tilknyttet ens virksomhed
+    function loadEmployeesList() {
+      const codeDisplay = document.getElementById('companyInviteCodeDisplay');
+      const container = document.getElementById('employeesList');
+      const deleteBtn = document.getElementById('deleteCompanyBtn');
+      if (!myCompany) {
+        if (container) {
+          container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Du skal oprette en virksomhed under kontomenuen (👤-ikonet) for at tilføje medarbejdere.</p>';
+        }
+        if (deleteBtn) deleteBtn.classList.add('hidden');
+        return;
+      }
+
+      if (codeDisplay) codeDisplay.textContent = myCompany.inviteCode;
+      // Kun den oprindelige opretter kan slette hele virksomheden
+      if (deleteBtn) deleteBtn.classList.toggle('hidden', !myCompany.isOwner);
+
+      db.collection('companies').doc(myCompany.id).collection('employees').get().then(snapshot => {
+        const list = snapshot.docs
+          .map(d => ({ uid: d.id, ...d.data() }))
+          .filter(emp => emp.uid !== currentUser.uid); // man ser jo allerede sine egne data i de andre faner
+        renderEmployeesList(list);
+      }).catch(err => {
+        console.error('Kunne ikke hente medarbejdere:', err);
+      });
+    }
+
+    function renderEmployeesList(list) {
+      const container = document.getElementById('employeesList');
+      if (!container) return;
+
+      if (list.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen andre medarbejdere endnu. Del din kode ovenfor med dem, så de kan tilknytte sig.</p>';
+        return;
+      }
+
+      container.innerHTML = list.map(emp => {
+        const safeName = escapeHtml(emp.name || emp.email || 'Medarbejder').replace(/'/g, "\\'");
+        const isAdmin = emp.role === 'admin';
+        const isOwnerRow = myCompany.ownerId === emp.uid;
+
+        return `
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+            <button onclick="viewEmployeeData('${emp.uid}', '${safeName}')" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+              <div class="min-w-0">
+                <div class="font-bold text-slate-900 text-sm truncate flex items-center gap-1.5">
+                  <span class="truncate">${escapeHtml(emp.name || 'Unavngivet')}</span>
+                  ${isAdmin ? '<span class="text-[9px] font-black uppercase tracking-wider bg-brand-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">Admin</span>' : ''}
+                </div>
+                <div class="text-xs text-slate-500 truncate">${escapeHtml(emp.email || '')}</div>
+              </div>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+            </button>
+            ${isOwnerRow ? '' : `
+              <button onclick="toggleAdminRole('${emp.uid}', ${isAdmin ? 'false' : 'true'})" class="text-[10px] font-bold ${isAdmin ? 'text-slate-500' : 'text-brand-600'} whitespace-nowrap px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 flex-shrink-0">
+                ${isAdmin ? 'Fjern admin' : 'Gør til admin'}
+              </button>
+            `}
+          </div>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Gør en medarbejder til administrator (eller fjerner det igen). Enhver
+    // administrator kan gøre dette for enhver anden - undtagen den
+    // oprindelige opretter, hvis administrator-status altid består.
+    function toggleAdminRole(uid, makeAdmin) {
+      if (!myCompany || !db) return;
+      db.collection('companies').doc(myCompany.id).collection('employees').doc(uid).update({
+        role: makeAdmin ? 'admin' : 'employee'
+      }).then(() => {
+        showToast(makeAdmin ? 'Gjort til administrator' : 'Administrator-rettighed fjernet');
+        loadEmployeesList();
+      }).catch(err => {
+        console.error('Kunne ikke ændre rolle:', err);
+        showToast('Kunne ikke ændre rolle', 'error');
+      });
+    }
+
+    // ==========================================
+    // SAGER
+    // ==========================================
+    // Sager gemmes enten under virksomheden (delt af alle medarbejdere) hvis
+    // man er tilknyttet én, eller under ens egen profil (kun til én selv)
+    // hvis man arbejder solo - men fungerer og ser ens ud i begge tilfælde.
+    let openCases = [];
+
+    function getCasesRef() {
+      if (!db) return null;
+      return myCompanyId
+        ? db.collection('companies').doc(myCompanyId).collection('cases')
+        : db.collection('users').doc(currentUser.uid).collection('cases');
+    }
+
+    function getCasesMetaRef() {
+      if (!db) return null;
+      return myCompanyId
+        ? db.collection('companies').doc(myCompanyId).collection('meta').doc('caseCounter')
+        : db.collection('users').doc(currentUser.uid).collection('meta').doc('caseCounter');
+    }
+
+    // Man er "sags-administrator" hvis man enten er admin i en virksomhed,
+    // eller arbejder solo (og dermed automatisk styrer sine egne sager).
+    function isCaseAdmin() {
+      return myCompanyId ? !!myCompany : !!currentUser;
+    }
+
+    function handleCreateCase() {
+      const input = document.getElementById('newCaseName');
+      const name = input.value.trim();
+      if (!name) {
+        showToast('Giv sagen et navn først', 'error');
+        return;
+      }
+      createCase(name, () => { input.value = ''; });
+    }
+
+    function promptCreateCase() {
+      const name = prompt('Navngiv sagen (fx vejnavn eller kundenavn):');
+      if (!name || !name.trim()) return;
+      createCase(name.trim(), (newCase) => {
+        // Vælg den nye sag med det samme i registreringsformularen
+        const select = document.getElementById('logCase');
+        if (select) select.value = newCase.id;
+      });
+    }
+
+    // Opretter en sag med automatisk fortløbende nummer (via transaktion, så
+    // to personer der opretter samtidig aldrig kan få samme nummer).
+    function createCase(name, onDone) {
+      if (!currentUser || !db) return;
+      const casesRef = getCasesRef();
+      const metaRef = getCasesMetaRef();
+      const newCaseRef = casesRef.doc();
+
+      db.runTransaction(tx => {
+        return tx.get(metaRef).then(metaDoc => {
+          const nextNumber = (metaDoc.exists ? metaDoc.data().count : 0) + 1;
+          tx.set(metaRef, { count: nextNumber }, { merge: true });
+          tx.set(newCaseRef, {
+            number: nextNumber,
+            name,
+            status: 'open',
+            createdBy: currentUser.uid,
+            createdByName: currentUser.displayName || currentUser.email || '',
+            createdAt: new Date().toISOString(),
+            completedBy: null,
+            completedByName: null,
+            completedAt: null
+          });
+          return nextNumber;
+        });
+      }).then(number => {
+        showToast('Sag #' + number + ' oprettet');
+        loadCases();
+        if (onDone) onDone({ id: newCaseRef.id, number, name });
+      }).catch(err => {
+        console.error('Kunne ikke oprette sag:', err);
+        showToast('Kunne ikke oprette sag', 'error');
+      });
+    }
+
+    // Henter både åbne sager (til alle) og afsluttede sager (kun til admins),
+    // og opdaterer sags-listerne samt sags-dropdown i registreringsformularen.
+    function loadCases() {
+      if (!currentUser || !db) {
+        const container = document.getElementById('openCasesList');
+        if (container) {
+          container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Log ind med Google for at bruge sager.</p>';
+        }
+        const completedSection = document.getElementById('completedCasesSection');
+        if (completedSection) completedSection.classList.add('hidden');
+        return;
+      }
+      const casesRef = getCasesRef();
+      if (!casesRef) return;
+
+      casesRef.where('status', '==', 'open').get().then(snapshot => {
+        openCases = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.number - b.number);
+        renderOpenCasesList();
+        populateCaseSelect(document.getElementById('logCase'));
+        populateCaseSelect(document.getElementById('editEntryCase'));
+      }).catch(err => console.error('Kunne ikke hente åbne sager:', err));
+
+      const completedSection = document.getElementById('completedCasesSection');
+      if (isCaseAdmin()) {
+        completedSection.classList.remove('hidden');
+        casesRef.where('status', '==', 'completed').get().then(snapshot => {
+          const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.number - a.number);
+          renderCompletedCasesList(list);
+        }).catch(err => console.error('Kunne ikke hente afsluttede sager:', err));
+      } else {
+        completedSection.classList.add('hidden');
+      }
+    }
+
+    function populateCaseSelect(selectEl) {
+      if (!selectEl) return;
+      const currentValue = selectEl.value;
+      selectEl.innerHTML = '<option value="">Ingen sag</option>' +
+        openCases.map(c => `<option value="${c.id}">#${c.number} · ${escapeHtml(c.name)}</option>`).join('');
+      if (openCases.some(c => c.id === currentValue)) {
+        selectEl.value = currentValue;
+      }
+    }
+
+    function renderOpenCasesList() {
+      const container = document.getElementById('openCasesList');
+      if (!container) return;
+
+      if (openCases.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen åbne sager endnu - opret en herover.</p>';
+        return;
+      }
+
+      const admin = isCaseAdmin();
+      container.innerHTML = openCases.map(c => `
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
+            <div class="text-[10px] text-slate-500 truncate">Oprettet af ${escapeHtml(c.createdByName || 'ukendt')}</div>
+          </div>
+          ${admin ? `
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button onclick="confirmCompleteCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-[10px] font-bold text-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 whitespace-nowrap">Færdigmeld</button>
+              <button onclick="confirmDeleteCase('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-red-600 p-1.5">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderCompletedCasesList(list) {
+      const container = document.getElementById('completedCasesList');
+      if (!container) return;
+
+      if (list.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen afsluttede sager endnu.</p>';
+        return;
+      }
+
+      container.innerHTML = list.map(c => `
+        <button onclick="viewCaseDetails('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}', ${c.number})" class="w-full text-left bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <div class="min-w-0">
+            <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
+            <div class="text-[10px] text-slate-500 truncate">Afsluttet af ${escapeHtml(c.completedByName || 'ukendt')}</div>
+          </div>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+        </button>
+      `).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function confirmCompleteCase(caseId, name) {
+      showConfirmModal(
+        'Færdigmeld sag?',
+        `Er du sikker på, at "${name}" er færdig? Sagen forsvinder fra listen over åbne sager, og kan herefter kun ses af administratorer.`,
+        () => completeCase(caseId),
+        'Færdigmeld'
+      );
+    }
+
+    function completeCase(caseId) {
+      const ref = getCasesRef();
+      if (!ref || !currentUser) return;
+      ref.doc(caseId).update({
+        status: 'completed',
+        completedBy: currentUser.uid,
+        completedByName: currentUser.displayName || currentUser.email || '',
+        completedAt: new Date().toISOString()
+      }).then(() => {
+        showToast('Sagen er færdigmeldt');
+        loadCases();
+      }).catch(err => {
+        console.error('Kunne ikke færdigmelde sag:', err);
+        showToast('Kunne ikke færdigmelde sag', 'error');
+      });
+    }
+
+    function confirmDeleteCase(caseId, name) {
+      showConfirmModal(
+        'Slet sag?',
+        `Er du sikker på, at du vil slette "${name}"? Allerede gemte registreringer beholder deres egen sags-mærkning, men sagen forsvinder fra listen.`,
+        () => deleteCase(caseId)
+      );
+    }
+
+    function deleteCase(caseId) {
+      const ref = getCasesRef();
+      if (!ref) return;
+      ref.doc(caseId).delete().then(() => {
+        showToast('Sag slettet');
+        loadCases();
+      }).catch(err => {
+        console.error('Kunne ikke slette sag:', err);
+        showToast('Kunne ikke slette sag', 'error');
+      });
+    }
+
+    // Samler statistik for en afsluttet sag på tværs af ALLE medarbejdere:
+    // periode, samlet antal enheder, og hvem der har arbejdet på den.
+    function viewCaseDetails(caseId, caseName, caseNumber) {
+      document.getElementById('caseDetailsTitle').textContent = '#' + caseNumber + ' · ' + caseName;
+      const body = document.getElementById('caseDetailsBody');
+      body.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Henter data...</p>';
+      document.getElementById('caseDetailsModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+
+      // Find hvilke personer der skal tjekkes for registreringer på sagen:
+      // alle medarbejdere i virksomheden, eller bare én selv hvis solo.
+      const peoplePromise = myCompanyId
+        ? db.collection('companies').doc(myCompanyId).collection('employees').get().then(snapshot =>
+            snapshot.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email || 'Ukendt' }))
+          )
+        : Promise.resolve([{ uid: currentUser.uid, name: currentUser.displayName || currentUser.email || 'Mig' }]);
+
+      peoplePromise.then(people => {
+        return Promise.all(people.map(p =>
+          db.collection('users').doc(p.uid).collection('entries').where('caseId', '==', caseId).get()
+            .then(snap => ({ person: p, entries: snap.docs.map(d => d.data()) }))
+        ));
+      }).then(results => {
+        let allEntries = [];
+        let peopleInvolved = [];
+        results.forEach(r => {
+          if (r.entries.length > 0) {
+            allEntries = allEntries.concat(r.entries);
+            peopleInvolved.push({ name: r.person.name, count: r.entries.length });
+          }
+        });
+
+        if (allEntries.length === 0) {
+          body.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen registreringer fundet på denne sag.</p>';
+          return;
+        }
+
+        const dates = allEntries.map(e => e.date).sort();
+        const periodFrom = dates[0];
+        const periodTo = dates[dates.length - 1];
+
+        // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
+        // Opstart tæller ikke med i antal enheder.
+        const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+        const totalUnits = unitEntries.reduce((sum, e) => sum + e.quantity, 0);
+        const totalDkk = allEntries.reduce((sum, e) => sum + e.totalDkk, 0);
+
+        body.innerHTML = `
+          <div class="grid grid-cols-2 gap-2">
+            <div class="bg-slate-50 rounded-xl p-3">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Periode</div>
+              <div class="text-sm font-bold text-slate-900 mt-0.5">${formatDateShort(new Date(periodFrom + 'T12:00:00'))} - ${formatDateShort(new Date(periodTo + 'T12:00:00'))}</div>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Antal Enheder</div>
+              <div class="text-sm font-bold text-slate-900 mt-0.5">${formatNumber(totalUnits)}</div>
+            </div>
+          </div>
+          <div class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center">
+            <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Samlet Værdi</span>
+            <span class="font-black text-emerald-400">${formatCurrency(totalDkk)}</span>
+          </div>
+          <div>
+            <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Folk på sagen</div>
+            <div class="space-y-1.5">
+              ${peopleInvolved.map(p => `
+                <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-xs">
+                  <span class="font-semibold text-slate-800">${escapeHtml(p.name)}</span>
+                  <span class="text-slate-500">${p.count} registrering${p.count === 1 ? '' : 'er'}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).catch(err => {
+        console.error('Kunne ikke hente sagsdata:', err);
+        body.innerHTML = '<p class="text-red-500 text-center py-4 text-xs">Kunne ikke hente data for sagen.</p>';
+      });
+    }
+
+    function closeCaseDetailsModal() {
+      document.getElementById('caseDetailsModal').classList.add('hidden');
+    }
+
+    // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
+    // Kobler egne live-lyttere fra, mens man kigger, for at undgå at de
+    // overskriver den viste medarbejders data.
+    function viewEmployeeData(uid, name) {
+      if (!myCompany || !db) return;
+
+      ownEntries = entries;
+      ownRates = rates;
+      detachRealtimeListeners();
+
+      const empDocRef = db.collection('users').doc(uid);
+
+      Promise.all([
+        empDocRef.get(),
+        empDocRef.collection('entries').get()
+      ]).then(([doc, snapshot]) => {
+        rates = (doc.exists && doc.data().rates) ? doc.data().rates : [];
+        entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        viewingEmployee = { uid, name };
+        document.getElementById('viewingEmployeeBanner').classList.remove('hidden');
+        document.getElementById('viewingEmployeeName').textContent = name;
+        document.getElementById('nav-register').classList.add('hidden');
+        document.getElementById('nav-rates').classList.add('hidden');
+        document.getElementById('historyBackToOwnBtn').classList.remove('hidden');
+
+        switchTab('history');
+        refreshAllViews();
+        showToast('Viser data for ' + name);
+      }).catch(err => {
+        console.error('Kunne ikke hente medarbejderens data:', err);
+        showToast('Kunne ikke hente medarbejderens data', 'error');
+      });
+    }
+
+    function stopViewingEmployee() {
+      viewingEmployee = null;
+      entries = ownEntries || [];
+      rates = ownRates || DEFAULT_RATES;
+      ownEntries = null;
+      ownRates = null;
+
+      document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+      document.getElementById('nav-register').classList.remove('hidden');
+      document.getElementById('nav-rates').classList.remove('hidden');
+      document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+
+      if (currentUser && db) {
+        attachRealtimeListeners(db.collection('users').doc(currentUser.uid));
+      }
+
+      refreshAllViews();
+      switchTab('register');
+    }
+
     // Selve app-opstarten (formular, historik osv.) - køres når vi ved om
     // brugeren er logget ind, logget ud, eller har valgt at fortsætte uden login.
     function startApp() {
@@ -891,6 +1736,10 @@
         renderHistoryList();
       } else if (tabId === 'rates') {
         renderRatesList();
+      } else if (tabId === 'employees') {
+        loadEmployeesList();
+      } else if (tabId === 'cases') {
+        loadCases();
       }
 
       if (window.lucide) lucide.createIcons();
@@ -1079,8 +1928,15 @@
     function handleSaveLog(e) {
       e.preventDefault();
 
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke tilføje registreringer for en medarbejder', 'error');
+        return;
+      }
+
       const date = document.getElementById('logDate').value;
-      const note = document.getElementById('logNote').value.trim();
+      const selectedCaseId = document.getElementById('logCase').value;
+      const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+      const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
       const totalHoursEntered = parseFloat(document.getElementById('logHours').value) || 0;
       const rows = document.querySelectorAll('.log-row');
       
@@ -1167,7 +2023,10 @@
           hours,
           totalDkk: storedTotalDkk,
           hourlyRate,
-          note
+          note,
+          caseId: selectedCase ? selectedCase.id : null,
+          caseNumber: selectedCase ? selectedCase.number : null,
+          caseName: selectedCase ? selectedCase.name : null
         });
       });
 
@@ -1177,7 +2036,7 @@
 
       document.getElementById('logRowsContainer').innerHTML = '';
       addLogRow();
-      document.getElementById('logNote').value = '';
+      document.getElementById('logCase').value = '';
       document.getElementById('logHours').value = '';
       calculateLiveSummary();
       updateHeaderBadge();
@@ -1261,6 +2120,11 @@
     function handleSaveRate(e) {
       e.preventDefault();
 
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders satser', 'error');
+        return;
+      }
+
       const editId = document.getElementById('rateEditId').value;
       const name = document.getElementById('rateName').value.trim();
       const unit = document.getElementById('rateUnit').value.trim();
@@ -1319,6 +2183,10 @@
     }
 
     function confirmDeleteRate(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders satser', 'error');
+        return;
+      }
       showConfirmModal(
         'Slet sats?',
         'Er du sikker på, at du vil slette denne akkordsats?',
@@ -1657,6 +2525,10 @@
     }
 
     function confirmDeleteEntry(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders registreringer', 'error');
+        return;
+      }
       showConfirmModal(
         'Slet registrering?',
         'Er du sikker på, at du vil slette denne registrering fra historikken?',
@@ -1675,13 +2547,18 @@
     // EDIT HISTORY ENTRY
     // ==========================================
     function openEditEntryModal(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders registreringer', 'error');
+        return;
+      }
       const entry = entries.find(e => e.id === id);
       if (!entry) return;
 
       document.getElementById('editEntryId').value = entry.id;
       document.getElementById('editEntryDate').value = entry.date;
       document.getElementById('editEntryQuantity').value = entry.quantity;
-      document.getElementById('editEntryNote').value = entry.note || '';
+      populateCaseSelect(document.getElementById('editEntryCase'));
+      document.getElementById('editEntryCase').value = entry.caseId || '';
 
       const select = document.getElementById('editEntryRate');
       select.innerHTML = rates.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
@@ -1761,6 +2638,11 @@
     function handleSaveEditedEntry(e) {
       e.preventDefault();
 
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders registreringer', 'error');
+        return;
+      }
+
       const id = document.getElementById('editEntryId').value;
       const entry = entries.find(en => en.id === id);
       if (!entry) return;
@@ -1774,7 +2656,9 @@
 
       const date = document.getElementById('editEntryDate').value;
       const quantity = parseFloat(document.getElementById('editEntryQuantity').value);
-      const note = document.getElementById('editEntryNote').value.trim();
+      const selectedCaseId = document.getElementById('editEntryCase').value;
+      const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+      const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
       const totalDkk = quantity * rate.price;
 
       const timelon = isTimelonName(rate.name);
@@ -1802,6 +2686,9 @@
       entry.totalDkk = totalDkk;
       entry.hourlyRate = hourlyRate;
       entry.note = note;
+      entry.caseId = selectedCase ? selectedCase.id : null;
+      entry.caseNumber = selectedCase ? selectedCase.number : null;
+      entry.caseName = selectedCase ? selectedCase.name : null;
 
       saveData();
       syncEntryToCloud(entry);
@@ -2065,6 +2952,20 @@
           currentUser = null;
           syncEnabled = false;
           detachRealtimeListeners();
+          // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
+          // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
+          // uanset hvordan log-ud'et skete.
+          if (viewingEmployee) {
+            viewingEmployee = null;
+            entries = ownEntries || entries;
+            rates = ownRates || rates;
+            ownEntries = null;
+            ownRates = null;
+            document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+            document.getElementById('nav-register').classList.remove('hidden');
+            document.getElementById('nav-rates').classList.remove('hidden');
+            document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+          }
           updateAccountIndicator();
           renderAccountModalBody();
           if (!appStarted) {
