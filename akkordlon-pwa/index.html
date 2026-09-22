@@ -1,0 +1,3285 @@
+<!DOCTYPE html>
+<html lang="da" class="h-full bg-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AkkordLøn - Registrering af Akkordarbejde</title>
+
+  <!-- PWA: gør det muligt at "installere" appen på hjemmeskærmen -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AkkordLøn">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- SheetJS (til rigtig Excel-eksport med flere faneblade) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase (Google-login + cloud-sync) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Mobile app optimizations */
+    -webkit-tap-highlight-color: transparent;
+    body {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    input, select, textarea {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- Read-Only Banner: vist mens en arbejdsgiver kigger på en medarbejders data -->
+  <div id="viewingEmployeeBanner" class="hidden sticky top-0 z-50 bg-amber-500 text-white px-4 py-2.5 flex items-center justify-between gap-2 shadow-md">
+    <div class="flex items-center gap-2 text-xs font-semibold min-w-0">
+      <i data-lucide="eye" class="w-4 h-4 flex-shrink-0"></i>
+      <span class="truncate">Viser <span id="viewingEmployeeName" class="font-black"></span>s data (skrivebeskyttet)</span>
+    </div>
+    <button onclick="stopViewingEmployee()" class="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0">Tilbage</button>
+  </div>
+
+  <!-- Top App Bar -->
+  <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800">
+    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+          <i data-lucide="hammer" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight tracking-tight">AkkordLøn</h1>
+          <p class="text-[11px] text-slate-400 font-medium">Løn- & Timeregistrering</p>
+        </div>
+      </div>
+      
+      <!-- Account / Sync Button -->
+      <div class="flex items-center gap-2">
+        <div class="text-right bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Din løn</div>
+          <div id="headerTodayEarned" class="text-xs font-bold text-emerald-400">0 kr.</div>
+        </div>
+        <button onclick="openAccountModal()" id="accountBtn" class="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-white transition-colors relative">
+          <i data-lucide="user" class="w-4 h-4"></i>
+          <span id="syncDot" class="hidden absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-slate-900"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Scrollable Content Area -->
+  <main class="flex-1 overflow-y-auto pb-24 custom-scrollbar">
+    <div class="max-w-md mx-auto p-4 space-y-4">
+
+      <!-- ========================================== -->
+      <!-- TAB 1: REGISTRERING (Log Work)             -->
+      <!-- ========================================== -->
+      <section id="tab-register" class="tab-content space-y-4">
+        
+        <!-- Header Banner -->
+        <div class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
+          <div class="relative z-10">
+            <h2 class="text-lg font-bold">Ny Registrering</h2>
+            <p class="text-xs text-slate-300 mt-0.5">Indtast dagens akkordarbejde og brugte timer</p>
+          </div>
+          <i data-lucide="file-plus" class="absolute -right-2 -bottom-2 w-24 h-24 text-white/5 pointer-events-none"></i>
+        </div>
+
+        <!-- Registration Form Card -->
+        <form id="logForm" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-4" onsubmit="handleSaveLog(event)">
+          
+          <!-- Date Field -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logDate">Dato</label>
+            <div class="relative">
+              <input type="date" id="logDate" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            </div>
+          </div>
+
+          <!-- Total Hours Field (fælles for hele registreringen) -->
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logHours">Timer i alt (hele dagen)</label>
+            <input type="number" step="0.1" min="0.1" id="logHours" oninput="calculateLiveSummary()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            <div id="hoursWarning" class="hidden mt-2 text-[11px] text-red-700 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+              <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
+              <span>Timeløn-timerne overstiger dagens samlede timer - akkordens timer bliver sat til 0.</span>
+            </div>
+          </div>
+
+          <!-- Dynamic Rates Container -->
+          <div>
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Akkordsatser</label>
+              <button type="button" onclick="switchTab('rates')" class="text-xs text-brand-600 hover:text-brand-700 font-semibold flex items-center gap-1">
+                <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Administrer satser
+              </button>
+            </div>
+            
+            <div id="logRowsContainer" class="space-y-3">
+              <!-- Dynamiske rækker injiceres her via JS -->
+            </div>
+
+            <!-- "Plus" knap til flere satser -->
+            <button type="button" onclick="addLogRow()" class="w-full border-2 border-dashed border-slate-300 text-slate-500 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 hover:bg-slate-50 hover:text-slate-700 transition-colors mt-3 text-xs">
+              <i data-lucide="plus" class="w-4 h-4"></i> Tilføj endnu en sats til dagen
+            </button>
+          </div>
+
+          <!-- Sag (erstatter det tidligere frie notefelt) -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs font-semibold uppercase tracking-wider text-slate-500" for="logCase">Sag (valgfri)</label>
+              <button type="button" onclick="promptCreateCase()" class="text-[11px] text-brand-600 font-semibold hover:text-brand-700">+ Ny sag</button>
+            </div>
+            <select id="logCase" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+              <option value="">Ingen sag</option>
+            </select>
+          </div>
+
+          <!-- Live Calculated Summary Card -->
+          <div class="bg-slate-900 rounded-xl p-4 text-white space-y-3">
+            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Beregnet Løn for Registrering</div>
+            <div class="grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
+              <div>
+                <span class="text-[11px] text-slate-400 block">Akkordløn i alt</span>
+                <span id="liveTotalDkk" class="text-xl font-black text-emerald-400">0,00 kr.</span>
+              </div>
+              <div class="border-l border-slate-800 pl-3">
+                <span id="liveHourlyRateLabel" class="text-[10px] text-slate-500 block">Effektiv timeløn</span>
+                <span id="liveHourlyRate" class="text-sm font-semibold text-slate-400">0,00 kr./t</span>
+              </div>
+            </div>
+            <div id="liveTimelonWrap" class="hidden border-t border-slate-800 pt-3">
+              <span class="text-[11px] text-slate-400 block">Timeløn i alt (holdes uden for akkordløn)</span>
+              <span id="liveTimelonDkk" class="text-base font-bold text-sky-400">0,00 kr.</span>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" class="w-full bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2 transition-all">
+            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+            <span>Gem Registrering</span>
+          </button>
+
+        </form>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: SATSER (Rate Management)            -->
+      <!-- ========================================== -->
+      <section id="tab-rates" class="tab-content space-y-4 hidden">
+        
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Akkordsatser</h2>
+            <p class="text-xs text-slate-500">Styr dine priser pr. enhed eller type</p>
+          </div>
+          <button onclick="openRateModal()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20">
+            <i data-lucide="plus" class="w-4 h-4"></i> Ny Sats
+          </button>
+        </div>
+
+        <!-- Rates List -->
+        <div id="ratesList" class="space-y-2.5">
+          <!-- Rendered dynamically via JS -->
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: SAGER                                 -->
+      <!-- ========================================== -->
+      <section id="tab-cases" class="tab-content space-y-4 hidden">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Sager</h2>
+          <p class="text-xs text-slate-500">Opret en sag pr. byggeplads/kunde, og vælg den når du registrerer</p>
+        </div>
+
+        <!-- New Case Form -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider" for="newCaseName">Ny sag</label>
+          <div class="flex gap-2">
+            <input type="text" id="newCaseName" placeholder="f.eks. Vejgade 12 eller Kundenavn" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <button onclick="handleCreateCase()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap shadow-md shadow-brand-600/20">Opret</button>
+          </div>
+        </div>
+
+        <!-- Open Cases -->
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Åbne sager</h3>
+          <div id="openCasesList" class="space-y-2.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Completed Cases (kun synlig for administratorer) -->
+        <div id="completedCasesSection" class="hidden">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Afsluttede sager</h3>
+          <div id="completedCasesList" class="space-y-2.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 3: STATISTIK (Analytics Dashboard)     -->
+      <!-- ========================================== -->
+      <section id="tab-stats" class="tab-content space-y-4 hidden">
+        
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Statistik & Oversigt</h2>
+          <p class="text-xs text-slate-500">Analyse af timeløn, indtjening og præstation</p>
+        </div>
+
+        <!-- Time Filter Pills -->
+        <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          <button onclick="setStatsFilter('today')" id="filter-today" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">I dag</button>
+          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne uge</button>
+          <button onclick="setStatsFilter('month')" id="filter-month" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne måned</button>
+          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Lønmåned (21.-20.)</button>
+          <button onclick="setStatsFilter('last30')" id="filter-last30" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Sidste 30 dage</button>
+          <button onclick="setStatsFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Altid</button>
+          <button onclick="toggleCustomDatePicker()" id="filter-custom" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700 flex items-center gap-1">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Vælg periode
+          </button>
+        </div>
+
+        <!-- Custom Date Range Picker -->
+        <div id="customDatePicker" class="hidden bg-white border border-slate-200 rounded-xl p-3 flex items-end gap-2 flex-wrap">
+          <div class="flex-1 min-w-[120px]">
+            <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Fra</label>
+            <input type="date" id="customStartDate" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div class="flex-1 min-w-[120px]">
+            <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Til</label>
+            <input type="date" id="customEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <button onclick="applyCustomDateFilter()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap">Anvend</button>
+        </div>
+
+        <!-- Key Metrics Cards (2x2 Grid) -->
+        <div class="grid grid-cols-2 gap-3">
+          
+          <!-- Metric 1: Total Earnings -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Samlet Indtjening</div>
+            <div id="statTotalEarnings" class="text-xl font-extrabold text-slate-900 mt-1">0 kr.</div>
+            <div class="mt-2 flex items-center text-[10px] text-emerald-600 font-semibold gap-1">
+              <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+              <span>Brutto akkord</span>
+            </div>
+          </div>
+
+          <!-- Metric 2: Effective Hourly Wage -->
+          <div id="statHourlyWageCard" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div id="statHourlyWageLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effektiv Timeløn</div>
+            <div id="statHourlyWage" class="text-xl font-extrabold text-slate-900 mt-1">0 kr./t</div>
+            <div id="statHourlyWageSubtext" class="mt-2 text-[10px] text-slate-400 font-medium">Gennemsnit i perioden</div>
+          </div>
+
+          <!-- Metric 3: Total Hours -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Timer Arbejdet</div>
+            <div id="statTotalHours" class="text-xl font-extrabold text-slate-900 mt-1">0 t</div>
+            <div class="mt-2 text-[10px] text-slate-400 font-medium">Registreret tid</div>
+          </div>
+
+          <!-- Metric 4: Units Done -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Enheder Udført</div>
+            <div id="statTotalUnits" class="text-xl font-extrabold text-slate-900 mt-1">0 stk</div>
+            <div class="mt-2 text-[10px] text-slate-400 font-medium">Elementer / plader</div>
+          </div>
+
+        </div>
+
+        <!-- Chart Card -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Daglig Timeløn & Indtjening</h3>
+            <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">Oversigt</span>
+          </div>
+          <div class="h-56 w-full relative">
+            <canvas id="statsChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Task Breakdown Table -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Fordeling pr. Akkordsats</h3>
+          <div id="taskBreakdownList" class="space-y-2 text-xs">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Export Lønperiode (til lønseddel) -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Eksportér Lønperiode</h3>
+            <p class="text-[11px] text-slate-500 mt-1">Vælg den måned lønnen udbetales i - eksporterer lønperioden 21.-20. som en Excel-fil (.xlsx) med data, satser og noter samlet, klar til brug for din lønseddel.</p>
+          </div>
+          <div class="flex gap-2 items-end">
+            <div class="flex-1">
+              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lønmåned</label>
+              <input type="month" id="exportPayMonth" oninput="updatePayPeriodPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+            <button onclick="exportPayPeriodExcel()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 whitespace-nowrap">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
+          </div>
+
+          <div id="payPeriodPreview" class="hidden grid grid-cols-2 gap-2">
+            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Kr. i alt</div>
+              <div id="payPeriodPreviewDkk" class="text-sm font-extrabold text-slate-900 mt-0.5">0,00 kr.</div>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Timer i alt</div>
+              <div id="payPeriodPreviewHours" class="text-sm font-extrabold text-slate-900 mt-0.5">0 t</div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 4: HISTORIK (Log History)             -->
+      <!-- ========================================== -->
+      <section id="tab-history" class="tab-content space-y-4 hidden">
+        
+        <button id="historyBackToOwnBtn" onclick="stopViewingEmployee()" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-800 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til mine egne registreringer
+        </button>
+
+        <div class="flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">Arbejdshistorik</h2>
+            <p class="text-xs text-slate-500">Oversigt over alle dine registrerede dage</p>
+          </div>
+          <button onclick="exportToExcel()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksport
+          </button>
+        </div>
+
+        <!-- Search input -->
+        <div class="relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+          <input type="text" id="historySearch" oninput="historyRenderLimit = 50; renderHistoryList();" placeholder="Søg i historik eller noter..." class="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Log List -->
+        <div id="historyList" class="space-y-3">
+          <!-- Rendered dynamically via JS -->
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 5: MEDARBEJDERE (kun for arbejdsgivere) -->
+      <!-- ========================================== -->
+      <section id="tab-employees" class="tab-content space-y-4 hidden">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Mine Medarbejdere</h2>
+          <p class="text-xs text-slate-500">Se dine medarbejderes registreringer og statistik</p>
+        </div>
+
+        <!-- Invite Code Card -->
+        <div class="bg-slate-900 rounded-2xl p-4 text-white space-y-2">
+          <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din invitationskode</div>
+          <div class="flex items-center justify-between gap-2">
+            <span id="companyInviteCodeDisplay" class="text-2xl font-black tracking-[0.2em] text-emerald-400">------</span>
+            <button onclick="copyInviteCode()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Kopiér
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-400">Del denne kode med en medarbejder - de indtaster den under deres egen konto-menu (👤-ikonet) for at blive tilknyttet.</p>
+        </div>
+
+        <!-- Employees List -->
+        <div id="employeesList" class="space-y-2.5">
+          <!-- Rendered dynamically via JS -->
+        </div>
+
+        <button id="deleteCompanyBtn" onclick="confirmDeleteCompany()" class="hidden w-full py-2.5 text-red-600 font-semibold text-xs hover:bg-red-50 rounded-xl border border-red-100">
+          Slet virksomhed
+        </button>
+
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Bottom Navigation Bar (Mobile Native Style) -->
+  <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
+    <div id="navGrid" class="max-w-md mx-auto grid grid-cols-5 h-16">
+      
+      <button onclick="switchTab('register')" id="nav-register" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
+        <i data-lucide="pen-tool" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Registrer</span>
+      </button>
+
+      <button onclick="switchTab('rates')" id="nav-rates" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="tags" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Satser</span>
+      </button>
+
+      <button onclick="switchTab('cases')" id="nav-cases" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Sager</span>
+      </button>
+
+      <button onclick="switchTab('stats')" id="nav-stats" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Statistik</span>
+      </button>
+
+      <button onclick="switchTab('history')" id="nav-history" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="history" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Historik</span>
+      </button>
+
+      <button onclick="switchTab('employees')" id="nav-employees" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="users" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Medarbejdere</span>
+      </button>
+
+    </div>
+  </nav>
+
+  <!-- Auth Gate: vises ved opstart, indtil man har valgt login eller "fortsæt uden login" -->
+  <div id="authGate" class="fixed inset-0 bg-slate-900 z-[60] flex items-center justify-center p-6 hidden">
+    <div class="w-full max-w-xs text-center space-y-5">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+        <i data-lucide="hammer" class="w-7 h-7"></i>
+      </div>
+      <div>
+        <h2 class="text-white font-bold text-lg">AkkordLøn</h2>
+        <p class="text-slate-400 text-xs mt-1">Log ind med Google for at gemme dine data i skyen og tilgå dem fra alle dine enheder.</p>
+      </div>
+      <button onclick="signInWithGoogle()" class="w-full bg-white hover:bg-slate-100 text-slate-800 font-bold py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2.5 transition-all text-sm">
+        <svg class="w-4 h-4" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.9 32.5 29.4 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.3C29.5 34.9 26.9 36 24 36c-5.3 0-9.8-3.4-11.4-8.1l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.2 5.7l6.5 5.3C39.9 36.9 44 31 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+        Log ind med Google
+      </button>
+      <button onclick="continueOffline()" class="w-full text-slate-400 hover:text-slate-200 font-semibold py-2 text-xs">
+        Fortsæt uden login (kun denne enhed)
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal: Account / Sync Status -->
+  <div id="accountModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Konto & Synkronisering</h3>
+        <button onclick="closeAccountModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="accountModalBody" class="space-y-3">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Case Details (kun for administratorer, på afsluttede sager) -->
+  <div id="caseDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl max-h-[85vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 id="caseDetailsTitle" class="font-bold text-slate-900 text-base">Sag</h3>
+        <button onclick="closeCaseDetailsModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="caseDetailsBody" class="space-y-3">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add / Edit Rate -->
+  <div id="rateModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 id="rateModalTitle" class="font-bold text-slate-900 text-base">Ny Akkordsats</h3>
+        <button onclick="closeRateModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="rateForm" onsubmit="handleSaveRate(event)" class="space-y-3.5">
+        <input type="hidden" id="rateEditId">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Opgave / Materiale Navn</label>
+          <input type="text" id="rateName" placeholder="f.eks. Eternit B6 Tagplader" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Enhed</label>
+            <input type="text" id="rateUnit" placeholder="stk, m², m, meter" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sats (kr. pr. enhed)</label>
+            <input type="number" step="0.01" id="ratePrice" placeholder="f.eks. 45.00" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeRateModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+          <button type="submit" class="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs shadow-md shadow-brand-600/20">Gem Sats</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit History Entry -->
+  <div id="editEntryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Rediger Registrering</h3>
+        <button onclick="closeEditEntryModal()" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="editEntryForm" onsubmit="handleSaveEditedEntry(event)" class="space-y-3.5">
+        <input type="hidden" id="editEntryId">
+
+        <div id="editEntryMergeWarning" class="hidden text-[11px] text-amber-800 font-semibold bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
+          <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
+          <span id="editEntryMergeWarningText"></span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Dato</label>
+          <input type="date" id="editEntryDate" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Akkordsats</label>
+          <select id="editEntryRate" onchange="updateEditEntryFields()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <!-- Rendered dynamically via JS -->
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mængde (<span id="editEntryUnitLabel">...</span>)</label>
+            <input type="number" step="0.01" min="0.01" id="editEntryQuantity" oninput="updateEditEntryFields()" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div id="editEntryHoursWrap">
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Timer</label>
+            <input type="number" step="0.1" min="0" id="editEntryHours" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sag (Valgfri)</label>
+          <select id="editEntryCase" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <option value="">Ingen sag</option>
+          </select>
+          <input type="hidden" id="editEntryCaseFallback">
+        </div>
+
+        <div id="editEntryPreview" class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center text-xs">
+          <span class="text-slate-400 font-semibold uppercase tracking-wider">Ny totalsum</span>
+          <span id="editEntryPreviewDkk" class="font-black text-emerald-400 text-base">0,00 kr.</span>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeEditEntryModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+          <button type="submit" class="flex-1 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs shadow-md shadow-brand-600/20">Gem Ændring</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custom Confirmation Dialog Modal -->
+  <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white w-full max-w-xs rounded-2xl p-5 text-center space-y-4 shadow-xl">
+      <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+        <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h4 id="confirmModalTitle" class="font-bold text-slate-900 text-base">Er du sikker?</h4>
+        <p id="confirmModalMessage" class="text-xs text-slate-500 mt-1">Denne handling kan ikke fortrydes.</p>
+      </div>
+      <div class="flex gap-2">
+        <button id="confirmCancelBtn" class="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+        <button id="confirmOkBtn" class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs">Slet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Message Container -->
+  <div id="toastContainer" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-xs px-4"></div>
+
+  <script>
+    // ==========================================
+    // FIREBASE CONFIGURATION (Google-login + Cloud Sync)
+    // ==========================================
+    // 1) Opret et gratis projekt på https://console.firebase.google.com
+    // 2) Aktiver "Google" under Authentication > Sign-in method
+    // 3) Opret en Firestore-database (Authentication > Build > Firestore Database)
+    // 4) Registrer en "web app" under Project settings > General, og indsæt
+    //    dit config-objekt herunder i stedet for eksemplet:
+    const firebaseConfig = {
+      apiKey: "AIzaSyAkiOjJWHH0JeIz9WZcac5U99Occmgc_ls",
+      authDomain: "acord-app-44a7f.firebaseapp.com",
+      projectId: "acord-app-44a7f",
+      storageBucket: "acord-app-44a7f.firebasestorage.app",
+      messagingSenderId: "1010429307669",
+      appId: "1:1010429307669:web:09793d2bcd02fa3159171c",
+      measurementId: "G-9G3Z3132DW"
+    };
+
+    let firebaseReady = false;
+    let auth = null;
+    let db = null;
+    let currentUser = null;
+    let syncEnabled = false;
+    let myCompany = null; // { id, name, inviteCode } - udfyldt hvis brugeren ejer en virksomhed
+    let viewingEmployee = null; // { uid, name } - sat mens en arbejdsgiver kigger på en medarbejders data (skrivebeskyttet)
+    let ownEntries = null; // midlertidig opbevaring af egne data, mens man kigger på en medarbejder
+    let ownRates = null;
+
+    try {
+      if (firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('INDSÆT') === -1) {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+        // Gør at registreringer lavet uden forbindelse (fx på et tag uden
+        // signal) gemmes lokalt i Firestores egen cache og automatisk
+        // sendes til skyen, så snart forbindelsen kommer tilbage - uden man
+        // selv skal gøre noget.
+        db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+          console.warn('Offline-understøttelse kunne ikke aktiveres:', err.code);
+        });
+        firebaseReady = true;
+      }
+    } catch (err) {
+      console.error('Firebase kunne ikke initialiseres:', err);
+    }
+
+    // ==========================================
+    // DATA STATE & DEFAULT INITIALIZATION
+    // ==========================================
+    
+    const DEFAULT_RATES = [
+      { id: 'rate-1', name: 'Plader med lærling', unit: 'stk', price: 15 },
+      { id: 'rate-2', name: 'Enkel plader med lærling', unit: 'stk', price: 30 },
+      { id: 'rate-3', name: 'Rykninger med lærling', unit: 'stk', price: 40 },
+      { id: 'rate-4', name: 'Opstart med lærling', unit: 'stk', price: 500 },
+      { id: 'rate-5', name: 'Plader med svend', unit: 'stk', price: 12.5 },
+      { id: 'rate-6', name: 'Enkel plader med svend', unit: 'stk', price: 25 },
+      { id: 'rate-7', name: 'Rykninger med svend', unit: 'stk', price: 34 },
+      { id: 'rate-8', name: 'Opstart med svend', unit: 'stk', price: 350 },
+      { id: 'rate-9', name: 'Plader 3 mand', unit: 'stk', price: 10 },
+      { id: 'rate-10', name: 'Enkel plader 3 mand', unit: 'stk', price: 20 },
+      { id: 'rate-11', name: 'Rykninger 3 mand', unit: 'stk', price: 30 },
+      { id: 'rate-12', name: 'Opstart 3 mand', unit: 'stk', price: 300 },
+      { id: 'rate-13', name: 'Timeløn', unit: 'Timer', price: 200 }
+    ];
+
+    const DEFAULT_ENTRIES = [];
+
+    let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
+    let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
+    let currentStatsFilter = 'paymonth';
+    let customDateRange = null; // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } for "Vælg periode"
+    let chartInstance = null;
+
+    // Gemmer altid lokalt (satser + registreringer) som backup/cache
+    function saveData() {
+      localStorage.setItem('akkord_rates', JSON.stringify(rates));
+      localStorage.setItem('akkord_entries', JSON.stringify(entries));
+    }
+
+    // Satser er få og ændres sjældent - de ligger samlet i selve brugerens
+    // hoveddokument, som derfor forbliver småt.
+    function syncRatesToCloud() {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).set({
+          rates,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(err => {
+          console.error('Cloud-sync fejlede (satser):', err);
+          showToast('Kunne ikke synkronisere satser til skyen', 'error');
+        });
+      }
+    }
+
+    // Hver registrering gemmes som sit eget lille dokument i en
+    // undersamling, så hoveddokumentet aldrig vokser sig for stort, uanset
+    // hvor mange års historik man samler op - og hver gemning/redigering
+    // kun rører netop den ene registrering.
+    function syncEntryToCloud(entry) {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('entries').doc(entry.id).set(entry)
+          .catch(err => {
+            console.error('Cloud-sync fejlede (registrering):', err);
+            showToast('Kunne ikke synkronisere registreringen til skyen', 'error');
+          });
+      }
+    }
+
+    function deleteEntryFromCloud(entryId) {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('entries').doc(entryId).delete()
+          .catch(err => {
+            console.error('Cloud-sync fejlede (sletning):', err);
+            showToast('Kunne ikke slette registreringen i skyen', 'error');
+          });
+      }
+    }
+
+    function getFormattedDate(offsetDays = 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      return d.toISOString().split('T')[0];
+    }
+
+    // "Timeløn" satsen står helt for sig selv og blandes aldrig med de
+    // andre satser i beregningerne (egne timer, egen sats).
+    function isTimelonName(name) {
+      return !!name && name.trim().toLowerCase() === 'timeløn';
+    }
+
+    // "Opstart"-satser (eller satser der starter med "Opstart") tæller med
+    // i den samlede akkordløn/effektive timeløn, men får ikke selv nogen
+    // timer eller timeløn tildelt - de vises kun som antal i perioden.
+    function isOpstartName(name) {
+      return !!name && name.trim().toLowerCase().indexOf('opstart') === 0;
+    }
+
+    // Lønperiode: fra den 21. i en måned til den 20. i den næste
+    function getPayPeriodRange(refDate) {
+      const d = new Date(refDate);
+      let start, end;
+      if (d.getDate() >= 21) {
+        start = new Date(d.getFullYear(), d.getMonth(), 21);
+        end = new Date(d.getFullYear(), d.getMonth() + 1, 20, 23, 59, 59);
+      } else {
+        start = new Date(d.getFullYear(), d.getMonth() - 1, 21);
+        end = new Date(d.getFullYear(), d.getMonth(), 20, 23, 59, 59);
+      }
+      return { start, end };
+    }
+
+    // ==========================================
+    // GOOGLE LOGIN & CLOUD SYNC
+    // ==========================================
+    function signInWithGoogle() {
+      if (!firebaseReady) {
+        showToast('Login er ikke sat op endnu (mangler Firebase-konfiguration)', 'error');
+        return;
+      }
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(err => {
+        console.error(err);
+        showToast('Login mislykkedes: ' + err.message, 'error');
+      });
+    }
+
+    function signOutUser() {
+      // Nulstil evt. "kigger på medarbejder"-tilstand, så man ikke sidder
+      // fast i skrivebeskyttet visning efter log-ud/log-ind som en anden.
+      if (viewingEmployee) {
+        stopViewingEmployee();
+      }
+      detachRealtimeListeners();
+      detachCasesListeners();
+      if (auth) auth.signOut();
+      closeAccountModal();
+      showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
+    }
+
+    function continueOffline() {
+      document.getElementById('authGate').classList.add('hidden');
+    }
+
+    function openAccountModal() {
+      renderAccountModalBody();
+      document.getElementById('accountModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeAccountModal() {
+      document.getElementById('accountModal').classList.add('hidden');
+    }
+
+    function renderAccountModalBody() {
+      const body = document.getElementById('accountModalBody');
+      if (!firebaseReady) {
+        body.innerHTML = `
+          <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
+        `;
+        return;
+      }
+      if (currentUser) {
+        let companySectionHtml = '';
+        if (myCompany) {
+          companySectionHtml = `
+            <div class="bg-slate-50 rounded-xl p-3 flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-xs font-bold text-slate-900 truncate">${escapeHtml(myCompany.name)}</div>
+                <div class="text-[10px] text-slate-500">${myCompany.isOwner ? 'Du er opretter og administrator' : 'Du er administrator'}</div>
+              </div>
+              <button onclick="closeAccountModal(); switchTab('employees');" class="text-brand-600 text-xs font-bold whitespace-nowrap">Se medarbejdere →</button>
+            </div>
+            ${!myCompany.isOwner ? '<button onclick="confirmLeaveCompany()" class="w-full text-center text-[11px] text-red-500 font-semibold py-1.5">Forlad virksomhed</button>' : ''}
+          `;
+        } else if (myMembershipCompanyName) {
+          companySectionHtml = `
+            <div class="bg-slate-50 rounded-xl p-3">
+              <div class="text-xs font-bold text-slate-900">${escapeHtml(myMembershipCompanyName)}</div>
+              <div class="text-[10px] text-slate-500">Du er tilknyttet som medarbejder</div>
+            </div>
+            <button onclick="confirmLeaveCompany()" class="w-full text-center text-[11px] text-red-500 font-semibold py-1.5">Forlad virksomhed</button>
+          `;
+        } else {
+          companySectionHtml = `
+            <button onclick="promptCreateCompany()" class="w-full py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">+ Opret virksomhed</button>
+            <div class="flex gap-2">
+              <input type="text" id="joinCompanyCodeInput" placeholder="Indtast kode" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500">
+              <button onclick="handleRedeemInviteCode()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap">Tilknyt</button>
+            </div>
+          `;
+        }
+
+        body.innerHTML = `
+          <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <img src="${currentUser.photoURL || ''}" onerror="this.style.display='none'" class="w-10 h-10 rounded-full">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-sm text-slate-900 truncate">${escapeHtml(currentUser.displayName || 'Bruger')}</span>
+                ${myCompany ? '<span class="text-[9px] font-black uppercase tracking-wider bg-brand-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">Administrator</span>' : ''}
+              </div>
+              <div class="text-xs text-slate-500 truncate">${escapeHtml(currentUser.email || '')}</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 px-3 py-2 rounded-lg">
+            <i data-lucide="cloud" class="w-3.5 h-3.5"></i> Dine data synkroniseres til skyen
+          </div>
+          <div class="border-t border-slate-100 pt-3 space-y-2">
+            <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Virksomhed</div>
+            ${companySectionHtml}
+          </div>
+          <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
+        `;
+      } else {
+        body.innerHTML = `
+          <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-2 rounded-lg">
+            <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i> Data gemmes kun lokalt på denne enhed
+          </div>
+          <button onclick="signInWithGoogle()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
+          </button>
+        `;
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function updateAccountIndicator() {
+      const dot = document.getElementById('syncDot');
+      if (!dot) return;
+      dot.classList.toggle('hidden', !currentUser);
+    }
+
+    // Henter data fra Firestore for den loggede-ind bruger og erstatter
+    // lokale data med brugerens cloud-data (eller opretter dem, hvis det
+    // er første login).
+    let ratesUnsubscribe = null;
+    let entriesUnsubscribe = null;
+
+    function detachRealtimeListeners() {
+      if (ratesUnsubscribe) { ratesUnsubscribe(); ratesUnsubscribe = null; }
+      if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+    }
+
+    // Abonnerer på løbende opdateringer af satser og registreringer, så
+    // ændringer lavet på én enhed (fx telefonen) automatisk dukker op på
+    // alle andre åbne enheder (fx pc'en) - uden man selv skal genindlæse.
+    function attachRealtimeListeners(userDocRef) {
+      detachRealtimeListeners(); // undgå dubletter hvis funktionen kaldes flere gange
+
+      ratesUnsubscribe = userDocRef.onSnapshot(doc => {
+        if (doc.exists && doc.data().rates) {
+          rates = doc.data().rates;
+          refreshAllViews();
+        }
+      }, err => console.error('Live-opdatering af satser fejlede:', err));
+
+      entriesUnsubscribe = userDocRef.collection('entries').onSnapshot(snapshot => {
+        entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
+        refreshAllViews();
+      }, err => console.error('Live-opdatering af registreringer fejlede:', err));
+    }
+
+    function loadUserDataFromCloud(user) {
+      currentUser = user;
+      syncEnabled = true;
+      updateAccountIndicator();
+      applyCachedCompanyInfo(user.uid);
+
+      // Sikrer at et nyt login aldrig arver en efterladt "kigger på
+      // medarbejder"-tilstand fra en tidligere bruger i samme fane.
+      if (viewingEmployee) {
+        viewingEmployee = null;
+        ownEntries = null;
+        ownRates = null;
+        document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+        document.getElementById('nav-register').classList.remove('hidden');
+        document.getElementById('nav-rates').classList.remove('hidden');
+        document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+      }
+
+      const userDocRef = db.collection('users').doc(user.uid);
+
+      userDocRef.get().then(doc => {
+        const data = doc.exists ? doc.data() : null;
+        if (data && data.rates) {
+          rates = data.rates;
+        }
+
+        // Ældre version af appen gemte alle registreringer som ét stort
+        // array direkte i brugerens dokument - findes det, migreres de én
+        // gang over i deres egen undersamling herunder.
+        const legacyEntries = data && Array.isArray(data.entries) ? data.entries : null;
+
+        const finishLogin = () => {
+          attachRealtimeListeners(userDocRef);
+          loadCompanyInfo();
+          showToast('Logget ind som ' + (user.displayName || user.email));
+        };
+
+        userDocRef.collection('entries').get().then(snapshot => {
+          if (!snapshot.empty) {
+            finishLogin();
+          } else if (legacyEntries && legacyEntries.length > 0) {
+            Promise.all(legacyEntries.map(entry =>
+              userDocRef.collection('entries').doc(entry.id).set(entry)
+            )).then(() => {
+              // Ryd op i hoveddokumentet, så det gamle entries-felt ikke ligger og fylder
+              userDocRef.set({ rates, updatedAt: new Date().toISOString() });
+              finishLogin();
+            });
+          } else if (!doc.exists) {
+            // Første login: upload evt. eksisterende lokale data til skyen
+            userDocRef.set({ rates, updatedAt: new Date().toISOString() });
+            entries.forEach(entry => syncEntryToCloud(entry));
+            finishLogin();
+          } else {
+            finishLogin();
+          }
+        });
+      }).catch(err => {
+        console.error('Kunne ikke hente cloud-data:', err);
+        showToast('Kunne ikke hente dine data fra skyen', 'error');
+      });
+    }
+
+    function refreshAllViews() {
+      populateRateSelect();
+      renderRatesList();
+      renderHistoryList();
+      updateHeaderBadge();
+      renderAccountModalBody();
+      updateHourlyRateEmphasis();
+      const statsTab = document.getElementById('tab-stats');
+      if (statsTab && !statsTab.classList.contains('hidden')) {
+        renderStats();
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // "Effektiv Timeløn" er iøjnefaldende og fremhævet for almindelige
+    // medarbejdere (vigtig for dem), men holdes dæmpet/neutral for
+    // administratorer, der har et bredere overblik at forholde sig til.
+    function updateHourlyRateEmphasis() {
+      const isAdmin = !!myCompany;
+
+      const liveLabel = document.getElementById('liveHourlyRateLabel');
+      const liveValue = document.getElementById('liveHourlyRate');
+      if (liveLabel && liveValue) {
+        if (isAdmin) {
+          liveLabel.className = 'text-[10px] text-slate-500 block';
+          liveValue.className = 'text-sm font-semibold text-slate-400';
+        } else {
+          liveLabel.className = 'text-[11px] text-slate-400 block';
+          liveValue.className = 'text-xl font-black text-brand-400';
+        }
+      }
+
+      const statCard = document.getElementById('statHourlyWageCard');
+      const statLabel = document.getElementById('statHourlyWageLabel');
+      const statValue = document.getElementById('statHourlyWage');
+      const statSubtext = document.getElementById('statHourlyWageSubtext');
+      if (statCard && statLabel && statValue && statSubtext) {
+        if (isAdmin) {
+          statCard.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm';
+          statLabel.className = 'text-[11px] font-semibold text-slate-400 uppercase tracking-wider';
+          statValue.className = 'text-xl font-extrabold text-slate-900 mt-1';
+          statSubtext.className = 'mt-2 text-[10px] text-slate-400 font-medium';
+          statSubtext.innerHTML = 'Gennemsnit i perioden';
+        } else {
+          statCard.className = 'bg-emerald-500 text-white p-4 rounded-2xl shadow-md shadow-emerald-500/20 relative overflow-hidden';
+          statLabel.className = 'text-[11px] font-semibold text-emerald-100 uppercase tracking-wider';
+          statValue.className = 'text-xl font-extrabold text-white mt-1';
+          statSubtext.className = 'mt-2 flex items-center text-[10px] text-emerald-100 font-medium gap-1';
+          statSubtext.innerHTML = '<i data-lucide="zap" class="w-3.5 h-3.5"></i><span>Gennemsnit i perioden</span>';
+          if (window.lucide) lucide.createIcons();
+        }
+      }
+    }
+
+    // ==========================================
+    // VIRKSOMHED & MEDARBEJDERE
+    // ==========================================
+    let myMembershipCompanyName = null; // navn på virksomheden man er tilknyttet som medarbejder (hvis nogen)
+    let myCompanyId = null; // sat for ALLE medlemmer af en virksomhed (admin eller ej) - bruges til Sager
+
+    // Genskaber administrator-status med det samme fra en lokal cache, så man
+    // ikke oplever et kort "glimt" af at fremstå som almindelig medarbejder,
+    // mens Firestore-opslaget stadig er undervejs. Den rigtige, aktuelle
+    // status bekræftes altid bagefter af loadCompanyInfo().
+    function applyCachedCompanyInfo(uid) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('akkord_myCompany') || 'null');
+        if (cached && cached.cachedForUid === uid) {
+          myCompany = cached;
+          showEmployeesTab();
+        }
+      } catch (err) { /* ignorer ugyldig cache */ }
+    }
+
+    // Tjekker om brugeren ejer en virksomhed, og/eller er tilknyttet én som
+    // medarbejder. Køres efter login, og opdaterer kontomenu + Medarbejdere-fanen.
+    // Viser/skjuler Medarbejdere-fanen i bundnavigationen
+    function showEmployeesTab() {
+      document.getElementById('nav-employees').classList.remove('hidden');
+      document.getElementById('navGrid').classList.remove('grid-cols-5');
+      document.getElementById('navGrid').classList.add('grid-cols-6');
+    }
+    function hideEmployeesTab() {
+      document.getElementById('nav-employees').classList.add('hidden');
+      document.getElementById('navGrid').classList.remove('grid-cols-6');
+      document.getElementById('navGrid').classList.add('grid-cols-5');
+    }
+
+    // Tjekker hvilken virksomhed brugeren er tilknyttet (companyId), og om
+    // deres rolle dér er "admin" eller almindelig "employee". En admin kan
+    // sagtens også selv lave sine egne registreringer som alle andre - det
+    // er kun rollen der afgør, om man kan se de andres data.
+    function loadCompanyInfo() {
+      if (!currentUser || !db) return;
+
+      db.collection('users').doc(currentUser.uid).get().then(doc => {
+        const companyId = doc.exists ? doc.data().companyId : null;
+
+        if (!companyId) {
+          myCompany = null;
+          myMembershipCompanyName = null;
+          myCompanyId = null;
+          localStorage.removeItem('akkord_myCompany');
+          hideEmployeesTab();
+          renderAccountModalBody();
+          loadCases();
+          return;
+        }
+
+        Promise.all([
+          db.collection('companies').doc(companyId).get(),
+          db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).get()
+        ]).then(([companyDoc, myEmployeeDoc]) => {
+          if (!companyDoc.exists) {
+            // Virksomheden er blevet slettet - ryd op i egen tilknytning
+            // (egne satser/registreringer er upåvirkede).
+            myCompany = null;
+            myMembershipCompanyName = null;
+            myCompanyId = null;
+            localStorage.removeItem('akkord_myCompany');
+            hideEmployeesTab();
+            db.collection('users').doc(currentUser.uid).update({
+              companyId: firebase.firestore.FieldValue.delete()
+            }).catch(() => {});
+            renderAccountModalBody();
+            loadCases();
+            return;
+          }
+
+          const companyData = companyDoc.data();
+          const isOwner = companyData.ownerId === currentUser.uid;
+          const role = myEmployeeDoc.exists ? myEmployeeDoc.data().role : null;
+          const isAdmin = isOwner || role === 'admin';
+
+          myMembershipCompanyName = companyData.name;
+          myCompanyId = companyId;
+
+          if (isAdmin) {
+            myCompany = { id: companyId, ...companyData, isOwner, cachedForUid: currentUser.uid };
+            localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
+            showEmployeesTab();
+          } else {
+            myCompany = null;
+            localStorage.removeItem('akkord_myCompany');
+            hideEmployeesTab();
+          }
+
+          renderAccountModalBody();
+          loadCases();
+        }).catch(err => console.error('Kunne ikke tjekke virksomhedsrolle:', err));
+      }).catch(err => console.error('Kunne ikke tjekke virksomheds-tilknytning:', err));
+    }
+
+    function generateInviteCode() {
+      // Undgår tegn der let forveksles (0/O, 1/I)
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return code;
+    }
+
+    function promptCreateCompany() {
+      const name = prompt('Navngiv din virksomhed (fx dit firmanavn):');
+      if (!name || !name.trim()) return;
+      createCompany(name.trim());
+    }
+
+    function createCompany(name) {
+      if (!currentUser || !db) return;
+      const companyRef = db.collection('companies').doc();
+      const inviteCode = generateInviteCode();
+
+      companyRef.set({
+        ownerId: currentUser.uid,
+        name,
+        inviteCode,
+        createdAt: new Date().toISOString()
+      }).then(() => {
+        return Promise.all([
+          db.collection('users').doc(currentUser.uid).set({ companyId: companyRef.id }, { merge: true }),
+          companyRef.collection('employees').doc(currentUser.uid).set({
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            role: 'admin',
+            joinedAt: new Date().toISOString()
+          })
+        ]);
+      }).then(() => {
+        myCompany = { id: companyRef.id, ownerId: currentUser.uid, name, inviteCode, isOwner: true, cachedForUid: currentUser.uid };
+        myMembershipCompanyName = name;
+        localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
+        showEmployeesTab();
+        renderAccountModalBody();
+        showToast('Virksomheden "' + name + '" er oprettet!');
+      }).catch(err => {
+        console.error('Kunne ikke oprette virksomhed:', err);
+        showToast('Kunne ikke oprette virksomhed', 'error');
+      });
+    }
+
+    function confirmDeleteCompany() {
+      if (!myCompany) return;
+      showConfirmModal(
+        'Slet virksomhed?',
+        `Er du sikker på, at du vil slette "${myCompany.name}"? Alle medarbejdere bliver frigjort fra virksomheden og mister din adgang til deres data - men de beholder selv alle deres egne satser og registreringer. Dette kan ikke fortrydes.`,
+        deleteCompany,
+        'Slet virksomhed'
+      );
+    }
+
+    function deleteCompany() {
+      if (!myCompany || !db) return;
+      const companyId = myCompany.id;
+      const companyName = myCompany.name;
+
+      db.collection('companies').doc(companyId).collection('employees').get().then(snapshot => {
+        return Promise.all(snapshot.docs.map(d => d.ref.delete()));
+      }).then(() => {
+        return db.collection('companies').doc(companyId).delete();
+      }).then(() => {
+        myCompany = null;
+        localStorage.removeItem('akkord_myCompany');
+        hideEmployeesTab();
+        renderAccountModalBody();
+        switchTab('register');
+        showToast('"' + companyName + '" er slettet - medarbejderne beholder deres egne data');
+      }).catch(err => {
+        console.error('Kunne ikke slette virksomheden:', err);
+        showToast('Kunne ikke slette virksomheden', 'error');
+      });
+    }
+
+    function confirmLeaveCompany() {
+      if (!myCompanyId) return;
+      if (myCompany && myCompany.isOwner) {
+        showToast('Du er opretter af virksomheden - slet den i stedet under Medarbejdere-fanen, hvis du vil ud', 'error');
+        return;
+      }
+      showConfirmModal(
+        'Forlad virksomhed?',
+        `Er du sikker på, at du vil forlade "${myMembershipCompanyName}"? Du mister adgangen til virksomhedens sager${myCompany ? ' og de andre medarbejderes data' : ''} - men dine egne satser og registreringer er upåvirkede.`,
+        leaveCompany,
+        'Forlad virksomhed'
+      );
+    }
+
+    function leaveCompany() {
+      if (!currentUser || !db || !myCompanyId) return;
+      const companyId = myCompanyId;
+      const companyName = myMembershipCompanyName;
+
+      Promise.all([
+        db.collection('users').doc(currentUser.uid).update({
+          companyId: firebase.firestore.FieldValue.delete()
+        }),
+        db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).delete()
+      ]).then(() => {
+        myCompany = null;
+        myMembershipCompanyName = null;
+        myCompanyId = null;
+        localStorage.removeItem('akkord_myCompany');
+        hideEmployeesTab();
+        renderAccountModalBody();
+        loadCases(); // skifter automatisk til personlige sager igen
+        switchTab('register');
+        showToast('Du har forladt "' + companyName + '"');
+      }).catch(err => {
+        console.error('Kunne ikke forlade virksomheden:', err);
+        showToast('Kunne ikke forlade virksomheden', 'error');
+      });
+    }
+
+    let joiningCompanyInProgress = false; // spærre mod dobbelt-tilknytning
+
+    function handleRedeemInviteCode() {
+      const input = document.getElementById('joinCompanyCodeInput');
+      if (!input) return;
+      const code = input.value.trim().toUpperCase();
+      if (!code) {
+        showToast('Indtast venligst en kode', 'error');
+        return;
+      }
+      if (!currentUser || !db) {
+        showToast('Du skal være logget ind med Google for at tilknytte en kode', 'error');
+        return;
+      }
+      if (joiningCompanyInProgress) return;
+      joiningCompanyInProgress = true;
+
+      db.collection('companies').where('inviteCode', '==', code).limit(1).get().then(snapshot => {
+        if (snapshot.empty) {
+          showToast('Koden blev ikke fundet - tjek at den er skrevet korrekt', 'error');
+          joiningCompanyInProgress = false;
+          return;
+        }
+        const companyDoc = snapshot.docs[0];
+        const companyId = companyDoc.id;
+        const companyName = companyDoc.data().name;
+
+        db.collection('users').doc(currentUser.uid).get().then(userDoc => {
+          const oldCompanyId = userDoc.exists ? userDoc.data().companyId : null;
+
+          // Var man allerede tilknyttet en anden virksomhed, ryddes den gamle
+          // medarbejder-post op der, så man ikke bliver "hængende" i to
+          // virksomheder på samme tid.
+          const cleanupOld = (oldCompanyId && oldCompanyId !== companyId)
+            ? db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid).delete().catch(() => {})
+            : Promise.resolve();
+
+          cleanupOld.then(() => {
+            return db.collection('users').doc(currentUser.uid).set({ companyId }, { merge: true });
+          }).then(() => {
+            return db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
+              name: currentUser.displayName || '',
+              email: currentUser.email || '',
+              role: 'employee',
+              joinedAt: new Date().toISOString()
+            });
+          }).then(() => {
+            myMembershipCompanyName = companyName;
+            input.value = '';
+            renderAccountModalBody();
+            showToast('Du er nu tilknyttet ' + companyName + '!');
+            joiningCompanyInProgress = false;
+          }).catch(err => {
+            console.error('Kunne ikke tilknytte koden:', err);
+            showToast('Kunne ikke tilknytte koden', 'error');
+            joiningCompanyInProgress = false;
+          });
+        });
+      }).catch(err => {
+        console.error('Kunne ikke tilknytte koden:', err);
+        showToast('Kunne ikke tilknytte koden', 'error');
+        joiningCompanyInProgress = false;
+      });
+    }
+
+    function copyInviteCode() {
+      if (!myCompany) return;
+      navigator.clipboard.writeText(myCompany.inviteCode).then(() => {
+        showToast('Koden er kopieret!');
+      }).catch(() => {
+        showToast('Kunne ikke kopiere - koden er ' + myCompany.inviteCode, 'error');
+      });
+    }
+
+    // Henter og viser listen af medarbejdere tilknyttet ens virksomhed
+    function loadEmployeesList() {
+      const codeDisplay = document.getElementById('companyInviteCodeDisplay');
+      const container = document.getElementById('employeesList');
+      const deleteBtn = document.getElementById('deleteCompanyBtn');
+      if (!myCompany) {
+        if (container) {
+          container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Du skal oprette en virksomhed under kontomenuen (👤-ikonet) for at tilføje medarbejdere.</p>';
+        }
+        if (deleteBtn) deleteBtn.classList.add('hidden');
+        return;
+      }
+
+      if (codeDisplay) codeDisplay.textContent = myCompany.inviteCode;
+      // Kun den oprindelige opretter kan slette hele virksomheden
+      if (deleteBtn) deleteBtn.classList.toggle('hidden', !myCompany.isOwner);
+
+      db.collection('companies').doc(myCompany.id).collection('employees').get().then(snapshot => {
+        const list = snapshot.docs
+          .map(d => ({ uid: d.id, ...d.data() }))
+          .filter(emp => emp.uid !== currentUser.uid); // man ser jo allerede sine egne data i de andre faner
+        renderEmployeesList(list);
+      }).catch(err => {
+        console.error('Kunne ikke hente medarbejdere:', err);
+      });
+    }
+
+    function renderEmployeesList(list) {
+      const container = document.getElementById('employeesList');
+      if (!container) return;
+
+      if (list.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen andre medarbejdere endnu. Del din kode ovenfor med dem, så de kan tilknytte sig.</p>';
+        return;
+      }
+
+      container.innerHTML = list.map(emp => {
+        const safeName = escapeHtml(emp.name || emp.email || 'Medarbejder').replace(/'/g, "\\'");
+        const isAdmin = emp.role === 'admin';
+        const isOwnerRow = myCompany.ownerId === emp.uid;
+
+        return `
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+            <button onclick="viewEmployeeData('${emp.uid}', '${safeName}')" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+              <div class="min-w-0">
+                <div class="font-bold text-slate-900 text-sm truncate flex items-center gap-1.5">
+                  <span class="truncate">${escapeHtml(emp.name || 'Unavngivet')}</span>
+                  ${isAdmin ? '<span class="text-[9px] font-black uppercase tracking-wider bg-brand-600 text-white px-1.5 py-0.5 rounded flex-shrink-0">Admin</span>' : ''}
+                </div>
+                <div class="text-xs text-slate-500 truncate">${escapeHtml(emp.email || '')}</div>
+              </div>
+              <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+            </button>
+            ${isOwnerRow ? '' : `
+              <button onclick="toggleAdminRole('${emp.uid}', ${isAdmin ? 'false' : 'true'})" class="text-[10px] font-bold ${isAdmin ? 'text-slate-500' : 'text-brand-600'} whitespace-nowrap px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 flex-shrink-0">
+                ${isAdmin ? 'Fjern admin' : 'Gør til admin'}
+              </button>
+            `}
+          </div>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Gør en medarbejder til administrator (eller fjerner det igen). Enhver
+    // administrator kan gøre dette for enhver anden - undtagen den
+    // oprindelige opretter, hvis administrator-status altid består.
+    function toggleAdminRole(uid, makeAdmin) {
+      if (!myCompany || !db) return;
+      db.collection('companies').doc(myCompany.id).collection('employees').doc(uid).update({
+        role: makeAdmin ? 'admin' : 'employee'
+      }).then(() => {
+        showToast(makeAdmin ? 'Gjort til administrator' : 'Administrator-rettighed fjernet');
+        loadEmployeesList();
+      }).catch(err => {
+        console.error('Kunne ikke ændre rolle:', err);
+        showToast('Kunne ikke ændre rolle', 'error');
+      });
+    }
+
+    // ==========================================
+    // SAGER
+    // ==========================================
+    // Sager gemmes enten under virksomheden (delt af alle medarbejdere) hvis
+    // man er tilknyttet én, eller under ens egen profil (kun til én selv)
+    // hvis man arbejder solo - men fungerer og ser ens ud i begge tilfælde.
+    let openCases = [];
+
+    function getCasesRef() {
+      if (!db) return null;
+      return myCompanyId
+        ? db.collection('companies').doc(myCompanyId).collection('cases')
+        : db.collection('users').doc(currentUser.uid).collection('cases');
+    }
+
+    function getCasesMetaRef() {
+      if (!db) return null;
+      return myCompanyId
+        ? db.collection('companies').doc(myCompanyId).collection('meta').doc('caseCounter')
+        : db.collection('users').doc(currentUser.uid).collection('meta').doc('caseCounter');
+    }
+
+    // Man er "sags-administrator" hvis man enten er admin i en virksomhed,
+    // eller arbejder solo (og dermed automatisk styrer sine egne sager).
+    function isCaseAdmin() {
+      return myCompanyId ? !!myCompany : !!currentUser;
+    }
+
+    function handleCreateCase() {
+      const input = document.getElementById('newCaseName');
+      const name = input.value.trim();
+      if (!name) {
+        showToast('Giv sagen et navn først', 'error');
+        return;
+      }
+      checkDuplicateAndCreateCase(name, () => { input.value = ''; });
+    }
+
+    function promptCreateCase() {
+      const name = prompt('Navngiv sagen (fx vejnavn eller kundenavn):');
+      if (!name || !name.trim()) return;
+      checkDuplicateAndCreateCase(name.trim(), (newCase) => {
+        // Vælg den nye sag med det samme i registreringsformularen
+        const select = document.getElementById('logCase');
+        if (select) select.value = newCase.id;
+      });
+    }
+
+    // Advarer hvis en åben sag med et meget lignende navn allerede findes,
+    // så man ikke ved en fejl opretter to sager for den samme opgave.
+    function checkDuplicateAndCreateCase(name, onDone) {
+      const normalized = name.trim().toLowerCase();
+      const duplicate = openCases.find(c => c.name.trim().toLowerCase() === normalized);
+
+      if (duplicate) {
+        showConfirmModal(
+          'Sag findes måske allerede',
+          `Der findes allerede en åben sag der hedder "${duplicate.name}" (#${duplicate.number}). Vil du oprette "${name}" som en ny, separat sag alligevel?`,
+          () => createCase(name, onDone),
+          'Opret alligevel'
+        );
+        return;
+      }
+
+      createCase(name, onDone);
+    }
+
+    // Opretter en sag med automatisk fortløbende nummer (via transaktion, så
+    // to personer der opretter samtidig aldrig kan få samme nummer).
+    function createCase(name, onDone) {
+      if (!currentUser || !db) return;
+      const casesRef = getCasesRef();
+      const metaRef = getCasesMetaRef();
+      const newCaseRef = casesRef.doc();
+
+      db.runTransaction(tx => {
+        return tx.get(metaRef).then(metaDoc => {
+          const nextNumber = (metaDoc.exists ? metaDoc.data().count : 0) + 1;
+          tx.set(metaRef, { count: nextNumber }, { merge: true });
+          tx.set(newCaseRef, {
+            number: nextNumber,
+            name,
+            status: 'open',
+            createdBy: currentUser.uid,
+            createdByName: currentUser.displayName || currentUser.email || '',
+            createdAt: new Date().toISOString(),
+            completedBy: null,
+            completedByName: null,
+            completedAt: null
+          });
+          return nextNumber;
+        });
+      }).then(number => {
+        showToast('Sag #' + number + ' oprettet');
+        if (onDone) onDone({ id: newCaseRef.id, number, name });
+      }).catch(err => {
+        console.error('Kunne ikke oprette sag:', err);
+        showToast('Kunne ikke oprette sag', 'error');
+      });
+    }
+
+    // Henter både åbne sager (til alle) og afsluttede sager (kun til admins),
+    // og opdaterer sags-listerne samt sags-dropdown i registreringsformularen.
+    let casesUnsubscribe = null;
+    let completedCasesUnsubscribe = null;
+
+    function detachCasesListeners() {
+      if (casesUnsubscribe) { casesUnsubscribe(); casesUnsubscribe = null; }
+      if (completedCasesUnsubscribe) { completedCasesUnsubscribe(); completedCasesUnsubscribe = null; }
+    }
+
+    // Abonnerer på løbende opdateringer af sager, så en ny/ændret/afsluttet
+    // sag, en kollega opretter, dukker op automatisk uden at skulle genindlæses.
+    function loadCases() {
+      detachCasesListeners();
+
+      if (!currentUser || !db) {
+        const container = document.getElementById('openCasesList');
+        if (container) {
+          container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Log ind med Google for at bruge sager.</p>';
+        }
+        const completedSection = document.getElementById('completedCasesSection');
+        if (completedSection) completedSection.classList.add('hidden');
+        return;
+      }
+      const casesRef = getCasesRef();
+      if (!casesRef) return;
+
+      casesUnsubscribe = casesRef.where('status', '==', 'open').onSnapshot(snapshot => {
+        openCases = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.number - b.number);
+        renderOpenCasesList();
+        populateCaseSelect(document.getElementById('logCase'));
+      }, err => console.error('Live-opdatering af sager fejlede:', err));
+
+      const completedSection = document.getElementById('completedCasesSection');
+      if (isCaseAdmin()) {
+        completedSection.classList.remove('hidden');
+        completedCasesUnsubscribe = casesRef.where('status', '==', 'completed').onSnapshot(snapshot => {
+          const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.number - a.number);
+          renderCompletedCasesList(list);
+        }, err => console.error('Live-opdatering af afsluttede sager fejlede:', err));
+      } else {
+        completedSection.classList.add('hidden');
+      }
+    }
+
+    // extraCase (valgfri): en sag der ikke længere er "åben" (fx slettet
+    // eller afsluttet), men som en bestemt registrering stadig hører til -
+    // vises som en ekstra mulighed, så den ikke bare forsvinder fra listen.
+    function populateCaseSelect(selectEl, extraCase) {
+      if (!selectEl) return;
+      const currentValue = selectEl.value;
+      let optionsHtml = openCases.map(c => `<option value="${c.id}">#${c.number} · ${escapeHtml(c.name)}</option>`).join('');
+
+      if (extraCase && extraCase.id && !openCases.some(c => c.id === extraCase.id)) {
+        optionsHtml += `<option value="${extraCase.id}">#${extraCase.number} · ${escapeHtml(extraCase.name)} (lukket)</option>`;
+      }
+
+      selectEl.innerHTML = '<option value="">Ingen sag</option>' + optionsHtml;
+
+      if (extraCase && extraCase.id) {
+        selectEl.value = extraCase.id;
+      } else if (openCases.some(c => c.id === currentValue)) {
+        selectEl.value = currentValue;
+      }
+    }
+
+    function renderOpenCasesList() {
+      const container = document.getElementById('openCasesList');
+      if (!container) return;
+
+      if (openCases.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen åbne sager endnu - opret en herover.</p>';
+        return;
+      }
+
+      const admin = isCaseAdmin();
+      container.innerHTML = openCases.map(c => {
+        const safeName = escapeHtml(c.name).replace(/'/g, "\\'");
+        const infoBlock = `
+          <div class="min-w-0">
+            <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
+            <div class="text-[10px] text-slate-500 truncate">Oprettet af ${escapeHtml(c.createdByName || 'ukendt')}</div>
+          </div>
+        `;
+
+        return `
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+            ${admin
+              ? `<button onclick="viewCaseDetails('${c.id}', '${safeName}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+                   ${infoBlock}
+                   <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+                 </button>`
+              : `<div class="flex-1 min-w-0">${infoBlock}</div>`
+            }
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <button onclick="promptRenameCase('${c.id}', '${safeName}')" class="text-slate-400 hover:text-brand-600 p-1.5">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+              </button>
+              ${admin ? `
+                <button onclick="confirmCompleteCase('${c.id}', '${safeName}')" class="text-[10px] font-bold text-emerald-700 px-2 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-50 whitespace-nowrap">Færdigmeld</button>
+                <button onclick="confirmDeleteCase('${c.id}', '${safeName}')" class="text-slate-400 hover:text-red-600 p-1.5">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderCompletedCasesList(list) {
+      const container = document.getElementById('completedCasesList');
+      if (!container) return;
+
+      if (list.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen afsluttede sager endnu.</p>';
+        return;
+      }
+
+      container.innerHTML = list.map(c => `
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+          <button onclick="viewCaseDetails('${c.id}', '${escapeHtml(c.name).replace(/'/g, "\\'")}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
+            <div class="min-w-0">
+              <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
+              <div class="text-[10px] text-slate-500 truncate">Afsluttet af ${escapeHtml(c.completedByName || 'ukendt')}</div>
+            </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+          </button>
+          <button onclick="reopenCase('${c.id}')" class="text-[10px] font-bold text-brand-600 px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 whitespace-nowrap flex-shrink-0">Genåbn</button>
+        </div>
+      `).join('');
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function confirmCompleteCase(caseId, name) {
+      showConfirmModal(
+        'Færdigmeld sag?',
+        `Er du sikker på, at "${name}" er færdig? Sagen forsvinder fra listen over åbne sager, og kan herefter kun ses af administratorer.`,
+        () => completeCase(caseId),
+        'Færdigmeld'
+      );
+    }
+
+    function completeCase(caseId) {
+      const ref = getCasesRef();
+      if (!ref || !currentUser) return;
+      ref.doc(caseId).update({
+        status: 'completed',
+        completedBy: currentUser.uid,
+        completedByName: currentUser.displayName || currentUser.email || '',
+        completedAt: new Date().toISOString()
+      }).then(() => {
+        showToast('Sagen er færdigmeldt');
+      }).catch(err => {
+        console.error('Kunne ikke færdigmelde sag:', err);
+        showToast('Kunne ikke færdigmelde sag', 'error');
+      });
+    }
+
+    function reopenCase(caseId) {
+      const ref = getCasesRef();
+      if (!ref) return;
+      ref.doc(caseId).update({
+        status: 'open',
+        completedBy: null,
+        completedByName: null,
+        completedAt: null
+      }).then(() => {
+        showToast('Sagen er genåbnet');
+      }).catch(err => {
+        console.error('Kunne ikke genåbne sag:', err);
+        showToast('Kunne ikke genåbne sag', 'error');
+      });
+    }
+
+    function promptRenameCase(caseId, currentName) {
+      const newName = prompt('Nyt navn for sagen:', currentName);
+      if (!newName || !newName.trim() || newName.trim() === currentName) return;
+      renameCase(caseId, newName.trim());
+    }
+
+    function renameCase(caseId, newName) {
+      const ref = getCasesRef();
+      if (!ref) return;
+      ref.doc(caseId).update({ name: newName }).then(() => {
+        showToast('Sagsnavn opdateret');
+      }).catch(err => {
+        console.error('Kunne ikke omdøbe sag:', err);
+        showToast('Kunne ikke omdøbe sag', 'error');
+      });
+    }
+
+    function confirmDeleteCase(caseId, name) {
+      showConfirmModal(
+        'Slet sag?',
+        `Er du sikker på, at du vil slette "${name}"? Allerede gemte registreringer beholder deres egen sags-mærkning, men sagen forsvinder fra listen.`,
+        () => deleteCase(caseId)
+      );
+    }
+
+    function deleteCase(caseId) {
+      const ref = getCasesRef();
+      if (!ref) return;
+      ref.doc(caseId).delete().then(() => {
+        showToast('Sag slettet');
+      }).catch(err => {
+        console.error('Kunne ikke slette sag:', err);
+        showToast('Kunne ikke slette sag', 'error');
+      });
+    }
+
+    // Samler statistik for en afsluttet sag på tværs af ALLE medarbejdere:
+    // periode, samlet antal enheder, og hvem der har arbejdet på den.
+    let currentCaseDetails = null; // gemmer data til drill-down pr. medarbejder
+
+    function viewCaseDetails(caseId, caseName, caseNumber) {
+      document.getElementById('caseDetailsTitle').textContent = '#' + caseNumber + ' · ' + caseName;
+      const body = document.getElementById('caseDetailsBody');
+      body.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Henter data...</p>';
+      document.getElementById('caseDetailsModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+
+      // Find hvilke personer der skal tjekkes for registreringer på sagen:
+      // alle medarbejdere i virksomheden, eller bare én selv hvis solo.
+      const peoplePromise = myCompanyId
+        ? db.collection('companies').doc(myCompanyId).collection('employees').get().then(snapshot =>
+            snapshot.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email || 'Ukendt' }))
+          )
+        : Promise.resolve([{ uid: currentUser.uid, name: currentUser.displayName || currentUser.email || 'Mig' }]);
+
+      peoplePromise.then(people => {
+        return Promise.all(people.map(p =>
+          db.collection('users').doc(p.uid).collection('entries').where('caseId', '==', caseId).get()
+            .then(snap => ({ person: p, entries: snap.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date)) }))
+        ));
+      }).then(results => {
+        const peopleWithEntries = results.filter(r => r.entries.length > 0);
+        const allEntries = peopleWithEntries.flatMap(r => r.entries);
+
+        if (allEntries.length === 0) {
+          body.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Ingen registreringer fundet på denne sag.</p>';
+          currentCaseDetails = null;
+          return;
+        }
+
+        currentCaseDetails = { caseName, caseNumber, people: peopleWithEntries };
+        renderCaseDetailsSummary();
+      }).catch(err => {
+        console.error('Kunne ikke hente sagsdata:', err);
+        body.innerHTML = '<p class="text-red-500 text-center py-4 text-xs">Kunne ikke hente data for sagen.</p>';
+      });
+    }
+
+    function renderCaseDetailsSummary() {
+      const body = document.getElementById('caseDetailsBody');
+      if (!currentCaseDetails) return;
+      const allEntries = currentCaseDetails.people.flatMap(p => p.entries);
+
+      const dates = allEntries.map(e => e.date).sort();
+      const periodFrom = dates[0];
+      const periodTo = dates[dates.length - 1];
+      const totalDkk = allEntries.reduce((sum, e) => sum + e.totalDkk, 0);
+
+      // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
+      // Opstart tæller ikke med - men nu opdelt pr. akkordsats i stedet for
+      // ét samlet tal, så man kan se PRÆCIS hvilke enheder der er lavet.
+      const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+      const unitGroups = {};
+      unitEntries.forEach(e => {
+        if (!unitGroups[e.rateName]) unitGroups[e.rateName] = { quantity: 0, unit: e.unit };
+        unitGroups[e.rateName].quantity += e.quantity;
+      });
+
+      body.innerHTML = `
+        <div class="bg-slate-50 rounded-xl p-3">
+          <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Periode</div>
+          <div class="text-sm font-bold text-slate-900 mt-0.5">${formatDateShort(new Date(periodFrom + 'T12:00:00'))} - ${formatDateShort(new Date(periodTo + 'T12:00:00'))}</div>
+        </div>
+
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Enheder Udført</div>
+          <div class="space-y-1.5">
+            ${Object.keys(unitGroups).map(name => `
+              <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-xs">
+                <span class="font-semibold text-slate-800">${escapeHtml(name)}</span>
+                <span class="text-slate-500">${formatNumber(unitGroups[name].quantity)} ${escapeHtml(unitGroups[name].unit)}</span>
+              </div>
+            `).join('') || '<p class="text-slate-400 text-center py-2 text-xs">Ingen akkord-enheder på denne sag.</p>'}
+          </div>
+        </div>
+
+        <div class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center">
+          <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Samlet Værdi</span>
+          <span class="font-black text-emerald-400">${formatCurrency(totalDkk)}</span>
+        </div>
+
+        <div>
+          <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Folk på sagen</div>
+          <div class="space-y-1.5">
+            ${currentCaseDetails.people.map((p, i) => `
+              <button onclick="renderCaseDetailsPersonHistory(${i})" class="w-full flex justify-between items-center bg-slate-50 hover:bg-slate-100 rounded-lg px-3 py-2 text-xs transition-colors">
+                <span class="font-semibold text-slate-800">${escapeHtml(p.person.name)}</span>
+                <span class="flex items-center gap-1 text-slate-500">
+                  ${p.entries.length} registrering${p.entries.length === 1 ? '' : 'er'}
+                  <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                </span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Viser én medarbejders konkrete registreringer på sagen (drill-down)
+    function renderCaseDetailsPersonHistory(personIndex) {
+      if (!currentCaseDetails) return;
+      const person = currentCaseDetails.people[personIndex];
+      if (!person) return;
+
+      const body = document.getElementById('caseDetailsBody');
+      body.innerHTML = `
+        <button onclick="renderCaseDetailsSummary()" class="text-xs font-semibold text-brand-600 flex items-center gap-1 mb-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til sagen
+        </button>
+        <div class="text-sm font-bold text-slate-900">${escapeHtml(person.person.name)}</div>
+        <div class="space-y-2">
+          ${person.entries.map(e => `
+            <div class="bg-white border border-slate-200 rounded-xl p-3">
+              <div class="flex justify-between items-start">
+                <div>
+                  <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${e.date}</div>
+                  <div class="font-bold text-slate-900 text-sm">${escapeHtml(e.rateName)}</div>
+                </div>
+                <span class="font-extrabold text-emerald-600 text-sm">${formatCurrency(e.totalDkk)}</span>
+              </div>
+              <div class="text-xs text-slate-500 mt-1">${formatNumber(e.quantity)} ${escapeHtml(e.unit)} · ${formatNumber(e.hours)} timer</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeCaseDetailsModal() {
+      document.getElementById('caseDetailsModal').classList.add('hidden');
+      currentCaseDetails = null;
+    }
+
+    // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
+    // Kobler egne live-lyttere fra, mens man kigger, for at undgå at de
+    // overskriver den viste medarbejders data.
+    function viewEmployeeData(uid, name) {
+      if (!myCompany || !db) return;
+
+      ownEntries = entries;
+      ownRates = rates;
+      detachRealtimeListeners();
+
+      const empDocRef = db.collection('users').doc(uid);
+
+      Promise.all([
+        empDocRef.get(),
+        empDocRef.collection('entries').get()
+      ]).then(([doc, snapshot]) => {
+        rates = (doc.exists && doc.data().rates) ? doc.data().rates : [];
+        entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        viewingEmployee = { uid, name };
+        document.getElementById('viewingEmployeeBanner').classList.remove('hidden');
+        document.getElementById('viewingEmployeeName').textContent = name;
+        document.getElementById('nav-register').classList.add('hidden');
+        document.getElementById('nav-rates').classList.add('hidden');
+        document.getElementById('historyBackToOwnBtn').classList.remove('hidden');
+
+        switchTab('history');
+        refreshAllViews();
+        showToast('Viser data for ' + name);
+      }).catch(err => {
+        console.error('Kunne ikke hente medarbejderens data:', err);
+        showToast('Kunne ikke hente medarbejderens data', 'error');
+      });
+    }
+
+    function stopViewingEmployee() {
+      viewingEmployee = null;
+      entries = ownEntries || [];
+      rates = ownRates || DEFAULT_RATES;
+      ownEntries = null;
+      ownRates = null;
+
+      document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+      document.getElementById('nav-register').classList.remove('hidden');
+      document.getElementById('nav-rates').classList.remove('hidden');
+      document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+
+      if (currentUser && db) {
+        attachRealtimeListeners(db.collection('users').doc(currentUser.uid));
+      }
+
+      refreshAllViews();
+      switchTab('register');
+    }
+
+    // Selve app-opstarten (formular, historik osv.) - køres når vi ved om
+    // brugeren er logget ind, logget ud, eller har valgt at fortsætte uden login.
+    function startApp() {
+      initRegistrationForm();
+      updateHeaderBadge();
+      renderHistoryList();
+      updateAccountIndicator();
+      updateHourlyRateEmphasis();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // ==========================================
+    // UI NAVIGATION CONTROLLER
+    // ==========================================
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.nav-item').forEach(el => {
+        el.classList.remove('text-brand-600');
+        el.classList.add('text-slate-400');
+      });
+
+      const activeTab = document.getElementById(`tab-${tabId}`);
+      const activeNav = document.getElementById(`nav-${tabId}`);
+
+      if (activeTab) activeTab.classList.remove('hidden');
+      if (activeNav) {
+        activeNav.classList.remove('text-slate-400');
+        activeNav.classList.add('text-brand-600');
+      }
+
+      if (tabId === 'stats') {
+        renderStats();
+      } else if (tabId === 'history') {
+        // Nulstiller søgefeltet og visningsgrænsen, så man altid starter fra toppen
+        const searchInput = document.getElementById('historySearch');
+        if (searchInput) searchInput.value = '';
+        historyRenderLimit = 50;
+        renderHistoryList();
+      } else if (tabId === 'rates') {
+        renderRatesList();
+      } else if (tabId === 'employees') {
+        loadEmployeesList();
+      } else if (tabId === 'cases') {
+        loadCases();
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      const bgColor = type === 'success' ? 'bg-slate-900 border-emerald-500' : 'bg-slate-900 border-red-500';
+      const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+      
+      toast.className = `${bgColor} border-l-4 text-white p-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold mb-2 transition-all transform duration-300 translate-y-[-10px] opacity-0`;
+      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 ${type==='success'?'text-emerald-400':'text-red-400'}"></i><span>${message}</span>`;
+      
+      container.appendChild(toast);
+      if (window.lucide) lucide.createIcons();
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-[-10px]', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-[-10px]');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function showConfirmModal(title, message, onConfirm, confirmLabel = 'Slet') {
+      const modal = document.getElementById('confirmModal');
+      document.getElementById('confirmModalTitle').innerText = title;
+      document.getElementById('confirmModalMessage').innerText = message;
+      
+      modal.classList.remove('hidden');
+
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+      const okBtn = document.getElementById('confirmOkBtn');
+      okBtn.innerText = confirmLabel;
+
+      const closeHandler = () => {
+        modal.classList.add('hidden');
+        cancelBtn.removeEventListener('click', closeHandler);
+        okBtn.removeEventListener('click', okHandler);
+      };
+
+      const okHandler = () => {
+        onConfirm();
+        closeHandler();
+      };
+
+      cancelBtn.addEventListener('click', closeHandler);
+      okBtn.addEventListener('click', okHandler);
+    }
+
+    // ==========================================
+    // LOG WORK FORM & CALCULATIONS
+    // ==========================================
+    function initRegistrationForm() {
+      const dateInput = document.getElementById('logDate');
+      if (!dateInput.value) {
+        dateInput.value = getFormattedDate(0);
+      }
+      
+      const container = document.getElementById('logRowsContainer');
+      if (container.children.length === 0) {
+        addLogRow();
+      } else {
+        populateRateSelect();
+      }
+    }
+
+    function getRateOptionsHtml() {
+      if (rates.length === 0) return '<option value="">Ingen satser oprettet - Tilføj under "Satser"</option>';
+      return rates.map(rate => `<option value="${rate.id}">${escapeHtml(rate.name)} (${rate.price.toFixed(2)} kr. / ${escapeHtml(rate.unit)})</option>`).join('');
+    }
+
+    function populateRateSelect() {
+      const optionsHtml = getRateOptionsHtml();
+      document.querySelectorAll('.log-rate-select').forEach(select => {
+        const currentVal = select.value;
+        select.innerHTML = optionsHtml;
+        if (currentVal) select.value = currentVal;
+        updateRowUnit(select);
+      });
+      calculateLiveSummary();
+    }
+
+    function addLogRow() {
+      const container = document.getElementById('logRowsContainer');
+      const row = document.createElement('div');
+      row.className = 'log-row bg-slate-50/70 p-3.5 rounded-xl border border-slate-200 relative';
+      
+      row.innerHTML = `
+        <button type="button" onclick="removeLogRow(this)" class="remove-row-btn absolute -top-2.5 -right-2.5 bg-white text-red-500 rounded-full shadow-sm hover:text-red-600 p-0.5 border border-slate-200"><i data-lucide="x-circle" class="w-5 h-5"></i></button>
+        <div class="mb-3">
+          <select class="log-rate-select w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" onchange="updateRowUnit(this); calculateLiveSummary()" required>
+            ${getRateOptionsHtml()}
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Mængde (<span class="unit-label">...</span>)</label>
+          <input type="number" step="0.01" min="0.1" class="log-quantity w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" oninput="calculateLiveSummary()" required>
+        </div>
+      `;
+      container.appendChild(row);
+      
+      const newSelect = row.querySelector('.log-rate-select');
+      updateRowUnit(newSelect);
+      updateRemoveButtons();
+      
+      if (window.lucide) lucide.createIcons();
+      calculateLiveSummary();
+    }
+
+    function removeLogRow(btn) {
+      const row = btn.closest('.log-row');
+      if (document.querySelectorAll('.log-row').length > 1) {
+        row.remove();
+        updateRemoveButtons();
+        calculateLiveSummary();
+      }
+    }
+
+    function updateRemoveButtons() {
+      const rows = document.querySelectorAll('.log-row');
+      rows.forEach(row => {
+        const btn = row.querySelector('.remove-row-btn');
+        btn.style.display = rows.length === 1 ? 'none' : 'block';
+      });
+    }
+
+    function updateRowUnit(selectElement) {
+      const rateId = selectElement.value;
+      const rate = rates.find(r => r.id === rateId);
+      const unitLabel = selectElement.closest('.log-row').querySelector('.unit-label');
+      if (rate && unitLabel) {
+        unitLabel.textContent = rate.unit;
+      }
+    }
+
+    function calculateLiveSummary() {
+      let akkordDkk = 0; // Almindelige satser + Opstart-satser
+      let timelonDkk = 0; // "Timeløn"-satsen, holdes helt for sig selv
+      let timelonHours = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
+
+      document.querySelectorAll('.log-row').forEach(row => {
+        const rateId = row.querySelector('.log-rate-select').value;
+        const quantity = parseFloat(row.querySelector('.log-quantity').value) || 0;
+        
+        const rate = rates.find(r => r.id === rateId);
+        if (rate && quantity > 0) {
+          const rowDkk = quantity * rate.price;
+          if (isTimelonName(rate.name)) {
+            timelonDkk += rowDkk;
+            timelonHours += quantity;
+          } else {
+            akkordDkk += rowDkk;
+          }
+        }
+      });
+
+      // "Timer i alt" er for HELE dagen - Timeløn-timerne trækkes fra,
+      // så kun de resterende timer bruges til akkordens effektive timeløn.
+      const totalDayHours = parseFloat(document.getElementById('logHours').value) || 0;
+      const akkordHours = Math.max(0, totalDayHours - timelonHours);
+      const hourlyRate = akkordHours > 0 ? (akkordDkk / akkordHours) : 0;
+      document.getElementById('liveTotalDkk').textContent = formatCurrency(akkordDkk);
+      document.getElementById('liveHourlyRate').textContent = formatCurrency(hourlyRate) + '/t';
+
+      const hoursWarning = document.getElementById('hoursWarning');
+      if (timelonHours > totalDayHours) {
+        hoursWarning.classList.remove('hidden');
+      } else {
+        hoursWarning.classList.add('hidden');
+      }
+
+      const timelonWrap = document.getElementById('liveTimelonWrap');
+      if (timelonDkk > 0) {
+        timelonWrap.classList.remove('hidden');
+        document.getElementById('liveTimelonDkk').textContent = formatCurrency(timelonDkk);
+      } else {
+        timelonWrap.classList.add('hidden');
+      }
+    }
+
+    function handleSaveLog(e) {
+      e.preventDefault();
+
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke tilføje registreringer for en medarbejder', 'error');
+        return;
+      }
+
+      const date = document.getElementById('logDate').value;
+      const selectedCaseId = document.getElementById('logCase').value;
+      const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+      const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
+      const totalHoursEntered = parseFloat(document.getElementById('logHours').value) || 0;
+      const rows = document.querySelectorAll('.log-row');
+      
+      let hasError = false;
+      let newEntries = [];
+
+      // Beregn den samlede akkordløn for alle rækker først, så timerne kan
+      // fordeles forholdsmæssigt ud på hver enkelt sats (i stedet for at
+      // skulle indtastes for hver enkelt akkordsats).
+      // "Timeløn" holdes helt uden for denne fordeling (egne timer, egen sats).
+      // "Opstart"-satser lægges oveni de rigtige akkordrækkers egen totalsum
+      // (så fx "10 plader" selv står med de fulde kr, inkl. opstart-tillægget),
+      // og får derfor ikke selv nogen timer eller timeløn - kun antal.
+      let rowsData = [];
+      let grandTotalDkk = 0; // Kun "normale" satser (ekskl. Timeløn og Opstart)
+      let opstartTotalDkk = 0;
+      let timelonHoursSum = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
+      rows.forEach(row => {
+        const rateId = row.querySelector('.log-rate-select').value;
+        const quantity = parseFloat(row.querySelector('.log-quantity').value);
+        const rate = rates.find(r => r.id === rateId);
+        if (!rate) {
+          hasError = true;
+          return;
+        }
+        const rowTotalDkk = quantity * rate.price;
+        const timelon = isTimelonName(rate.name);
+        const opstart = isOpstartName(rate.name);
+        if (opstart) {
+          opstartTotalDkk += rowTotalDkk;
+        } else if (timelon) {
+          timelonHoursSum += quantity;
+        } else {
+          grandTotalDkk += rowTotalDkk;
+        }
+        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk, timelon, opstart });
+      });
+
+      if (hasError) {
+        showToast('Vælg venligst en gyldig akkordsats', 'error');
+        return;
+      }
+
+      const normalRowsCount = rowsData.filter(r => !r.timelon && !r.opstart).length;
+      // "Timer i alt" er for HELE dagen - de timer der er brugt på Timeløn
+      // trækkes fra, så kun resten fordeles ud på akkordsatserne.
+      const akkordHoursAvailable = Math.max(0, totalHoursEntered - timelonHoursSum);
+
+      rowsData.forEach(({ rate, quantity, totalDkk, timelon, opstart }) => {
+        let hours, hourlyRate, storedTotalDkk;
+        if (timelon) {
+          // Timeløn: Mængden ER timerne, til den faste timesats
+          hours = quantity;
+          storedTotalDkk = totalDkk;
+          hourlyRate = hours > 0 ? (storedTotalDkk / hours) : rate.price;
+        } else if (opstart) {
+          // Opstart: kronerne lægges over på akkordrækken(erne) herunder,
+          // så denne række kun tæller som antal - ingen timer/timeløn/kr her.
+          // (Hvis der ikke er nogen akkordrække at lægge dem over på, beholdes
+          // beløbet her, så pengene ikke bare forsvinder.)
+          hours = 0;
+          hourlyRate = 0;
+          storedTotalDkk = normalRowsCount > 0 ? 0 : totalDkk;
+        } else {
+          hours = grandTotalDkk > 0
+            ? akkordHoursAvailable * (totalDkk / grandTotalDkk)
+            : (normalRowsCount > 0 ? akkordHoursAvailable / normalRowsCount : 0);
+          // Denne rækkes andel af Opstart-tillægget, lagt oveni dens egen totalsum
+          const opstartShare = grandTotalDkk > 0
+            ? opstartTotalDkk * (totalDkk / grandTotalDkk)
+            : (normalRowsCount > 0 ? opstartTotalDkk / normalRowsCount : 0);
+          storedTotalDkk = totalDkk + opstartShare;
+          hourlyRate = hours > 0 ? (storedTotalDkk / hours) : 0;
+        }
+
+        newEntries.push({
+          id: 'entry-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          date,
+          rateId: rate.id,
+          rateName: rate.name,
+          unit: rate.unit,
+          pricePerUnit: rate.price,
+          quantity,
+          hours,
+          totalDkk: storedTotalDkk,
+          hourlyRate,
+          note,
+          caseId: selectedCase ? selectedCase.id : null,
+          caseNumber: selectedCase ? selectedCase.number : null,
+          caseName: selectedCase ? selectedCase.name : null
+        });
+      });
+
+      newEntries.reverse().forEach(entry => entries.unshift(entry));
+      saveData();
+      newEntries.forEach(entry => syncEntryToCloud(entry));
+
+      document.getElementById('logRowsContainer').innerHTML = '';
+      addLogRow();
+      document.getElementById('logCase').value = '';
+      document.getElementById('logHours').value = '';
+      calculateLiveSummary();
+      updateHeaderBadge();
+      renderHistoryList(); // Opdaterer historik med det samme, hvis man kigger på den
+
+      showToast('Registrering(er) gemt!');
+    }
+
+    // ==========================================
+    // RATES MANAGEMENT
+    // ==========================================
+    function renderRatesList() {
+      const list = document.getElementById('ratesList');
+      list.innerHTML = '';
+
+      if (rates.length === 0) {
+        list.innerHTML = `
+          <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
+            <i data-lucide="tag" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+            <p class="text-xs text-slate-500 font-medium">Ingen akkordsatser oprettet endnu.</p>
+            <button onclick="openRateModal()" class="mt-3 bg-brand-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Opret din første sats</button>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      rates.forEach(rate => {
+        const item = document.createElement('div');
+        item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center';
+        item.innerHTML = `
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(rate.name)}</h4>
+            <div class="text-xs text-slate-500 mt-0.5">
+              <span class="font-bold text-slate-800">${formatNumber(rate.price)} kr.</span> pr. ${escapeHtml(rate.unit)}
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="editRate('${rate.id}')" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+              <i data-lucide="edit-2" class="w-4 h-4"></i>
+            </button>
+            <button onclick="confirmDeleteRate('${rate.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openRateModal(rateId = null) {
+      const modal = document.getElementById('rateModal');
+      const title = document.getElementById('rateModalTitle');
+      const form = document.getElementById('rateForm');
+      
+      form.reset();
+      document.getElementById('rateEditId').value = '';
+
+      if (rateId) {
+        const rate = rates.find(r => r.id === rateId);
+        if (rate) {
+          title.textContent = 'Rediger Akkordsats';
+          document.getElementById('rateEditId').value = rate.id;
+          document.getElementById('rateName').value = rate.name;
+          document.getElementById('rateUnit').value = rate.unit;
+          document.getElementById('ratePrice').value = rate.price;
+        }
+      } else {
+        title.textContent = 'Ny Akkordsats';
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeRateModal() {
+      document.getElementById('rateModal').classList.add('hidden');
+    }
+
+    function handleSaveRate(e) {
+      e.preventDefault();
+
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders satser', 'error');
+        return;
+      }
+
+      const editId = document.getElementById('rateEditId').value;
+      const name = document.getElementById('rateName').value.trim();
+      const unit = document.getElementById('rateUnit').value.trim();
+      const price = parseFloat(document.getElementById('ratePrice').value);
+
+      const applyAndSaveRate = () => {
+        if (editId) {
+          const index = rates.findIndex(r => r.id === editId);
+          if (index !== -1) {
+            rates[index] = { ...rates[index], name, unit, price };
+          }
+        } else {
+          rates.push({
+            id: 'rate-' + Date.now(),
+            name,
+            unit,
+            price
+          });
+        }
+
+        saveData();
+        syncRatesToCloud();
+        populateRateSelect();
+        renderRatesList();
+        closeRateModal();
+        showToast('Akkordsats gemt!');
+      };
+
+      // Advarsel hvis en omdøbning fjerner Timeløn/Opstart-satsens særlige
+      // beregning (kun nye registreringer påvirkes - allerede gemte data er upåvirkede).
+      if (editId) {
+        const existing = rates.find(r => r.id === editId);
+        if (existing && existing.name !== name) {
+          const oldWasTimelon = isTimelonName(existing.name);
+          const oldWasOpstart = isOpstartName(existing.name);
+          const stillSpecial = (oldWasTimelon && isTimelonName(name)) || (oldWasOpstart && isOpstartName(name));
+
+          if ((oldWasTimelon || oldWasOpstart) && !stillSpecial) {
+            const typeLabel = oldWasTimelon ? 'Timeløn' : 'Opstart';
+            showConfirmModal(
+              'Omdøber en særlig sats?',
+              `"${existing.name}" har lige nu ${typeLabel}s særlige beregning. Omdøber du den til "${name}", mister den denne særlige opførsel for alle NYE registreringer (allerede gemte registreringer ændres ikke). Vil du fortsætte?`,
+              applyAndSaveRate,
+              'Fortsæt'
+            );
+            return;
+          }
+        }
+      }
+
+      applyAndSaveRate();
+    }
+
+    function editRate(id) {
+      openRateModal(id);
+    }
+
+    function confirmDeleteRate(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders satser', 'error');
+        return;
+      }
+      showConfirmModal(
+        'Slet sats?',
+        'Er du sikker på, at du vil slette denne akkordsats?',
+        () => {
+          rates = rates.filter(r => r.id !== id);
+          saveData();
+          syncRatesToCloud();
+          populateRateSelect();
+          renderRatesList();
+          showToast('Sats slettet');
+        }
+      );
+    }
+
+    // ==========================================
+    // STATISTIK & ANALYTICS DASHBOARD
+    // ==========================================
+    function setStatsFilter(filter) {
+      currentStatsFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-slate-900', 'text-white', 'shadow-sm');
+        btn.classList.add('bg-slate-200', 'text-slate-700');
+      });
+
+      const activeBtn = document.getElementById(`filter-${filter}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-slate-200', 'text-slate-700');
+        activeBtn.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
+      }
+
+      if (filter !== 'custom') {
+        document.getElementById('customDatePicker').classList.add('hidden');
+      }
+
+      renderStats();
+    }
+
+    function toggleCustomDatePicker() {
+      const picker = document.getElementById('customDatePicker');
+      picker.classList.toggle('hidden');
+      if (!picker.classList.contains('hidden')) {
+        if (!document.getElementById('customEndDate').value) {
+          document.getElementById('customEndDate').value = getFormattedDate(0);
+        }
+        if (!document.getElementById('customStartDate').value) {
+          document.getElementById('customStartDate').value = getFormattedDate(-30);
+        }
+      }
+    }
+
+    function applyCustomDateFilter() {
+      const start = document.getElementById('customStartDate').value;
+      const end = document.getElementById('customEndDate').value;
+      if (!start || !end) {
+        showToast('Vælg venligst både en start- og slutdato', 'error');
+        return;
+      }
+      if (start > end) {
+        showToast('Startdato skal være før slutdato', 'error');
+        return;
+      }
+      customDateRange = { start, end };
+      setStatsFilter('custom');
+    }
+
+    function getFilteredEntries() {
+      const now = new Date();
+      const todayStr = getFormattedDate(0);
+
+      return entries.filter(entry => {
+        const entryDate = new Date(entry.date);
+
+        if (currentStatsFilter === 'today') {
+          return entry.date === todayStr;
+        }
+        if (currentStatsFilter === 'week') {
+          const diffDays = Math.floor((now - entryDate) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays < 7;
+        }
+        if (currentStatsFilter === 'month') {
+          return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
+        }
+        if (currentStatsFilter === 'paymonth') {
+          const { start, end } = getPayPeriodRange(now);
+          const entryDateObj = new Date(entry.date + 'T12:00:00'); 
+          return entryDateObj >= start && entryDateObj <= end;
+        }
+        if (currentStatsFilter === 'last30') {
+          const diffDays = Math.floor((now - entryDate) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays < 30;
+        }
+        if (currentStatsFilter === 'custom' && customDateRange) {
+          return entry.date >= customDateRange.start && entry.date <= customDateRange.end;
+        }
+        return true; 
+      });
+    }
+
+    function renderStats() {
+      const filtered = getFilteredEntries();
+
+      const totalEarnings = filtered.reduce((sum, e) => sum + e.totalDkk, 0);
+      const totalHours = filtered.reduce((sum, e) => sum + e.hours, 0);
+
+      // Enheder Udført: Timeløn (timer) og Opstart (antal opstarter) tæller
+      // ikke med her, kun de rigtige akkordsatsers mængde.
+      const unitEntries = filtered.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+      const totalUnits = unitEntries.reduce((sum, e) => sum + e.quantity, 0);
+
+      // Effektiv Timeløn (samlet gennemsnit): Timeløn tæller med her.
+      const avgHourlyWage = totalHours > 0 ? (totalEarnings / totalHours) : 0;
+
+      document.getElementById('statTotalEarnings').textContent = formatCurrency(totalEarnings);
+      document.getElementById('statHourlyWage').textContent = formatCurrency(avgHourlyWage) + '/t';
+      document.getElementById('statTotalHours').textContent = formatNumber(totalHours) + ' t';
+      document.getElementById('statTotalUnits').textContent = formatNumber(totalUnits) + ' enheder';
+
+      renderTaskBreakdown(filtered);
+      renderChart(filtered);
+    }
+
+    function renderTaskBreakdown(filtered) {
+      const container = document.getElementById('taskBreakdownList');
+      container.innerHTML = '';
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-2">Ingen data for denne periode.</p>';
+        return;
+      }
+
+      const groups = {};
+      filtered.forEach(e => {
+        if (!groups[e.rateName]) {
+          groups[e.rateName] = { quantity: 0, unit: e.unit, totalDkk: 0, hours: 0, isOpstart: isOpstartName(e.rateName) };
+        }
+        groups[e.rateName].quantity += e.quantity;
+        groups[e.rateName].totalDkk += e.totalDkk;
+        groups[e.rateName].hours += e.hours;
+      });
+
+      Object.keys(groups).forEach(name => {
+        const g = groups[name];
+        // Opstart-satser viser sig kun som antal - pengene er lagt over på akkordraekken(erne)
+        const showHoursAndRate = !g.isOpstart && g.hours > 0;
+        const effHourly = showHoursAndRate ? (g.totalDkk / g.hours) : 0;
+
+        const row = document.createElement('div');
+        row.className = 'flex justify-between items-center py-2 border-b border-slate-100 last:border-0';
+        row.innerHTML = `
+          <div>
+            <div class="font-bold text-slate-800">${escapeHtml(name)}</div>
+            <div class="text-[10px] text-slate-500">${formatNumber(g.quantity)} ${escapeHtml(g.unit)}${showHoursAndRate ? ' • ' + formatNumber(g.hours) + 't' : ''}</div>
+          </div>
+          <div class="text-right">
+            ${g.isOpstart
+              ? (g.totalDkk > 0
+                  ? `<div class="font-bold text-slate-900">${formatCurrency(g.totalDkk)}</div>`
+                  : '<div class="text-[10px] text-slate-400 italic">Lagt til akkordløn</div>')
+              : `<div class="font-bold text-slate-900">${formatCurrency(g.totalDkk)}</div>${showHoursAndRate ? `<div class="text-[10px] text-brand-600 font-semibold">${formatCurrency(effHourly)}/t</div>` : ''}`
+            }
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function renderChart(filteredData) {
+      const ctx = document.getElementById('statsChart').getContext('2d');
+      const dateMap = {};
+      const sorted = [...filteredData].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      sorted.forEach(e => {
+        if (!dateMap[e.date]) {
+          dateMap[e.date] = { dkk: 0, hours: 0 };
+        }
+        dateMap[e.date].dkk += e.totalDkk;
+        dateMap[e.date].hours += e.hours;
+      });
+
+      const labels = Object.keys(dateMap).map(d => {
+        const parts = d.split('-');
+        return `${parts[2]}/${parts[1]}`;
+      });
+
+      const hourlyRates = Object.keys(dateMap).map(d => {
+        const item = dateMap[d];
+        return item.hours > 0 ? (item.dkk / item.hours).toFixed(0) : 0;
+      });
+
+      const totalEarnings = Object.keys(dateMap).map(d => dateMap[d].dkk);
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.length ? labels : ['Ingen data'],
+          datasets: [
+            {
+              label: 'Timeløn (kr./t)',
+              data: hourlyRates.length ? hourlyRates : [0],
+              type: 'line',
+              borderColor: '#16a34a',
+              borderWidth: 3,
+              backgroundColor: 'rgba(22, 163, 74, 0.1)',
+              tension: 0.3,
+              yAxisID: 'y1',
+              pointRadius: 4,
+              pointBackgroundColor: '#16a34a'
+            },
+            {
+              label: 'Indtjening (kr.)',
+              data: totalEarnings.length ? totalEarnings : [0],
+              backgroundColor: '#334155',
+              borderRadius: 6,
+              yAxisID: 'y'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                boxWidth: 12,
+                font: { size: 10, family: 'Inter' }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 10 } }
+            },
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              grid: { color: '#f1f5f9' },
+              ticks: { font: { size: 9 } }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              grid: { display: false },
+              ticks: { font: { size: 9 } }
+            }
+          }
+        }
+      });
+    }
+
+    // ==========================================
+    // HISTORIK (Log History) & EXPORT
+    // ==========================================
+    let historyRenderLimit = 50; // viser kun de nyeste 50 som udgangspunkt - undgår at tegne tusindvis af rækker på én gang
+
+    function renderHistoryList() {
+      const container = document.getElementById('historyList');
+      const searchInput = document.getElementById('historySearch');
+      const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+      container.innerHTML = '';
+
+      const filtered = entries.filter(e => {
+        if (!query) return true; // Viser ALT hvis søgefeltet er tomt
+        return e.rateName.toLowerCase().includes(query) || 
+               (e.note && e.note.toLowerCase().includes(query)) ||
+               e.date.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
+            <i data-lucide="file-text" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
+            <p class="text-xs text-slate-500 font-medium">Ingen registreringer fundet.</p>
+          </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+
+      const visibleEntries = filtered.slice(0, historyRenderLimit);
+
+      visibleEntries.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
+        
+        const dateParts = entry.date.split('-');
+        const formattedDate = `${dateParts[2]}. ${getDanishMonthName(parseInt(dateParts[1]) - 1)} ${dateParts[0]}`;
+
+        const isOpstartEntry = isOpstartName(entry.rateName);
+
+        item.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">${formattedDate}</span>
+              <h4 class="font-bold text-slate-900 text-sm mt-0.5">${escapeHtml(entry.rateName)}</h4>
+            </div>
+            <div class="text-right">
+              ${isOpstartEntry
+                ? (entry.totalDkk > 0
+                    ? `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>`
+                    : '<span class="text-[11px] font-semibold text-slate-400 italic">Lagt til akkordløn</span>')
+                : `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>
+                   <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                     ${formatCurrency(entry.hourlyRate)}/t
+                   </span>`
+              }
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-600">
+            <div>
+              <span class="font-semibold text-slate-800">${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)}</span>
+              ${isOpstartEntry ? '' : `<span class="text-slate-400 mx-1">•</span><span>${formatNumber(entry.hours)} timer</span>`}
+            </div>
+            <div class="flex items-center gap-1">
+              <button onclick="openEditEntryModal('${entry.id}')" class="text-slate-400 hover:text-brand-600 p-1">
+                <i data-lucide="pencil" class="w-4 h-4"></i>
+              </button>
+              <button onclick="confirmDeleteEntry('${entry.id}')" class="text-slate-400 hover:text-red-600 p-1">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          ${entry.note ? `<div class="text-[11px] bg-slate-50 p-2 rounded-lg text-slate-500 italic mt-1">"${escapeHtml(entry.note)}"</div>` : ''}
+        `;
+
+        container.appendChild(item);
+      });
+
+      if (filtered.length > historyRenderLimit) {
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'w-full py-2.5 text-brand-600 font-semibold text-xs hover:bg-brand-50 rounded-xl border border-brand-100';
+        moreBtn.textContent = `Vis flere (${filtered.length - historyRenderLimit} tilbage)`;
+        moreBtn.onclick = () => {
+          historyRenderLimit += 50;
+          renderHistoryList();
+        };
+        container.appendChild(moreBtn);
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function confirmDeleteEntry(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders registreringer', 'error');
+        return;
+      }
+      showConfirmModal(
+        'Slet registrering?',
+        'Er du sikker på, at du vil slette denne registrering fra historikken?',
+        () => {
+          entries = entries.filter(e => e.id !== id);
+          saveData();
+          deleteEntryFromCloud(id);
+          renderHistoryList();
+          updateHeaderBadge();
+          showToast('Registrering slettet');
+        }
+      );
+    }
+
+    // ==========================================
+    // EDIT HISTORY ENTRY
+    // ==========================================
+    function openEditEntryModal(id) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders registreringer', 'error');
+        return;
+      }
+      const entry = entries.find(e => e.id === id);
+      if (!entry) return;
+
+      document.getElementById('editEntryId').value = entry.id;
+      document.getElementById('editEntryDate').value = entry.date;
+      document.getElementById('editEntryQuantity').value = entry.quantity;
+      const entryCaseRef = entry.caseId ? { id: entry.caseId, number: entry.caseNumber, name: entry.caseName } : null;
+      populateCaseSelect(document.getElementById('editEntryCase'), entryCaseRef);
+      document.getElementById('editEntryCaseFallback').value = entryCaseRef ? JSON.stringify(entryCaseRef) : '';
+
+      const select = document.getElementById('editEntryRate');
+      select.innerHTML = rates.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+      // Vælg den sats registreringen oprindeligt blev lavet med, hvis den stadig findes
+      if (entry.rateId && rates.some(r => r.id === entry.rateId)) {
+        select.value = entry.rateId;
+      }
+
+      document.getElementById('editEntryHours').value = entry.hours;
+
+      // Advarsel hvis denne registrering hænger sammen med en Opstart-tillæg
+      // fra samme dags registrering, og redigering derfor vil "løsrive" den.
+      const warningEl = document.getElementById('editEntryMergeWarning');
+      const warningTextEl = document.getElementById('editEntryMergeWarningText');
+      const isTimelonEntry = isTimelonName(entry.rateName);
+      const isOpstartEntry = isOpstartName(entry.rateName);
+      let mergeWarning = '';
+
+      if (!isTimelonEntry && !isOpstartEntry) {
+        const rawDkk = entry.quantity * entry.pricePerUnit;
+        if (Math.abs(entry.totalDkk - rawDkk) > 0.01) {
+          mergeWarning = `Denne registrering har et Opstart-tillæg på ${formatCurrency(entry.totalDkk - rawDkk)} lagt oveni fra samme dag. Gemmer du en ændring her, løsrives den fra den sammenhæng, og totalsummen genberegnes til kun mængde × sats.`;
+        }
+      } else if (isOpstartEntry && entry.totalDkk === 0) {
+        mergeWarning = 'Denne Opstart-registrering er lagt oveni en anden akkordrække fra samme dag (viser 0 kr. her med vilje). Gemmer du en ændring, får den sit eget kronebeløb igen - tjek at pengene ikke bliver talt dobbelt sammen med den anden registrering.';
+      }
+
+      if (mergeWarning) {
+        warningTextEl.textContent = mergeWarning;
+        warningEl.classList.remove('hidden');
+      } else {
+        warningEl.classList.add('hidden');
+      }
+
+      updateEditEntryFields();
+      document.getElementById('editEntryModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeEditEntryModal() {
+      document.getElementById('editEntryModal').classList.add('hidden');
+    }
+
+    // Opdaterer enheds-label, viser/skjuler Timer-feltet afhængigt af sats-type,
+    // og opdaterer live-forhåndsvisningen af den nye totalsum.
+    function updateEditEntryFields() {
+      const rateId = document.getElementById('editEntryRate').value;
+      const rate = rates.find(r => r.id === rateId);
+      if (!rate) return;
+
+      document.getElementById('editEntryUnitLabel').textContent = rate.unit;
+
+      const quantity = parseFloat(document.getElementById('editEntryQuantity').value) || 0;
+      const hoursWrap = document.getElementById('editEntryHoursWrap');
+      const hoursInput = document.getElementById('editEntryHours');
+      const previewEl = document.getElementById('editEntryPreviewDkk');
+
+      const timelon = isTimelonName(rate.name);
+      const opstart = isOpstartName(rate.name);
+
+      if (timelon) {
+        // Timeløn: Mængden ER timerne, feltet er ikke nødvendigt at røre selv
+        hoursWrap.classList.add('hidden');
+        hoursInput.value = quantity;
+        previewEl.textContent = formatCurrency(quantity * rate.price);
+      } else if (opstart) {
+        // Opstart: ingen timer, beløbet vises for sig selv ved redigering
+        hoursWrap.classList.add('hidden');
+        hoursInput.value = 0;
+        previewEl.textContent = formatCurrency(quantity * rate.price);
+      } else {
+        hoursWrap.classList.remove('hidden');
+        previewEl.textContent = formatCurrency(quantity * rate.price);
+      }
+    }
+
+    function handleSaveEditedEntry(e) {
+      e.preventDefault();
+
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke redigere en medarbejders registreringer', 'error');
+        return;
+      }
+
+      const id = document.getElementById('editEntryId').value;
+      const entry = entries.find(en => en.id === id);
+      if (!entry) return;
+
+      const rateId = document.getElementById('editEntryRate').value;
+      const rate = rates.find(r => r.id === rateId);
+      if (!rate) {
+        showToast('Vælg venligst en gyldig akkordsats', 'error');
+        return;
+      }
+
+      const date = document.getElementById('editEntryDate').value;
+      const quantity = parseFloat(document.getElementById('editEntryQuantity').value);
+      const selectedCaseId = document.getElementById('editEntryCase').value;
+      let selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+      if (!selectedCase && selectedCaseId) {
+        // Sagen er måske lukket/slettet siden - brug den bevarede reference i stedet
+        try {
+          const fallback = JSON.parse(document.getElementById('editEntryCaseFallback').value || 'null');
+          if (fallback && fallback.id === selectedCaseId) selectedCase = fallback;
+        } catch (err) { /* ignorer ugyldig fallback */ }
+      }
+      const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
+      const totalDkk = quantity * rate.price;
+
+      const timelon = isTimelonName(rate.name);
+      const opstart = isOpstartName(rate.name);
+
+      let hours, hourlyRate;
+      if (timelon) {
+        hours = quantity;
+        hourlyRate = hours > 0 ? (totalDkk / hours) : rate.price;
+      } else if (opstart) {
+        hours = 0;
+        hourlyRate = 0;
+      } else {
+        hours = parseFloat(document.getElementById('editEntryHours').value) || 0;
+        hourlyRate = hours > 0 ? (totalDkk / hours) : 0;
+      }
+
+      entry.date = date;
+      entry.rateId = rate.id;
+      entry.rateName = rate.name;
+      entry.unit = rate.unit;
+      entry.pricePerUnit = rate.price;
+      entry.quantity = quantity;
+      entry.hours = hours;
+      entry.totalDkk = totalDkk;
+      entry.hourlyRate = hourlyRate;
+      entry.note = note;
+      entry.caseId = selectedCase ? selectedCase.id : null;
+      entry.caseNumber = selectedCase ? selectedCase.number : null;
+      entry.caseName = selectedCase ? selectedCase.name : null;
+
+      saveData();
+      syncEntryToCloud(entry);
+      closeEditEntryModal();
+      renderHistoryList();
+      updateHeaderBadge();
+      showToast('Registrering opdateret');
+    }
+
+    function updateHeaderBadge() {
+      const { start, end } = getPayPeriodRange(new Date());
+      const periodTotal = entries
+        .filter(e => {
+          const d = new Date(e.date + 'T12:00:00');
+          return d >= start && d <= end;
+        })
+        .reduce((sum, e) => sum + e.totalDkk, 0);
+
+      document.getElementById('headerTodayEarned').textContent = formatCurrency(periodTotal);
+    }
+
+    // Gør note-tekster robuste at gruppere på: "456", " 456 " og "Sag 456"
+    // med forskellig store/små bogstaver bliver til samme gruppe, mens den
+    // først-sete skrivemåde bruges til at vise gruppen med.
+    function normalizeNoteKey(note) {
+      return note.trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function groupEntriesByNote(entriesList) {
+      const groups = {};
+      entriesList.forEach(e => {
+        const rawNote = (e.note || '').trim().replace(/\s+/g, ' ');
+        if (!rawNote) return;
+        const key = normalizeNoteKey(rawNote);
+        if (!groups[key]) {
+          groups[key] = { displayNote: rawNote, rates: {}, hours: 0, totalDkk: 0 };
+        }
+        if (!groups[key].rates[e.rateName]) {
+          groups[key].rates[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
+        }
+        groups[key].rates[e.rateName].quantity += e.quantity;
+        groups[key].rates[e.rateName].hours += e.hours;
+        groups[key].rates[e.rateName].totalDkk += e.totalDkk;
+        groups[key].hours += e.hours;
+        groups[key].totalDkk += e.totalDkk;
+      });
+      return groups;
+    }
+
+    // Bygger en rigtig Excel-arbejdsbog (.xlsx) med tre faneblade: rådata,
+    // en opsummering pr. akkordsats, og en opsummering pr. note/sag.
+    // Tal skrives som rigtige Excel-tal (ikke tekst), så Excel selv viser
+    // dem med komma eller punktum efter brugerens egne indstillinger, og
+    // SheetJS håndterer al escaping af specialtegn (citationstegn,
+    // semikolon m.m.) automatisk.
+    function buildEntriesWorkbook(entriesList, options = {}) {
+      const includeHourlyRateColumn = options.includeHourlyRateColumn !== false;
+      const periodLabel = options.periodLabel || null;
+      const includeTotalRow = !!options.includeTotalRow;
+
+      // --- Faneblad 1: Data ---
+      const dataHeader = includeHourlyRateColumn
+        ? ['Dato', 'Opgave', 'Mængde', 'Enhed', 'Timer', 'Total DKK', 'Timeløn DKK/t', 'Note']
+        : ['Dato', 'Opgave', 'Mængde', 'Enhed', 'Timer', 'Total DKK', 'Note'];
+
+      const aoa = [];
+      if (periodLabel) {
+        aoa.push(['Lønperiode', periodLabel]);
+        aoa.push([]);
+      }
+      aoa.push(dataHeader);
+
+      entriesList.forEach(e => {
+        const row = [e.date, e.rateName, e.quantity, e.unit, e.hours, Number(e.totalDkk.toFixed(2))];
+        if (includeHourlyRateColumn) row.push(Number(e.hourlyRate.toFixed(2)));
+        row.push(e.note || '');
+        aoa.push(row);
+      });
+
+      if (includeTotalRow) {
+        const sumHours = entriesList.reduce((s, e) => s + e.hours, 0);
+        const sumDkk = entriesList.reduce((s, e) => s + e.totalDkk, 0);
+        const totalRow = includeHourlyRateColumn
+          ? ['Samlet', '', '', '', sumHours, Number(sumDkk.toFixed(2)), '', '']
+          : ['Samlet', '', '', '', sumHours, Number(sumDkk.toFixed(2)), ''];
+        aoa.push([]);
+        aoa.push(totalRow);
+      }
+
+      const dataSheet = XLSX.utils.aoa_to_sheet(aoa);
+
+      // --- Faneblad 2: Pr. Sats ---
+      const rateGroups = {};
+      entriesList.forEach(e => {
+        if (!rateGroups[e.rateName]) {
+          rateGroups[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
+        }
+        rateGroups[e.rateName].quantity += e.quantity;
+        rateGroups[e.rateName].hours += e.hours;
+        rateGroups[e.rateName].totalDkk += e.totalDkk;
+      });
+      const rateRows = [['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']];
+      Object.keys(rateGroups).forEach(name => {
+        const g = rateGroups[name];
+        rateRows.push([name, g.quantity, g.unit, g.hours, Number(g.totalDkk.toFixed(2))]);
+      });
+      const rateSheet = XLSX.utils.aoa_to_sheet(rateRows);
+
+      // --- Faneblad 3: Pr. Note (kun hvis der findes noter) ---
+      // Hver note/sag vises som sin egen overskrift med en lille tabel
+      // under sig, i stedet for at stå gentaget i en kolonne på hver række.
+      const noteGroups = groupEntriesByNote(entriesList);
+      let noteSheet = null;
+      if (Object.keys(noteGroups).length > 0) {
+        const noteRows = [];
+        const noteMerges = [];
+        Object.keys(noteGroups).forEach(key => {
+          const noteData = noteGroups[key];
+          const headingRowIndex = noteRows.length;
+          noteRows.push([noteData.displayNote]);
+          noteMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
+          noteRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
+          Object.keys(noteData.rates).forEach(rateName => {
+            const r = noteData.rates[rateName];
+            noteRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
+          });
+          noteRows.push(['I alt', '', '', noteData.hours, Number(noteData.totalDkk.toFixed(2))]);
+          noteRows.push([]);
+        });
+        noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
+        noteSheet['!merges'] = noteMerges;
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, dataSheet, 'Data');
+      XLSX.utils.book_append_sheet(wb, rateSheet, 'Pr. Sats');
+      if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
+
+      return wb;
+    }
+
+    function exportToExcel() {
+      if (entries.length === 0) {
+        showToast('Ingen data at eksportere', 'error');
+        return;
+      }
+
+      const wb = buildEntriesWorkbook(entries, { includeHourlyRateColumn: true });
+      XLSX.writeFile(wb, `AkkordLøn_Eksport_${getFormattedDate(0)}.xlsx`);
+
+      showToast('Excel-fil downloadet!');
+    }
+
+    // Finder lønperioden (21.-20.) og de tilhørende registreringer for et
+    // "YYYY-MM" input fra <input type="month">. Bruges af både eksporten
+    // og forhåndsvisnings-boksene.
+    function getPayPeriodDataForMonthInput(monthInput) {
+      if (!monthInput) return null;
+      const [yearStr, monthStr] = monthInput.split('-');
+      const year = parseInt(yearStr, 10);
+      const monthIndex0 = parseInt(monthStr, 10) - 1;
+      const { start, end } = getPayPeriodRange(new Date(year, monthIndex0, 15));
+
+      const periodEntries = entries
+        .filter(e => {
+          const d = new Date(e.date + 'T12:00:00');
+          return d >= start && d <= end;
+        })
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      return { year, monthIndex0, start, end, periodEntries };
+    }
+
+    // Live-forhåndsvisning af kr. og timer for den valgte lønmåned,
+    // opdateres med det samme man vælger en måned.
+    function updatePayPeriodPreview() {
+      const monthInput = document.getElementById('exportPayMonth').value;
+      const preview = document.getElementById('payPeriodPreview');
+      const data = getPayPeriodDataForMonthInput(monthInput);
+
+      if (!data) {
+        preview.classList.add('hidden');
+        return;
+      }
+
+      const sumDkk = data.periodEntries.reduce((sum, e) => sum + e.totalDkk, 0);
+      const sumHours = data.periodEntries.reduce((sum, e) => sum + e.hours, 0);
+
+      document.getElementById('payPeriodPreviewDkk').textContent = formatCurrency(sumDkk);
+      document.getElementById('payPeriodPreviewHours').textContent = formatNumber(sumHours) + ' t';
+      preview.classList.remove('hidden');
+    }
+
+    const formatDateShort = (d) => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+
+    // Eksporterer lønperioden (21.-20.) for den valgte lønudbetalingsmåned,
+    // fx "September" giver perioden 21. august - 20. september.
+    function exportPayPeriodExcel() {
+      const monthInput = document.getElementById('exportPayMonth').value; // "YYYY-MM"
+      if (!monthInput) {
+        showToast('Vælg venligst en lønmåned', 'error');
+        return;
+      }
+
+      const { year, monthIndex0, start, end, periodEntries } = getPayPeriodDataForMonthInput(monthInput);
+
+      if (periodEntries.length === 0) {
+        showToast('Ingen registreringer i denne lønperiode', 'error');
+        return;
+      }
+
+      const periodLabel = `${formatDateShort(start)} til ${formatDateShort(end)}`;
+      const wb = buildEntriesWorkbook(periodEntries, {
+        includeHourlyRateColumn: false,
+        periodLabel,
+        includeTotalRow: true
+      });
+      XLSX.writeFile(wb, `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}.xlsx`);
+
+      showToast('Lønperiode eksporteret!');
+    }
+
+    // ==========================================
+    // UTILITIES & HELPER FUNCTIONS
+    // ==========================================
+    function formatCurrency(val) {
+      return new Intl.NumberFormat('da-DK', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2 }).format(val || 0);
+    }
+
+    function formatNumber(val) {
+      return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 2 }).format(val || 0);
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function getDanishMonthName(index) {
+      const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+      return months[index] || '';
+    }
+
+    // Application Initialization on Window Load
+    let appStarted = false;
+
+    // Registrerer service workeren, så appen kan "installeres" på
+    // hjemmeskærmen og åbne i fuldskærm som en rigtig app.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
+          console.warn('Service worker kunne ikke registreres:', err);
+        });
+      });
+    }
+
+    window.onload = function() {
+      if (window.lucide) lucide.createIcons();
+
+      if (!firebaseReady) {
+        // Ingen Firebase-konfiguration sat op endnu - kør appen som normalt (kun lokalt)
+        startApp();
+        appStarted = true;
+        return;
+      }
+
+      auth.onAuthStateChanged(function(user) {
+        if (user) {
+          document.getElementById('authGate').classList.add('hidden');
+          loadUserDataFromCloud(user);
+        } else {
+          currentUser = null;
+          syncEnabled = false;
+          detachRealtimeListeners();
+          detachCasesListeners();
+          // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
+          // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
+          // uanset hvordan log-ud'et skete.
+          if (viewingEmployee) {
+            viewingEmployee = null;
+            entries = ownEntries || entries;
+            rates = ownRates || rates;
+            ownEntries = null;
+            ownRates = null;
+            document.getElementById('viewingEmployeeBanner').classList.add('hidden');
+            document.getElementById('nav-register').classList.remove('hidden');
+            document.getElementById('nav-rates').classList.remove('hidden');
+            document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+          }
+          updateAccountIndicator();
+          renderAccountModalBody();
+          if (!appStarted) {
+            document.getElementById('authGate').classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+          }
+        }
+
+        if (!appStarted) {
+          startApp();
+          appStarted = true;
+        }
+      });
+    };
+
+  </script>
+</body>
+</html>
