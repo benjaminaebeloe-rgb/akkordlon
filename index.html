@@ -397,7 +397,7 @@
         <!-- Search input -->
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
-          <input type="text" id="historySearch" oninput="renderHistoryList()" placeholder="Søg i historik eller noter..." class="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+          <input type="text" id="historySearch" oninput="historyRenderLimit = 50; renderHistoryList();" placeholder="Søg i historik eller noter..." class="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 outline-none">
         </div>
 
         <!-- Log List -->
@@ -862,6 +862,7 @@
               </div>
               <button onclick="closeAccountModal(); switchTab('employees');" class="text-brand-600 text-xs font-bold whitespace-nowrap">Se medarbejdere →</button>
             </div>
+            ${!myCompany.isOwner ? '<button onclick="confirmLeaveCompany()" class="w-full text-center text-[11px] text-red-500 font-semibold py-1.5">Forlad virksomhed</button>' : ''}
           `;
         } else if (myMembershipCompanyName) {
           companySectionHtml = `
@@ -869,6 +870,7 @@
               <div class="text-xs font-bold text-slate-900">${escapeHtml(myMembershipCompanyName)}</div>
               <div class="text-[10px] text-slate-500">Du er tilknyttet som medarbejder</div>
             </div>
+            <button onclick="confirmLeaveCompany()" class="w-full text-center text-[11px] text-red-500 font-semibold py-1.5">Forlad virksomhed</button>
           `;
         } else {
           companySectionHtml = `
@@ -1246,6 +1248,48 @@
       });
     }
 
+    function confirmLeaveCompany() {
+      if (!myCompanyId) return;
+      if (myCompany && myCompany.isOwner) {
+        showToast('Du er opretter af virksomheden - slet den i stedet under Medarbejdere-fanen, hvis du vil ud', 'error');
+        return;
+      }
+      showConfirmModal(
+        'Forlad virksomhed?',
+        `Er du sikker på, at du vil forlade "${myMembershipCompanyName}"? Du mister adgangen til virksomhedens sager${myCompany ? ' og de andre medarbejderes data' : ''} - men dine egne satser og registreringer er upåvirkede.`,
+        leaveCompany,
+        'Forlad virksomhed'
+      );
+    }
+
+    function leaveCompany() {
+      if (!currentUser || !db || !myCompanyId) return;
+      const companyId = myCompanyId;
+      const companyName = myMembershipCompanyName;
+
+      Promise.all([
+        db.collection('users').doc(currentUser.uid).update({
+          companyId: firebase.firestore.FieldValue.delete()
+        }),
+        db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).delete()
+      ]).then(() => {
+        myCompany = null;
+        myMembershipCompanyName = null;
+        myCompanyId = null;
+        localStorage.removeItem('akkord_myCompany');
+        hideEmployeesTab();
+        renderAccountModalBody();
+        loadCases(); // skifter automatisk til personlige sager igen
+        switchTab('register');
+        showToast('Du har forladt "' + companyName + '"');
+      }).catch(err => {
+        console.error('Kunne ikke forlade virksomheden:', err);
+        showToast('Kunne ikke forlade virksomheden', 'error');
+      });
+    }
+
+    let joiningCompanyInProgress = false; // spærre mod dobbelt-tilknytning
+
     function handleRedeemInviteCode() {
       const input = document.getElementById('joinCompanyCodeInput');
       if (!input) return;
@@ -1258,32 +1302,54 @@
         showToast('Du skal være logget ind med Google for at tilknytte en kode', 'error');
         return;
       }
+      if (joiningCompanyInProgress) return;
+      joiningCompanyInProgress = true;
 
       db.collection('companies').where('inviteCode', '==', code).limit(1).get().then(snapshot => {
         if (snapshot.empty) {
           showToast('Koden blev ikke fundet - tjek at den er skrevet korrekt', 'error');
+          joiningCompanyInProgress = false;
           return;
         }
         const companyDoc = snapshot.docs[0];
         const companyId = companyDoc.id;
         const companyName = companyDoc.data().name;
 
-        db.collection('users').doc(currentUser.uid).set({ companyId }, { merge: true }).then(() => {
-          db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
-            name: currentUser.displayName || '',
-            email: currentUser.email || '',
-            role: 'employee',
-            joinedAt: new Date().toISOString()
+        db.collection('users').doc(currentUser.uid).get().then(userDoc => {
+          const oldCompanyId = userDoc.exists ? userDoc.data().companyId : null;
+
+          // Var man allerede tilknyttet en anden virksomhed, ryddes den gamle
+          // medarbejder-post op der, så man ikke bliver "hængende" i to
+          // virksomheder på samme tid.
+          const cleanupOld = (oldCompanyId && oldCompanyId !== companyId)
+            ? db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid).delete().catch(() => {})
+            : Promise.resolve();
+
+          cleanupOld.then(() => {
+            return db.collection('users').doc(currentUser.uid).set({ companyId }, { merge: true });
+          }).then(() => {
+            return db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
+              name: currentUser.displayName || '',
+              email: currentUser.email || '',
+              role: 'employee',
+              joinedAt: new Date().toISOString()
+            });
           }).then(() => {
             myMembershipCompanyName = companyName;
             input.value = '';
             renderAccountModalBody();
             showToast('Du er nu tilknyttet ' + companyName + '!');
+            joiningCompanyInProgress = false;
+          }).catch(err => {
+            console.error('Kunne ikke tilknytte koden:', err);
+            showToast('Kunne ikke tilknytte koden', 'error');
+            joiningCompanyInProgress = false;
           });
         });
       }).catch(err => {
         console.error('Kunne ikke tilknytte koden:', err);
         showToast('Kunne ikke tilknytte koden', 'error');
+        joiningCompanyInProgress = false;
       });
     }
 
@@ -1918,9 +1984,10 @@
       if (tabId === 'stats') {
         renderStats();
       } else if (tabId === 'history') {
-        // Nulstiller søgefeltet og sørger for at alt vises med det samme
+        // Nulstiller søgefeltet og visningsgrænsen, så man altid starter fra toppen
         const searchInput = document.getElementById('historySearch');
         if (searchInput) searchInput.value = '';
+        historyRenderLimit = 50;
         renderHistoryList();
       } else if (tabId === 'rates') {
         renderRatesList();
@@ -2636,6 +2703,8 @@
     // ==========================================
     // HISTORIK (Log History) & EXPORT
     // ==========================================
+    let historyRenderLimit = 50; // viser kun de nyeste 50 som udgangspunkt - undgår at tegne tusindvis af rækker på én gang
+
     function renderHistoryList() {
       const container = document.getElementById('historyList');
       const searchInput = document.getElementById('historySearch');
@@ -2660,7 +2729,9 @@
         return;
       }
 
-      filtered.forEach(entry => {
+      const visibleEntries = filtered.slice(0, historyRenderLimit);
+
+      visibleEntries.forEach(entry => {
         const item = document.createElement('div');
         item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
         
@@ -2708,6 +2779,17 @@
 
         container.appendChild(item);
       });
+
+      if (filtered.length > historyRenderLimit) {
+        const moreBtn = document.createElement('button');
+        moreBtn.className = 'w-full py-2.5 text-brand-600 font-semibold text-xs hover:bg-brand-50 rounded-xl border border-brand-100';
+        moreBtn.textContent = `Vis flere (${filtered.length - historyRenderLimit} tilbage)`;
+        moreBtn.onclick = () => {
+          historyRenderLimit += 50;
+          renderHistoryList();
+        };
+        container.appendChild(moreBtn);
+      }
 
       if (window.lucide) lucide.createIcons();
     }
