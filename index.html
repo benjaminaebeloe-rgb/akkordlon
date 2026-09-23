@@ -3487,11 +3487,11 @@
 
       document.getElementById('weatherGoodDays').textContent = good.days + ' dage';
       document.getElementById('weatherGoodRate').textContent = formatCurrency(good.avgHourly) + '/t';
-      document.getElementById('weatherGoodUnits').textContent = formatNumber(good.avgUnitsPerDay) + '/dag';
+      document.getElementById('weatherGoodUnits').textContent = formatNumber(good.avgUnitsPerDay) + ' enheder/dag';
 
       document.getElementById('weatherBadDays').textContent = bad.days + ' dage';
       document.getElementById('weatherBadRate').textContent = formatCurrency(bad.avgHourly) + '/t';
-      document.getElementById('weatherBadUnits').textContent = formatNumber(bad.avgUnitsPerDay) + '/dag';
+      document.getElementById('weatherBadUnits').textContent = formatNumber(bad.avgUnitsPerDay) + ' enheder/dag';
     }
 
     function renderTaskBreakdown(filtered) {
