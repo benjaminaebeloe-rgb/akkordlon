@@ -190,6 +190,18 @@
             <div class="relative">
               <input type="date" id="logDate" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
             </div>
+            <button type="button" onclick="toggleAbsenceBox()" class="text-[11px] text-slate-500 font-semibold hover:text-slate-700 mt-1.5">🏖 Marker fravær for denne dag i stedet</button>
+          </div>
+
+          <!-- Absence Box (skjult som standard) -->
+          <div id="absenceBox" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-2.5">
+            <div class="text-xs font-bold text-amber-900">Registrér fravær for den valgte dato</div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button type="button" onclick="saveAbsence('sick')" class="bg-white border border-amber-300 rounded-lg py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100">🤒 Sygdom</button>
+              <button type="button" onclick="saveAbsence('vacation')" class="bg-white border border-amber-300 rounded-lg py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100">🌴 Ferie</button>
+              <button type="button" onclick="saveAbsence('other')" class="bg-white border border-amber-300 rounded-lg py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100">📝 Andet</button>
+            </div>
+            <input type="text" id="absenceNote" placeholder="Note (valgfri)" class="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-amber-400">
           </div>
 
           <!-- Total Hours Field (fælles for hele registreringen) -->
@@ -401,6 +413,26 @@
           </div>
         </div>
 
+        <!-- Vejr-sammenligning (skjult hvis ingen registreringer har vejrdata) -->
+        <div id="weatherComparisonSection" class="hidden bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Vejr-sammenligning</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="bg-sky-50 rounded-xl p-3 border border-sky-100">
+              <div class="text-[10px] font-semibold text-sky-700 uppercase tracking-wider">☀️ Godt vejr</div>
+              <div id="weatherGoodDays" class="text-[10px] text-slate-500 mt-1">0 dage</div>
+              <div id="weatherGoodRate" class="text-base font-extrabold text-slate-900 mt-1">0 kr./t</div>
+              <div id="weatherGoodUnits" class="text-[10px] text-slate-500">0/dag</div>
+            </div>
+            <div class="bg-slate-100 rounded-xl p-3 border border-slate-200">
+              <div class="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">🌧️ Dårligt vejr</div>
+              <div id="weatherBadDays" class="text-[10px] text-slate-500 mt-1">0 dage</div>
+              <div id="weatherBadRate" class="text-base font-extrabold text-slate-900 mt-1">0 kr./t</div>
+              <div id="weatherBadUnits" class="text-[10px] text-slate-500">0/dag</div>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-400">Baseret på registreringer med vejrdata i den valgte periode. "Dårligt vejr" = nedbør eller vindhastighed over 30 km/t.</p>
+        </div>
+
         <!-- Task Breakdown Table -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Fordeling pr. Akkordsats</h3>
@@ -434,6 +466,25 @@
               <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Timer i alt</div>
               <div id="payPeriodPreviewHours" class="text-sm font-extrabold text-slate-900 mt-0.5">0 t</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Export Årsopgørelse (til selvangivelse) -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Eksportér Årsopgørelse</h3>
+            <p class="text-[11px] text-slate-500 mt-1">Vælg et år - eksporterer hele årets indtjening som en Excel-fil, med et måned-for-måned overblik forrest, klar til selvangivelsen.</p>
+          </div>
+          <div class="flex gap-2 items-end">
+            <div class="flex-1">
+              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">År</label>
+              <select id="exportYearSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+                <!-- Rendered dynamically via JS -->
+              </select>
+            </div>
+            <button onclick="exportAnnualStatement()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
           </div>
         </div>
 
@@ -762,6 +813,7 @@
     let viewingEmployee = null; // { uid, name } - sat mens en arbejdsgiver kigger på en medarbejders data (skrivebeskyttet)
     let ownEntries = null; // midlertidig opbevaring af egne data, mens man kigger på en medarbejder
     let ownRates = null;
+    let ownAbsences = null;
 
     try {
       if (firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('INDSÆT') === -1) {
@@ -805,14 +857,18 @@
 
     let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
     let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
+    let absences = JSON.parse(localStorage.getItem('akkord_absences')) || []; // [{ date, type, note }]
+    let weatherLocation = JSON.parse(localStorage.getItem('akkord_weather_location') || 'null'); // { lat, lon, name }
+    let weatherCache = JSON.parse(localStorage.getItem('akkord_weather_cache') || '{}'); // { 'YYYY-MM-DD': { bad, summary, precipitation, windMax } }
     let currentStatsFilter = 'paymonth';
     let customDateRange = null; // { start: 'YYYY-MM-DD', end: 'YYYY-MM-DD' } for "Vælg periode"
     let chartInstance = null;
 
-    // Gemmer altid lokalt (satser + registreringer) som backup/cache
+    // Gemmer altid lokalt (satser + registreringer + fravær) som backup/cache
     function saveData() {
       localStorage.setItem('akkord_rates', JSON.stringify(rates));
       localStorage.setItem('akkord_entries', JSON.stringify(entries));
+      localStorage.setItem('akkord_absences', JSON.stringify(absences));
     }
 
     // Satser er få og ændres sjældent - de ligger samlet i selve brugerens
@@ -849,6 +905,28 @@
           .catch(err => {
             console.error('Cloud-sync fejlede (sletning):', err);
             showToast('Kunne ikke slette registreringen i skyen', 'error');
+          });
+      }
+    }
+
+    // Fravær gemmes med selve datoen som dokument-id, så der aldrig kan
+    // opstå to fraværs-registreringer for samme dag ved en fejl.
+    function syncAbsenceToCloud(absence) {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('absences').doc(absence.date).set(absence)
+          .catch(err => {
+            console.error('Cloud-sync fejlede (fravær):', err);
+            showToast('Kunne ikke synkronisere fraværet til skyen', 'error');
+          });
+      }
+    }
+
+    function deleteAbsenceFromCloud(date) {
+      if (syncEnabled && currentUser && db) {
+        db.collection('users').doc(currentUser.uid).collection('absences').doc(date).delete()
+          .catch(err => {
+            console.error('Cloud-sync fejlede (sletning af fravær):', err);
+            showToast('Kunne ikke slette fraværet i skyen', 'error');
           });
       }
     }
@@ -943,9 +1021,27 @@
         </div>
       `;
 
+      const weatherLocationHtml = `
+        <div class="border-t border-slate-100 pt-3 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+              <i data-lucide="cloud-sun" class="w-3.5 h-3.5"></i> Vejr-lokation
+            </div>
+            <div class="text-[10px] text-slate-500 truncate">${weatherLocation ? escapeHtml(weatherLocation.name) : 'Ikke sat endnu'}</div>
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            <button onclick="useGpsForWeatherLocation()" class="text-slate-500 hover:text-brand-600 p-1.5" title="Brug min nuværende placering">
+              <i data-lucide="locate-fixed" class="w-4 h-4"></i>
+            </button>
+            <button onclick="promptSetWeatherLocation()" class="text-brand-600 text-xs font-bold whitespace-nowrap">${weatherLocation ? 'Skift' : 'Indstil'}</button>
+          </div>
+        </div>
+      `;
+
       if (!firebaseReady) {
         body.innerHTML = `
           <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
+          ${weatherLocationHtml}
           ${themeToggleHtml}
         `;
         updateThemeToggleUI();
@@ -1000,6 +1096,7 @@
             <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Virksomhed</div>
             ${companySectionHtml}
           </div>
+          ${weatherLocationHtml}
           ${themeToggleHtml}
           <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
         `;
@@ -1011,6 +1108,7 @@
           <button onclick="signInWithGoogle()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2">
             <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
           </button>
+          ${weatherLocationHtml}
           ${themeToggleHtml}
         `;
       }
@@ -1072,10 +1170,12 @@
     // er første login).
     let ratesUnsubscribe = null;
     let entriesUnsubscribe = null;
+    let absencesUnsubscribe = null;
 
     function detachRealtimeListeners() {
       if (ratesUnsubscribe) { ratesUnsubscribe(); ratesUnsubscribe = null; }
       if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
+      if (absencesUnsubscribe) { absencesUnsubscribe(); absencesUnsubscribe = null; }
     }
 
     // Abonnerer på løbende opdateringer af satser og registreringer, så
@@ -1095,6 +1195,11 @@
         entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
         refreshAllViews();
       }, err => console.error('Live-opdatering af registreringer fejlede:', err));
+
+      absencesUnsubscribe = userDocRef.collection('absences').onSnapshot(snapshot => {
+        absences = snapshot.docs.map(d => d.data());
+        refreshAllViews();
+      }, err => console.error('Live-opdatering af fravær fejlede:', err));
     }
 
     function loadUserDataFromCloud(user) {
@@ -2139,16 +2244,19 @@
 
       ownEntries = entries;
       ownRates = rates;
+      ownAbsences = absences;
       detachRealtimeListeners();
 
       const empDocRef = db.collection('users').doc(uid);
 
       Promise.all([
         empDocRef.get(),
-        empDocRef.collection('entries').get()
-      ]).then(([doc, snapshot]) => {
+        empDocRef.collection('entries').get(),
+        empDocRef.collection('absences').get()
+      ]).then(([doc, snapshot, absenceSnapshot]) => {
         rates = (doc.exists && doc.data().rates) ? doc.data().rates : [];
         entries = snapshot.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date));
+        absences = absenceSnapshot.docs.map(d => d.data());
 
         viewingEmployee = { uid, name };
         document.getElementById('viewingEmployeeBanner').classList.remove('hidden');
@@ -2170,8 +2278,10 @@
       viewingEmployee = null;
       entries = ownEntries || [];
       rates = ownRates || DEFAULT_RATES;
+      absences = ownAbsences || [];
       ownEntries = null;
       ownRates = null;
+      ownAbsences = null;
 
       document.getElementById('viewingEmployeeBanner').classList.add('hidden');
       document.getElementById('nav-register').classList.remove('hidden');
@@ -2422,6 +2532,204 @@
       }
     }
 
+    // ==========================================
+    // FRAVÆR (SYGDOM / FERIE / ANDET)
+    // ==========================================
+    function toggleAbsenceBox() {
+      document.getElementById('absenceBox').classList.toggle('hidden');
+    }
+
+    const ABSENCE_LABELS = { sick: '🤒 Sygdom', vacation: '🌴 Ferie', other: '📝 Andet' };
+
+    function saveAbsence(type) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke tilføje fravær for en medarbejder', 'error');
+        return;
+      }
+      const date = document.getElementById('logDate').value;
+      if (!date) {
+        showToast('Vælg venligst en dato først', 'error');
+        return;
+      }
+      const note = document.getElementById('absenceNote').value.trim();
+
+      const absence = { date, type, note };
+      absences = absences.filter(a => a.date !== date); // kun ét fravær pr. dag
+      absences.push(absence);
+      saveData();
+      syncAbsenceToCloud(absence);
+
+      document.getElementById('absenceBox').classList.add('hidden');
+      document.getElementById('absenceNote').value = '';
+      renderHistoryList();
+      showToast(ABSENCE_LABELS[type] + ' registreret for ' + date);
+    }
+
+    function confirmDeleteAbsence(date) {
+      if (viewingEmployee) {
+        showToast('Skrivebeskyttet - du kan ikke slette en medarbejders fravær', 'error');
+        return;
+      }
+      showConfirmModal(
+        'Slet fravær?',
+        'Er du sikker på, at du vil slette denne fraværs-registrering?',
+        () => {
+          absences = absences.filter(a => a.date !== date);
+          saveData();
+          deleteAbsenceFromCloud(date);
+          renderHistoryList();
+          showToast('Fravær slettet');
+        }
+      );
+    }
+
+    // ==========================================
+    // VEJR (til at se om dårligt vejr påvirker tempoet)
+    // ==========================================
+    function promptSetWeatherLocation() {
+      const cityName = prompt('Hvilken by/område skal vejret hentes for?', weatherLocation ? weatherLocation.name : '');
+      if (!cityName || !cityName.trim()) return;
+
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName.trim())}&count=1&language=da`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.results || data.results.length === 0) {
+            showToast('Kunne ikke finde den by - prøv et andet navn', 'error');
+            return;
+          }
+          const place = data.results[0];
+          weatherLocation = { lat: place.latitude, lon: place.longitude, name: place.name };
+          localStorage.setItem('akkord_weather_location', JSON.stringify(weatherLocation));
+          showToast('Vejr-lokation sat til ' + place.name);
+          renderAccountModalBody();
+        })
+        .catch(err => {
+          console.error('Kunne ikke slå by op:', err);
+          showToast('Kunne ikke slå byen op', 'error');
+        });
+    }
+
+    // Henter enhedens GPS-placering via browseren (beder om lokations-tilladelse
+    // første gang). maximumAge gør at en nylig placering kan genbruges uden at
+    // skulle spørge enheden på ny hver gang.
+    function getBrowserLocation() {
+      return new Promise(resolve => {
+        if (!navigator.geolocation) {
+          resolve(null);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          err => { console.warn('Kunne ikke hente placering:', err); resolve(null); },
+          { timeout: 8000, maximumAge: 3600000 }
+        );
+      });
+    }
+
+    // Slår et pænt bynavn op for en GPS-koordinat. Rent kosmetisk - fejler
+    // det, bruges koordinaterne bare stille og roligt i stedet.
+    function reverseGeocodeLocation(lat, lon) {
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10`)
+        .then(res => res.json())
+        .then(data => {
+          const name = data.address && (data.address.city || data.address.town || data.address.village || data.address.municipality);
+          if (name && weatherLocation && weatherLocation.lat === lat && weatherLocation.lon === lon) {
+            weatherLocation.name = name;
+            localStorage.setItem('akkord_weather_location', JSON.stringify(weatherLocation));
+            renderAccountModalBody();
+          }
+        })
+        .catch(() => { /* stille fejl - navnet er kun kosmetisk */ });
+    }
+
+    function useGpsForWeatherLocation() {
+      showToast('Henter din placering...');
+      getBrowserLocation().then(loc => {
+        if (!loc) {
+          showToast('Kunne ikke hente din placering - tjek at du har givet browseren lov', 'error');
+          return;
+        }
+        weatherLocation = { lat: loc.lat, lon: loc.lon, name: 'Din placering' };
+        localStorage.setItem('akkord_weather_location', JSON.stringify(weatherLocation));
+        showToast('Vejr-lokation sat til din nuværende placering');
+        renderAccountModalBody();
+        reverseGeocodeLocation(loc.lat, loc.lon);
+      });
+    }
+
+    // Klassificerer en dag som "dårligt vejr", hvis der er nedbør eller
+    // kraftig vind - relevant for udendørs tag-/byggearbejde.
+    function classifyWeather(precipitation, windMax) {
+      const p = precipitation || 0;
+      const w = windMax || 0;
+      const bad = p > 1 || w > 30;
+      let summary;
+      if (p > 5) summary = 'Kraftig regn';
+      else if (p > 1) summary = 'Regn';
+      else if (w > 40) summary = 'Kuling';
+      else if (w > 30) summary = 'Blæsende';
+      else summary = 'Godt vejr';
+      return { bad, summary, precipitation: p, windMax: w };
+    }
+
+    function finalizeWeather(date, precipitation, windMax) {
+      const weather = classifyWeather(precipitation, windMax);
+      weatherCache[date] = weather;
+      localStorage.setItem('akkord_weather_cache', JSON.stringify(weatherCache));
+      return weather;
+    }
+
+    // Henter vejret for en given dato - prøver historik-API'et først (bedst
+    // til ældre datoer), og falder tilbage til prognose-API'et (som også
+    // dækker de seneste dage), hvis historikken endnu ikke har data for den.
+    function fetchWeatherForDate(date) {
+      if (!weatherLocation) return Promise.resolve(null);
+      if (weatherCache[date]) return Promise.resolve(weatherCache[date]);
+
+      const archiveUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${weatherLocation.lat}&longitude=${weatherLocation.lon}&start_date=${date}&end_date=${date}&daily=precipitation_sum,windspeed_10m_max&timezone=auto`;
+
+      return fetch(archiveUrl)
+        .then(res => res.json())
+        .then(data => {
+          if (data.daily && data.daily.time && data.daily.time.length > 0) {
+            return finalizeWeather(date, data.daily.precipitation_sum[0], data.daily.windspeed_10m_max[0]);
+          }
+          const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${weatherLocation.lat}&longitude=${weatherLocation.lon}&daily=precipitation_sum,windspeed_10m_max&past_days=16&timezone=auto`;
+          return fetch(forecastUrl).then(res2 => res2.json()).then(data2 => {
+            const idx = data2.daily && data2.daily.time ? data2.daily.time.indexOf(date) : -1;
+            if (idx === -1) return null;
+            return finalizeWeather(date, data2.daily.precipitation_sum[idx], data2.daily.windspeed_10m_max[idx]);
+          });
+        })
+        .catch(err => {
+          console.error('Kunne ikke hente vejrdata:', err);
+          return null;
+        });
+    }
+
+    // Tagger alle (endnu ikke-taggede) registreringer for en dato med
+    // vejret for den dag. Køres i baggrunden efter en gemning, uden at
+    // forsinke selve gemningen.
+    function attachWeatherToDateEntries(date) {
+      if (!weatherLocation) return;
+      fetchWeatherForDate(date).then(weather => {
+        if (!weather) return;
+        let changed = false;
+        entries.forEach(e => {
+          if (e.date === date && !e.weatherSummary) {
+            e.weatherBad = weather.bad;
+            e.weatherSummary = weather.summary;
+            changed = true;
+            syncEntryToCloud(e);
+          }
+        });
+        if (changed) {
+          saveData();
+          renderHistoryList();
+        }
+      });
+    }
+
     function handleSaveLog(e) {
       e.preventDefault();
 
@@ -2540,6 +2848,22 @@
       renderHistoryList(); // Opdaterer historik med det samme, hvis man kigger på den
 
       showToast('Registrering(er) gemt!');
+
+      // Første gang der gemmes uden en vejr-lokation sat, prøver vi stille
+      // og roligt at bruge enhedens GPS-placering i stedet for at kræve, at
+      // man selv skal indstille en by manuelt først.
+      if (!weatherLocation) {
+        getBrowserLocation().then(loc => {
+          if (loc) {
+            weatherLocation = { lat: loc.lat, lon: loc.lon, name: 'Din placering' };
+            localStorage.setItem('akkord_weather_location', JSON.stringify(weatherLocation));
+            reverseGeocodeLocation(loc.lat, loc.lon);
+          }
+          attachWeatherToDateEntries(date);
+        });
+      } else {
+        attachWeatherToDateEntries(date);
+      }
     }
 
     // ==========================================
@@ -2803,6 +3127,42 @@
 
       renderTaskBreakdown(filtered);
       renderChart(filtered);
+      renderWeatherComparison(filtered);
+      populateExportYearSelect();
+    }
+
+    function renderWeatherComparison(filtered) {
+      const section = document.getElementById('weatherComparisonSection');
+      const withWeather = filtered.filter(e => e.weatherSummary && !isTimelonName(e.rateName));
+
+      if (withWeather.length === 0) {
+        section.classList.add('hidden');
+        return;
+      }
+      section.classList.remove('hidden');
+
+      function summarize(list) {
+        const days = new Set(list.map(e => e.date));
+        const hours = list.reduce((s, e) => s + e.hours, 0);
+        const dkk = list.reduce((s, e) => s + e.totalDkk, 0);
+        const units = list.filter(e => !isOpstartName(e.rateName)).reduce((s, e) => s + e.quantity, 0);
+        return {
+          days: days.size,
+          avgHourly: hours > 0 ? dkk / hours : 0,
+          avgUnitsPerDay: days.size > 0 ? units / days.size : 0
+        };
+      }
+
+      const good = summarize(withWeather.filter(e => !e.weatherBad));
+      const bad = summarize(withWeather.filter(e => e.weatherBad));
+
+      document.getElementById('weatherGoodDays').textContent = good.days + ' dage';
+      document.getElementById('weatherGoodRate').textContent = formatCurrency(good.avgHourly) + '/t';
+      document.getElementById('weatherGoodUnits').textContent = formatNumber(good.avgUnitsPerDay) + '/dag';
+
+      document.getElementById('weatherBadDays').textContent = bad.days + ' dage';
+      document.getElementById('weatherBadRate').textContent = formatCurrency(bad.avgHourly) + '/t';
+      document.getElementById('weatherBadUnits').textContent = formatNumber(bad.avgUnitsPerDay) + '/dag';
     }
 
     function renderTaskBreakdown(filtered) {
@@ -2957,12 +3317,21 @@
       const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
       container.innerHTML = '';
 
-      const filtered = entries.filter(e => {
+      const filteredEntries = entries.filter(e => {
         if (!query) return true; // Viser ALT hvis søgefeltet er tomt
         return e.rateName.toLowerCase().includes(query) || 
                (e.note && e.note.toLowerCase().includes(query)) ||
                e.date.includes(query);
-      });
+      }).map(e => ({ type: 'entry', date: e.date, data: e }));
+
+      const filteredAbsences = absences.filter(a => {
+        if (!query) return true;
+        return ABSENCE_LABELS[a.type].toLowerCase().includes(query) ||
+               (a.note && a.note.toLowerCase().includes(query)) ||
+               a.date.includes(query);
+      }).map(a => ({ type: 'absence', date: a.date, data: a }));
+
+      const filtered = [...filteredEntries, ...filteredAbsences].sort((a, b) => new Date(b.date) - new Date(a.date));
 
       if (filtered.length === 0) {
         container.innerHTML = `
@@ -2975,21 +3344,41 @@
         return;
       }
 
-      const visibleEntries = filtered.slice(0, historyRenderLimit);
+      const visibleItems = filtered.slice(0, historyRenderLimit);
 
-      visibleEntries.forEach(entry => {
-        const item = document.createElement('div');
-        item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
-        
-        const dateParts = entry.date.split('-');
+      visibleItems.forEach(item => {
+        const dateParts = item.date.split('-');
         const formattedDate = `${dateParts[2]}. ${getDanishMonthName(parseInt(dateParts[1]) - 1)} ${dateParts[0]}`;
+
+        if (item.type === 'absence') {
+          const absence = item.data;
+          const el = document.createElement('div');
+          el.className = 'bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-2';
+          el.innerHTML = `
+            <div class="min-w-0">
+              <span class="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">${formattedDate}</span>
+              <h4 class="font-bold text-amber-900 text-sm mt-0.5">${ABSENCE_LABELS[absence.type]}</h4>
+              ${absence.note ? `<div class="text-[11px] text-amber-700 italic mt-1">"${escapeHtml(absence.note)}"</div>` : ''}
+            </div>
+            <button onclick="confirmDeleteAbsence('${absence.date}')" class="text-amber-400 hover:text-red-600 p-1 flex-shrink-0">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+          `;
+          container.appendChild(el);
+          return;
+        }
+
+        const entry = item.data;
+        const el = document.createElement('div');
+        el.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
 
         const isOpstartEntry = isOpstartName(entry.rateName);
 
-        item.innerHTML = `
+        el.innerHTML = `
           <div class="flex justify-between items-start">
             <div>
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">${formattedDate}</span>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${formattedDate}</span>
+              ${entry.weatherSummary ? `<span class="text-[10px] text-slate-400 ml-1">${entry.weatherBad ? '🌧️' : '☀️'} ${escapeHtml(entry.weatherSummary)}</span>` : ''}
               <h4 class="font-bold text-slate-900 text-sm mt-0.5">${escapeHtml(entry.rateName)}</h4>
             </div>
             <div class="text-right">
@@ -3023,7 +3412,7 @@
           ${entry.note ? `<div class="text-[11px] bg-slate-50 p-2 rounded-lg text-slate-500 italic mt-1">"${escapeHtml(entry.note)}"</div>` : ''}
         `;
 
-        container.appendChild(item);
+        container.appendChild(el);
       });
 
       if (filtered.length > historyRenderLimit) {
@@ -3346,7 +3735,36 @@
         noteSheet['!merges'] = noteMerges;
       }
 
+      // --- Faneblad 0 (forrest): Årsopgørelse - måned for måned ---
+      // Vises kun når der eksporteres for et helt år, til brug ved selvangivelse.
+      let yearSummarySheet = null;
+      if (options.annualSummaryYear) {
+        const year = options.annualSummaryYear;
+        const monthNames = ['Januar', 'Februar', 'Marts', 'April', 'Maj', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'December'];
+        const monthlyTotals = Array.from({ length: 12 }, () => ({ hours: 0, dkk: 0 }));
+        entriesList.forEach(e => {
+          const monthIndex = parseInt(e.date.split('-')[1], 10) - 1;
+          if (monthlyTotals[monthIndex]) {
+            monthlyTotals[monthIndex].hours += e.hours;
+            monthlyTotals[monthIndex].dkk += e.totalDkk;
+          }
+        });
+
+        const summaryRows = [[`Årsopgørelse ${year}`], [], ['Måned', 'Timer', 'Total DKK']];
+        monthNames.forEach((name, i) => {
+          summaryRows.push([name, monthlyTotals[i].hours, Number(monthlyTotals[i].dkk.toFixed(2))]);
+        });
+        const yearTotalHours = monthlyTotals.reduce((s, m) => s + m.hours, 0);
+        const yearTotalDkk = monthlyTotals.reduce((s, m) => s + m.dkk, 0);
+        summaryRows.push([]);
+        summaryRows.push(['I alt ' + year, yearTotalHours, Number(yearTotalDkk.toFixed(2))]);
+
+        yearSummarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+        yearSummarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+      }
+
       const wb = XLSX.utils.book_new();
+      if (yearSummarySheet) XLSX.utils.book_append_sheet(wb, yearSummarySheet, 'Årsopgørelse');
       XLSX.utils.book_append_sheet(wb, dataSheet, 'Data');
       XLSX.utils.book_append_sheet(wb, rateSheet, 'Pr. Sats');
       if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
@@ -3433,6 +3851,49 @@
       XLSX.writeFile(wb, `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}.xlsx`);
 
       showToast('Lønperiode eksporteret!');
+    }
+
+    // Udfylder årsvælgeren med de år, der faktisk findes registreringer i,
+    // samt indeværende år (så den aldrig er tom).
+    function populateExportYearSelect() {
+      const select = document.getElementById('exportYearSelect');
+      if (!select) return;
+      const years = new Set(entries.map(e => e.date.split('-')[0]));
+      years.add(String(new Date().getFullYear()));
+      const sortedYears = [...years].sort((a, b) => b - a);
+      const currentValue = select.value;
+      select.innerHTML = sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+      if (sortedYears.includes(currentValue)) select.value = currentValue;
+    }
+
+    // Eksporterer en hel kalenderårs indtjening som én samlet Excel-fil,
+    // klar til brug ved selvangivelse/årsopgørelse - med et måned-for-måned
+    // overblik forrest, og alle detaljer bagved.
+    function exportAnnualStatement() {
+      const yearSelect = document.getElementById('exportYearSelect');
+      const year = parseInt(yearSelect.value, 10);
+      if (!year) {
+        showToast('Vælg venligst et år', 'error');
+        return;
+      }
+
+      const yearEntries = entries
+        .filter(e => e.date.startsWith(String(year)))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (yearEntries.length === 0) {
+        showToast('Ingen registreringer fundet for ' + year, 'error');
+        return;
+      }
+
+      const wb = buildEntriesWorkbook(yearEntries, {
+        includeHourlyRateColumn: true,
+        includeTotalRow: true,
+        annualSummaryYear: year
+      });
+      XLSX.writeFile(wb, `Årsopgørelse_${year}.xlsx`);
+
+      showToast('Årsopgørelse for ' + year + ' eksporteret!');
     }
 
     // ==========================================
