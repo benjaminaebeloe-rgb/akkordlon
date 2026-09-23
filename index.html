@@ -509,6 +509,29 @@
           </button>
         </div>
 
+        <!-- Kalenderoversigt -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <button onclick="changeCalendarMonth(-1)" class="p-1.5 text-slate-400 hover:text-slate-700">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <h3 id="calendarMonthLabel" class="text-xs font-bold text-slate-900 uppercase tracking-wider"></h3>
+            <button onclick="changeCalendarMonth(1)" class="p-1.5 text-slate-400 hover:text-slate-700">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+          <div class="grid grid-cols-7 gap-1 text-center text-[10px] text-slate-400 font-semibold">
+            <div>Man</div><div>Tir</div><div>Ons</div><div>Tor</div><div>Fre</div><div>Lør</div><div>Søn</div>
+          </div>
+          <div id="calendarGrid" class="grid grid-cols-7 gap-1">
+            <!-- Rendered dynamically via JS -->
+          </div>
+          <div class="flex items-center gap-3 text-[10px] text-slate-500 pt-2 border-t border-slate-100">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> Registreret</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> Fravær</span>
+          </div>
+        </div>
+
         <!-- Search input -->
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
@@ -1269,6 +1292,7 @@
       populateRateSelect();
       renderRatesList();
       renderHistoryList();
+      renderCalendar();
       updateHeaderBadge();
       renderAccountModalBody();
       updateHourlyRateEmphasis();
@@ -2073,11 +2097,28 @@
       // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
       // Opstart tæller ikke med - men nu opdelt pr. akkordsats i stedet for
       // ét samlet tal, så man kan se PRÆCIS hvilke enheder der er lavet.
+      //
+      // Arbejder flere personer sammen om det samme akkordarbejde samme dag,
+      // registrerer de typisk hver især den fulde mængde, der blev lavet i
+      // fællesskab - så antal ENHEDER må ikke tælles dobbelt op for hver
+      // person. Lønnen (Total DKK ovenfor) SKAL derimod stadig lægges sammen,
+      // da hver person reelt får sin egen løn udbetalt for arbejdet.
       const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
-      const unitGroups = {};
+
+      const dateRateMax = {}; // 'dato|sats' -> højeste mængde nogen har registreret den dag
       unitEntries.forEach(e => {
-        if (!unitGroups[e.rateName]) unitGroups[e.rateName] = { quantity: 0, unit: e.unit };
-        unitGroups[e.rateName].quantity += e.quantity;
+        const key = e.date + '|' + e.rateName;
+        if (!dateRateMax[key] || e.quantity > dateRateMax[key]) {
+          dateRateMax[key] = e.quantity;
+        }
+      });
+
+      const unitGroups = {};
+      Object.keys(dateRateMax).forEach(key => {
+        const rateName = key.slice(key.indexOf('|') + 1);
+        const sampleEntry = unitEntries.find(e => (e.date + '|' + e.rateName) === key);
+        if (!unitGroups[rateName]) unitGroups[rateName] = { quantity: 0, unit: sampleEntry.unit };
+        unitGroups[rateName].quantity += dateRateMax[key];
       });
 
       body.innerHTML = `
@@ -2302,6 +2343,7 @@
       initRegistrationForm();
       updateHeaderBadge();
       renderHistoryList();
+      renderCalendar();
       updateAccountIndicator();
       updateHourlyRateEmphasis();
       if (window.lucide) lucide.createIcons();
@@ -2341,6 +2383,7 @@
         if (searchInput) searchInput.value = '';
         historyRenderLimit = 50;
         renderHistoryList();
+        renderCalendar();
       } else if (tabId === 'rates') {
         renderRatesList();
       } else if (tabId === 'employees') {
@@ -3310,6 +3353,67 @@
     // HISTORIK (Log History) & EXPORT
     // ==========================================
     let historyRenderLimit = 50; // viser kun de nyeste 50 som udgangspunkt - undgår at tegne tusindvis af rækker på én gang
+
+    // ==========================================
+    // KALENDEROVERSIGT (Historik-fanen)
+    // ==========================================
+    let calendarViewDate = new Date(); // hvilken måned kalenderen lige nu viser
+
+    function changeCalendarMonth(delta) {
+      calendarViewDate.setMonth(calendarViewDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    // Klik på en dag i kalenderen filtrerer historikken til netop den dato
+    function filterHistoryByDate(dateStr) {
+      const searchInput = document.getElementById('historySearch');
+      if (searchInput) {
+        searchInput.value = dateStr;
+        historyRenderLimit = 50;
+        renderHistoryList();
+      }
+    }
+
+    function renderCalendar() {
+      const grid = document.getElementById('calendarGrid');
+      const label = document.getElementById('calendarMonthLabel');
+      if (!grid || !label) return;
+
+      const year = calendarViewDate.getFullYear();
+      const month = calendarViewDate.getMonth(); // 0-indekseret
+
+      const monthNamesFull = ['Januar', 'Februar', 'Marts', 'April', 'Maj', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'December'];
+      label.textContent = monthNamesFull[month] + ' ' + year;
+
+      // Hurtige opslags-sæt for hvilke datoer der har registreringer/fravær
+      const entryDates = new Set(entries.map(e => e.date));
+      const absenceDates = new Set(absences.map(a => a.date));
+
+      const firstOfMonth = new Date(year, month, 1);
+      let startWeekday = firstOfMonth.getDay(); // 0=søndag..6=lørdag
+      startWeekday = (startWeekday + 6) % 7; // konverter så mandag=0, søndag=6
+
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const todayStr = getFormattedDate(0);
+
+      let html = '';
+      for (let i = 0; i < startWeekday; i++) {
+        html += '<div></div>';
+      }
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        let colorClass = 'bg-slate-50 text-slate-400 hover:bg-slate-100';
+        if (absenceDates.has(dateStr)) {
+          colorClass = 'bg-amber-400 text-white font-bold hover:bg-amber-500';
+        } else if (entryDates.has(dateStr)) {
+          colorClass = 'bg-emerald-400 text-white font-bold hover:bg-emerald-500';
+        }
+        const todayRing = dateStr === todayStr ? ' ring-2 ring-offset-1 ring-brand-500' : '';
+        html += `<button onclick="filterHistoryByDate('${dateStr}')" class="aspect-square rounded-lg text-[11px] flex items-center justify-center transition-colors ${colorClass}${todayRing}">${day}</button>`;
+      }
+
+      grid.innerHTML = html;
+    }
 
     function renderHistoryList() {
       const container = document.getElementById('historyList');
