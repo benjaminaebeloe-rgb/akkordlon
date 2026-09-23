@@ -136,9 +136,23 @@
     <button onclick="stopViewingEmployee()" class="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap flex-shrink-0">Tilbage</button>
   </div>
 
+  <!-- PWA Install Banner: opfordrer til at installere appen på hjemmeskærmen -->
+  <div id="installBanner" class="hidden sticky top-0 z-50 bg-brand-600 text-white px-4 py-2.5 flex items-center justify-between gap-2 shadow-md">
+    <div class="flex items-center gap-2 text-xs font-semibold min-w-0">
+      <i data-lucide="download" class="w-4 h-4 flex-shrink-0"></i>
+      <span id="installBannerText" class="truncate">Installér AkkordLøn som app på din hjemmeskærm</span>
+    </div>
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <button id="installBannerActionBtn" class="bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap">Installér</button>
+      <button onclick="dismissInstallBanner()" class="text-white/80 hover:text-white p-0.5">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+  </div>
+
   <!-- Top App Bar -->
   <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md border-b border-slate-800">
-    <div class="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="max-w-md lg:max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center space-x-2.5">
         <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
           <i data-lucide="hammer" class="w-5 h-5"></i>
@@ -165,12 +179,15 @@
 
   <!-- Main Scrollable Content Area -->
   <main class="flex-1 overflow-y-auto pb-24 custom-scrollbar">
-    <div class="max-w-md mx-auto p-4 space-y-4">
+    <div class="max-w-md lg:max-w-5xl mx-auto p-4 space-y-4">
 
       <!-- ========================================== -->
       <!-- TAB 1: REGISTRERING (Log Work)             -->
       <!-- ========================================== -->
       <section id="tab-register" class="tab-content space-y-4">
+
+        <div class="lg:grid lg:grid-cols-5 lg:gap-6 lg:items-start">
+        <div class="lg:col-span-2 space-y-4">
         
         <!-- Header Banner -->
         <div class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-4 text-white shadow-md relative overflow-hidden">
@@ -261,6 +278,10 @@
               <span class="text-[11px] text-slate-400 block">Timeløn i alt (holdes uden for akkordløn)</span>
               <span id="liveTimelonDkk" class="text-base font-bold text-sky-400">0,00 kr.</span>
             </div>
+            <div id="liveDiaeterWrap" class="hidden border-t border-slate-800 pt-3">
+              <span class="text-[11px] text-slate-400 block">Diæter i alt (holdes uden for akkordløn)</span>
+              <span id="liveDiaeterDkk" class="text-base font-bold text-amber-400">0,00 kr.</span>
+            </div>
           </div>
 
           <!-- Submit Button -->
@@ -270,12 +291,32 @@
           </button>
 
         </form>
+
+        </div>
+
+        <!-- Desktop-sidepanel: Dagens resultat + Seneste registreringer (skjult på mobil) -->
+        <div class="hidden lg:block lg:col-span-3 space-y-4">
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Dagens Indtjening</h3>
+            <div id="desktopTodayEarned" class="text-3xl font-black text-slate-900">0,00 kr.</div>
+            <div class="text-xs text-slate-500 mt-1">Optjent i dag</div>
+          </div>
+
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Seneste Registreringer</h3>
+            <div id="desktopRecentEntries" class="space-y-1">
+              <!-- Rendered dynamically via JS -->
+            </div>
+          </div>
+        </div>
+
+        </div>
       </section>
 
       <!-- ========================================== -->
       <!-- TAB 2: SATSER (Rate Management)            -->
       <!-- ========================================== -->
-      <section id="tab-rates" class="tab-content space-y-4 hidden">
+      <section id="tab-rates" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
         
         <div class="flex justify-between items-center">
           <div>
@@ -296,7 +337,7 @@
       <!-- ========================================== -->
       <!-- TAB: SAGER                                 -->
       <!-- ========================================== -->
-      <section id="tab-cases" class="tab-content space-y-4 hidden">
+      <section id="tab-cases" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
 
         <div>
           <h2 class="text-lg font-bold text-slate-900">Sager</h2>
@@ -366,8 +407,8 @@
           <button onclick="applyCustomDateFilter()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap">Anvend</button>
         </div>
 
-        <!-- Key Metrics Cards (2x2 Grid) -->
-        <div class="grid grid-cols-2 gap-3">
+        <!-- Key Metrics Cards (2x2 Grid på mobil, 4-i-en-række på store skærme) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
           
           <!-- Metric 1: Total Earnings -->
           <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
@@ -441,6 +482,22 @@
           </div>
         </div>
 
+        <!-- Bedste Dage -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Bedste Dage</h3>
+          <div id="bestDaysList" class="space-y-1.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- Gennemsnit pr. Uge -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Gennemsnit pr. Uge</h3>
+          <div id="weeklyAverageList" class="space-y-1.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
         <!-- Export Lønperiode (til lønseddel) -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
           <div>
@@ -469,31 +526,12 @@
           </div>
         </div>
 
-        <!-- Export Årsopgørelse (til selvangivelse) -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Eksportér Årsopgørelse</h3>
-            <p class="text-[11px] text-slate-500 mt-1">Vælg et år - eksporterer hele årets indtjening som en Excel-fil, med et måned-for-måned overblik forrest, klar til selvangivelsen.</p>
-          </div>
-          <div class="flex gap-2 items-end">
-            <div class="flex-1">
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">År</label>
-              <select id="exportYearSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
-                <!-- Rendered dynamically via JS -->
-              </select>
-            </div>
-            <button onclick="exportAnnualStatement()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm whitespace-nowrap">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
-            </button>
-          </div>
-        </div>
-
       </section>
 
       <!-- ========================================== -->
       <!-- TAB 4: HISTORIK (Log History)             -->
       <!-- ========================================== -->
-      <section id="tab-history" class="tab-content space-y-4 hidden">
+      <section id="tab-history" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
         
         <button id="historyBackToOwnBtn" onclick="stopViewingEmployee()" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-800 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
           <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til mine egne registreringer
@@ -548,7 +586,7 @@
       <!-- ========================================== -->
       <!-- TAB 5: MEDARBEJDERE (kun for arbejdsgivere) -->
       <!-- ========================================== -->
-      <section id="tab-employees" class="tab-content space-y-4 hidden">
+      <section id="tab-employees" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
 
         <div>
           <h2 class="text-lg font-bold text-slate-900">Mine Medarbejdere</h2>
@@ -583,7 +621,7 @@
 
   <!-- Bottom Navigation Bar (Mobile Native Style) -->
   <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
-    <div id="navGrid" class="max-w-md mx-auto grid grid-cols-5 h-16">
+    <div id="navGrid" class="max-w-md lg:max-w-5xl mx-auto grid grid-cols-5 h-16">
       
       <button onclick="switchTab('register')" id="nav-register" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
         <i data-lucide="pen-tool" class="w-5 h-5"></i>
@@ -954,10 +992,16 @@
       }
     }
 
+    // Bruger lokal dato (ikke UTC via toISOString) - ellers vil appen kunne
+    // vise/regne med GÅRSDAGENS dato i den første tid efter midnat dansk tid,
+    // da toISOString() konverterer til UTC først.
     function getFormattedDate(offsetDays = 0) {
       const d = new Date();
       d.setDate(d.getDate() + offsetDays);
-      return d.toISOString().split('T')[0];
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
 
     // "Timeløn" satsen står helt for sig selv og blandes aldrig med de
@@ -971,6 +1015,24 @@
     // timer eller timeløn tildelt - de vises kun som antal i perioden.
     function isOpstartName(name) {
       return !!name && name.trim().toLowerCase().indexOf('opstart') === 0;
+    }
+
+    // "Diæter" er en fast, ikke-redigerbar sats på 625 kr. Den tæller hverken
+    // med i akkordløn eller effektiv timeløn (heller ikke i det samlede
+    // gennemsnit), og kan maks sættes én gang pr. dag.
+    function isDiaeterName(name) {
+      return !!name && name.trim().toLowerCase() === 'diæter';
+    }
+
+    // Sikrer at "Diæter"-satsen altid findes (både for nye og eksisterende
+    // brugere) - den oprettes automatisk, hvis den mangler.
+    function ensureDiaeterRateExists() {
+      if (rates.some(r => isDiaeterName(r.name))) return;
+      rates.push({ id: 'rate-diaeter', name: 'Diæter', unit: 'dag', price: 625 });
+      saveData();
+      syncRatesToCloud();
+      populateRateSelect();
+      renderRatesList();
     }
 
     // Lønperiode: fra den 21. i en måned til den 20. i den næste
@@ -1061,10 +1123,37 @@
         </div>
       `;
 
+      const annualStatementHtml = `
+        <div class="border-t border-slate-100 pt-3 space-y-2">
+          <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Årsopgørelse
+          </div>
+          <div class="flex gap-2">
+            <select id="exportYearSelect" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
+              <!-- Rendered dynamically via JS -->
+            </select>
+            <button onclick="exportAnnualStatement()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
+          </div>
+        </div>
+      `;
+
+      const installAppHtml = (!isStandaloneApp() && (deferredInstallPrompt || isIOSDevice())) ? `
+        <div class="border-t border-slate-100 pt-3 flex items-center justify-between gap-2">
+          <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="smartphone" class="w-3.5 h-3.5"></i> Installér som app
+          </div>
+          <button onclick="promptInstallApp()" class="text-brand-600 text-xs font-bold whitespace-nowrap">Installér</button>
+        </div>
+      ` : '';
+
       if (!firebaseReady) {
         body.innerHTML = `
           <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
           ${weatherLocationHtml}
+          ${annualStatementHtml}
+          ${installAppHtml}
           ${themeToggleHtml}
         `;
         updateThemeToggleUI();
@@ -1120,6 +1209,8 @@
             ${companySectionHtml}
           </div>
           ${weatherLocationHtml}
+          ${annualStatementHtml}
+          ${installAppHtml}
           ${themeToggleHtml}
           <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
         `;
@@ -1132,10 +1223,13 @@
             <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
           </button>
           ${weatherLocationHtml}
+          ${annualStatementHtml}
+          ${installAppHtml}
           ${themeToggleHtml}
         `;
       }
       updateThemeToggleUI();
+      populateExportYearSelect();
       if (window.lucide) lucide.createIcons();
     }
 
@@ -1210,6 +1304,7 @@
       ratesUnsubscribe = userDocRef.onSnapshot(doc => {
         if (doc.exists && doc.data().rates) {
           rates = doc.data().rates;
+          ensureDiaeterRateExists();
           refreshAllViews();
         }
       }, err => console.error('Live-opdatering af satser fejlede:', err));
@@ -1294,6 +1389,7 @@
       renderHistoryList();
       renderCalendar();
       updateHeaderBadge();
+      renderDesktopSidePanel();
       renderAccountModalBody();
       updateHourlyRateEmphasis();
       const statsTab = document.getElementById('tab-stats');
@@ -2061,12 +2157,14 @@
           )
         : Promise.resolve([{ uid: currentUser.uid, name: currentUser.displayName || currentUser.email || 'Mig' }]);
 
-      peoplePromise.then(people => {
+      const caseStatusPromise = getCasesRef().doc(caseId).get().then(doc => doc.exists ? doc.data().status : 'open');
+
+      Promise.all([peoplePromise, caseStatusPromise]).then(([people, status]) => {
         return Promise.all(people.map(p =>
           db.collection('users').doc(p.uid).collection('entries').where('caseId', '==', caseId).get()
             .then(snap => ({ person: p, entries: snap.docs.map(d => d.data()).sort((a, b) => new Date(b.date) - new Date(a.date)) }))
-        ));
-      }).then(results => {
+        )).then(results => ({ results, status }));
+      }).then(({ results, status }) => {
         const peopleWithEntries = results.filter(r => r.entries.length > 0);
         const allEntries = peopleWithEntries.flatMap(r => r.entries);
 
@@ -2076,7 +2174,7 @@
           return;
         }
 
-        currentCaseDetails = { caseName, caseNumber, people: peopleWithEntries };
+        currentCaseDetails = { caseId, caseName, caseNumber, status, people: peopleWithEntries };
         renderCaseDetailsSummary();
       }).catch(err => {
         console.error('Kunne ikke hente sagsdata:', err);
@@ -2094,6 +2192,13 @@
       const periodTo = dates[dates.length - 1];
       const totalDkk = allEntries.reduce((sum, e) => sum + e.totalDkk, 0);
 
+      // Timer i alt og effektiv timeløn for HELE sagen - samme konvention som
+      // det samlede gennemsnit i statistikken (Diæter holdes udenfor, da den
+      // ellers ville trække tallet kunstigt op).
+      const totalHours = allEntries.reduce((sum, e) => sum + e.hours, 0);
+      const rateDkk = allEntries.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
+      const effHourly = totalHours > 0 ? (rateDkk / totalHours) : 0;
+
       // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
       // Opstart tæller ikke med - men nu opdelt pr. akkordsats i stedet for
       // ét samlet tal, så man kan se PRÆCIS hvilke enheder der er lavet.
@@ -2103,7 +2208,7 @@
       // fællesskab - så antal ENHEDER må ikke tælles dobbelt op for hver
       // person. Lønnen (Total DKK ovenfor) SKAL derimod stadig lægges sammen,
       // da hver person reelt får sin egen løn udbetalt for arbejdet.
-      const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+      const unitEntries = allEntries.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName) && !isDiaeterName(e.rateName));
 
       const dateRateMax = {}; // 'dato|sats' -> højeste mængde nogen har registreret den dag
       unitEntries.forEach(e => {
@@ -2121,10 +2226,34 @@
         unitGroups[rateName].quantity += dateRateMax[key];
       });
 
+      // Per-person timer og effektiv timeløn - så man hurtigt kan sammenligne,
+      // hvordan holdet klarer sig på tværs af sagen.
+      const peopleWithStats = currentCaseDetails.people.map(p => {
+        const personHours = p.entries.reduce((sum, e) => sum + e.hours, 0);
+        const personRateDkk = p.entries.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
+        const personRate = personHours > 0 ? (personRateDkk / personHours) : 0;
+        return { ...p, personHours, personRate };
+      });
+
+      const isCompleted = currentCaseDetails.status === 'completed';
+      const admin = isCaseAdmin();
+
       body.innerHTML = `
-        <div class="bg-slate-50 rounded-xl p-3">
-          <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Periode</div>
-          <div class="text-sm font-bold text-slate-900 mt-0.5">${formatDateShort(new Date(periodFrom + 'T12:00:00'))} - ${formatDateShort(new Date(periodTo + 'T12:00:00'))}</div>
+        ${admin ? `
+          <button onclick="${isCompleted ? 'reopenCase' : 'completeCase'}('${currentCaseDetails.caseId}'); closeCaseDetailsModal();" class="w-full py-2 rounded-xl text-xs font-bold border ${isCompleted ? 'text-brand-600 border-slate-200 hover:bg-slate-50' : 'text-emerald-700 border-emerald-200 hover:bg-emerald-50'}">
+            ${isCompleted ? 'Genåbn sag' : 'Færdigmeld sag'}
+          </button>
+        ` : ''}
+
+        <div class="grid grid-cols-2 gap-2">
+          <div class="bg-slate-50 rounded-xl p-3">
+            <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Periode</div>
+            <div class="text-sm font-bold text-slate-900 mt-0.5">${formatDateShort(new Date(periodFrom + 'T12:00:00'))} - ${formatDateShort(new Date(periodTo + 'T12:00:00'))}</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl p-3">
+            <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Timer i alt</div>
+            <div class="text-sm font-bold text-slate-900 mt-0.5">${formatNumber(totalHours)} t</div>
+          </div>
         </div>
 
         <div>
@@ -2140,18 +2269,24 @@
         </div>
 
         <div class="bg-slate-900 rounded-xl p-3 text-white flex justify-between items-center">
-          <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Samlet Værdi</span>
-          <span class="font-black text-emerald-400">${formatCurrency(totalDkk)}</span>
+          <div>
+            <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider block">Samlet Værdi</span>
+            <span class="font-black text-emerald-400 text-lg">${formatCurrency(totalDkk)}</span>
+          </div>
+          <div class="text-right">
+            <span class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider block">Effektiv Timeløn</span>
+            <span class="font-bold text-white">${formatCurrency(effHourly)}/t</span>
+          </div>
         </div>
 
         <div>
           <div class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Folk på sagen</div>
           <div class="space-y-1.5">
-            ${currentCaseDetails.people.map((p, i) => `
+            ${peopleWithStats.map((p, i) => `
               <button onclick="renderCaseDetailsPersonHistory(${i})" class="w-full flex justify-between items-center bg-slate-50 hover:bg-slate-100 rounded-lg px-3 py-2 text-xs transition-colors">
                 <span class="font-semibold text-slate-800">${escapeHtml(p.person.name)}</span>
-                <span class="flex items-center gap-1 text-slate-500">
-                  ${p.entries.length} registrering${p.entries.length === 1 ? '' : 'er'}
+                <span class="flex items-center gap-1.5 text-slate-500">
+                  ${p.personHours > 0 ? `${formatNumber(p.personHours)} t · ${formatCurrency(p.personRate)}/t` : `${p.entries.length} registrering${p.entries.length === 1 ? '' : 'er'}`}
                   <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                 </span>
               </button>
@@ -2340,10 +2475,12 @@
     // Selve app-opstarten (formular, historik osv.) - køres når vi ved om
     // brugeren er logget ind, logget ud, eller har valgt at fortsætte uden login.
     function startApp() {
+      ensureDiaeterRateExists();
       initRegistrationForm();
       updateHeaderBadge();
       renderHistoryList();
       renderCalendar();
+      renderDesktopSidePanel();
       updateAccountIndicator();
       updateHourlyRateEmphasis();
       if (window.lucide) lucide.createIcons();
@@ -2462,8 +2599,9 @@
     }
 
     function getRateOptionsHtml() {
-      if (rates.length === 0) return '<option value="">Ingen satser oprettet - Tilføj under "Satser"</option>';
-      return rates.map(rate => `<option value="${rate.id}">${escapeHtml(rate.name)} (${rate.price.toFixed(2)} kr. / ${escapeHtml(rate.unit)})</option>`).join('');
+      const activeRates = rates.filter(r => r.active !== false);
+      if (activeRates.length === 0) return '<option value="">Ingen satser oprettet - Tilføj under "Satser"</option>';
+      return activeRates.map(rate => `<option value="${rate.id}">${escapeHtml(rate.name)} (${rate.price.toFixed(2)} kr. / ${escapeHtml(rate.unit)})</option>`).join('');
     }
 
     function populateRateSelect() {
@@ -2534,6 +2672,7 @@
       let akkordDkk = 0; // Almindelige satser + Opstart-satser
       let timelonDkk = 0; // "Timeløn"-satsen, holdes helt for sig selv
       let timelonHours = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
+      let diaeterDkk = 0; // "Diæter"-satsen, holdes helt for sig selv (og tæller ikke i gennemsnittet)
 
       document.querySelectorAll('.log-row').forEach(row => {
         const rateId = row.querySelector('.log-rate-select').value;
@@ -2545,6 +2684,8 @@
           if (isTimelonName(rate.name)) {
             timelonDkk += rowDkk;
             timelonHours += quantity;
+          } else if (isDiaeterName(rate.name)) {
+            diaeterDkk += rowDkk;
           } else {
             akkordDkk += rowDkk;
           }
@@ -2572,6 +2713,14 @@
         document.getElementById('liveTimelonDkk').textContent = formatCurrency(timelonDkk);
       } else {
         timelonWrap.classList.add('hidden');
+      }
+
+      const diaeterWrap = document.getElementById('liveDiaeterWrap');
+      if (diaeterDkk > 0) {
+        diaeterWrap.classList.remove('hidden');
+        document.getElementById('liveDiaeterDkk').textContent = formatCurrency(diaeterDkk);
+      } else {
+        diaeterWrap.classList.add('hidden');
       }
     }
 
@@ -2799,7 +2948,7 @@
       // (så fx "10 plader" selv står med de fulde kr, inkl. opstart-tillægget),
       // og får derfor ikke selv nogen timer eller timeløn - kun antal.
       let rowsData = [];
-      let grandTotalDkk = 0; // Kun "normale" satser (ekskl. Timeløn og Opstart)
+      let grandTotalDkk = 0; // Kun "normale" satser (ekskl. Timeløn, Opstart og Diæter)
       let opstartTotalDkk = 0;
       let timelonHoursSum = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
       rows.forEach(row => {
@@ -2813,14 +2962,15 @@
         const rowTotalDkk = quantity * rate.price;
         const timelon = isTimelonName(rate.name);
         const opstart = isOpstartName(rate.name);
+        const diaeter = isDiaeterName(rate.name);
         if (opstart) {
           opstartTotalDkk += rowTotalDkk;
         } else if (timelon) {
           timelonHoursSum += quantity;
-        } else {
+        } else if (!diaeter) {
           grandTotalDkk += rowTotalDkk;
         }
-        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk, timelon, opstart });
+        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk, timelon, opstart, diaeter });
       });
 
       if (hasError) {
@@ -2828,18 +2978,38 @@
         return;
       }
 
-      const normalRowsCount = rowsData.filter(r => !r.timelon && !r.opstart).length;
+      // Diæter kan maks sættes én gang om dagen - både i denne registrering
+      // og i forhold til dage, hvor der allerede er registreret Diæter.
+      const diaeterRows = rowsData.filter(r => r.diaeter);
+      const diaeterQuantitySum = diaeterRows.reduce((sum, r) => sum + r.quantity, 0);
+      const diaeterAlreadyLoggedToday = entries.some(en => en.date === date && isDiaeterName(en.rateName));
+      if (diaeterRows.length > 1 || diaeterQuantitySum > 1) {
+        showToast('Diæter kan maks sættes én gang om dagen', 'error');
+        return;
+      }
+      if (diaeterRows.length > 0 && diaeterAlreadyLoggedToday) {
+        showToast('Der er allerede registreret Diæter denne dag', 'error');
+        return;
+      }
+
+      const normalRowsCount = rowsData.filter(r => !r.timelon && !r.opstart && !r.diaeter).length;
       // "Timer i alt" er for HELE dagen - de timer der er brugt på Timeløn
       // trækkes fra, så kun resten fordeles ud på akkordsatserne.
       const akkordHoursAvailable = Math.max(0, totalHoursEntered - timelonHoursSum);
 
-      rowsData.forEach(({ rate, quantity, totalDkk, timelon, opstart }) => {
+      rowsData.forEach(({ rate, quantity, totalDkk, timelon, opstart, diaeter }) => {
         let hours, hourlyRate, storedTotalDkk;
         if (timelon) {
           // Timeløn: Mængden ER timerne, til den faste timesats
           hours = quantity;
           storedTotalDkk = totalDkk;
           hourlyRate = hours > 0 ? (storedTotalDkk / hours) : rate.price;
+        } else if (diaeter) {
+          // Diæter: helt sin egen sats - ingen timer, ingen sammenlægning
+          // med andre rækker, og tæller ikke med i akkorden/effektiv timeløn.
+          hours = 0;
+          hourlyRate = 0;
+          storedTotalDkk = totalDkk;
         } else if (opstart) {
           // Opstart: kronerne lægges over på akkordrækken(erne) herunder,
           // så denne række kun tæller som antal - ingen timer/timeløn/kr her.
@@ -2889,6 +3059,7 @@
       calculateLiveSummary();
       updateHeaderBadge();
       renderHistoryList(); // Opdaterer historik med det samme, hvis man kigger på den
+      renderDesktopSidePanel();
 
       showToast('Registrering(er) gemt!');
 
@@ -2916,7 +3087,9 @@
       const list = document.getElementById('ratesList');
       list.innerHTML = '';
 
-      if (rates.length === 0) {
+      const activeRates = rates.filter(r => r.active !== false);
+
+      if (activeRates.length === 0) {
         list.innerHTML = `
           <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
             <i data-lucide="tag" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
@@ -2928,9 +3101,10 @@
         return;
       }
 
-      rates.forEach(rate => {
+      activeRates.forEach(rate => {
         const item = document.createElement('div');
         item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center';
+        const isDiaeter = isDiaeterName(rate.name);
         item.innerHTML = `
           <div>
             <h4 class="font-bold text-slate-900 text-sm">${escapeHtml(rate.name)}</h4>
@@ -2939,12 +3113,17 @@
             </div>
           </div>
           <div class="flex items-center gap-1">
-            <button onclick="editRate('${rate.id}')" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-              <i data-lucide="edit-2" class="w-4 h-4"></i>
-            </button>
-            <button onclick="confirmDeleteRate('${rate.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-              <i data-lucide="trash-2" class="w-4 h-4"></i>
-            </button>
+            ${isDiaeter
+              ? `<span class="p-2 text-slate-300" title="Fast sats - kan ikke redigeres">
+                   <i data-lucide="lock" class="w-4 h-4"></i>
+                 </span>`
+              : `<button onclick="editRate('${rate.id}')" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                   <i data-lucide="edit-2" class="w-4 h-4"></i>
+                 </button>
+                 <button onclick="confirmDeleteRate('${rate.id}')" class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                   <i data-lucide="trash-2" class="w-4 h-4"></i>
+                 </button>`
+            }
           </div>
         `;
         list.appendChild(item);
@@ -3005,7 +3184,8 @@
             id: 'rate-' + Date.now(),
             name,
             unit,
-            price
+            price,
+            active: true
           });
         }
 
@@ -3043,6 +3223,11 @@
     }
 
     function editRate(id) {
+      const rate = rates.find(r => r.id === id);
+      if (rate && isDiaeterName(rate.name)) {
+        showToast('Diæter er en fast sats og kan ikke redigeres', 'error');
+        return;
+      }
       openRateModal(id);
     }
 
@@ -3051,11 +3236,21 @@
         showToast('Skrivebeskyttet - du kan ikke slette en medarbejders satser', 'error');
         return;
       }
+      const rateToDelete = rates.find(r => r.id === id);
+      if (rateToDelete && isDiaeterName(rateToDelete.name)) {
+        showToast('Diæter er en fast sats og kan ikke slettes', 'error');
+        return;
+      }
       showConfirmModal(
         'Slet sats?',
         'Er du sikker på, at du vil slette denne akkordsats?',
         () => {
-          rates = rates.filter(r => r.id !== id);
+          // Satsen markeres som inaktiv i stedet for at blive fjernet helt -
+          // så gamle registreringer, der bruger den, stadig kan redigeres
+          // korrekt bagefter, i stedet for at "springe" til en tilfældig
+          // anden sats i dropdown-listen.
+          const rate = rates.find(r => r.id === id);
+          if (rate) rate.active = false;
           saveData();
           syncRatesToCloud();
           populateRateSelect();
@@ -3155,13 +3350,16 @@
       const totalEarnings = filtered.reduce((sum, e) => sum + e.totalDkk, 0);
       const totalHours = filtered.reduce((sum, e) => sum + e.hours, 0);
 
-      // Enheder Udført: Timeløn (timer) og Opstart (antal opstarter) tæller
-      // ikke med her, kun de rigtige akkordsatsers mængde.
-      const unitEntries = filtered.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName));
+      // Enheder Udført: Timeløn (timer), Opstart (antal opstarter) og Diæter
+      // tæller ikke med her, kun de rigtige akkordsatsers mængde.
+      const unitEntries = filtered.filter(e => !isTimelonName(e.rateName) && !isOpstartName(e.rateName) && !isDiaeterName(e.rateName));
       const totalUnits = unitEntries.reduce((sum, e) => sum + e.quantity, 0);
 
-      // Effektiv Timeløn (samlet gennemsnit): Timeløn tæller med her.
-      const avgHourlyWage = totalHours > 0 ? (totalEarnings / totalHours) : 0;
+      // Effektiv Timeløn (samlet gennemsnit): Timeløn tæller med her, men
+      // Diæter holdes udenfor - ellers ville den kunstigt trække gennemsnittet
+      // op, da den giver kr. uden at bruge nogen af de fælles timer.
+      const avgWageDkk = filtered.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
+      const avgHourlyWage = totalHours > 0 ? (avgWageDkk / totalHours) : 0;
 
       document.getElementById('statTotalEarnings').textContent = formatCurrency(totalEarnings);
       document.getElementById('statHourlyWage').textContent = formatCurrency(avgHourlyWage) + '/t';
@@ -3171,7 +3369,95 @@
       renderTaskBreakdown(filtered);
       renderChart(filtered);
       renderWeatherComparison(filtered);
-      populateExportYearSelect();
+      renderBestDays(filtered);
+      renderWeeklyAverages(filtered);
+    }
+
+    // Finder ISO-ugenummer (og -år) for en dato-streng "YYYY-MM-DD"
+    function getISOWeekInfo(dateStr) {
+      const date = new Date(dateStr + 'T12:00:00');
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return { week, year: d.getUTCFullYear() };
+    }
+
+    // "Bedste Dage": personlig historik over ens egne bedste dage målt på
+    // effektiv timeløn - ikke en sammenligning med andre.
+    function renderBestDays(filtered) {
+      const container = document.getElementById('bestDaysList');
+      if (!container) return;
+
+      const dayGroups = {};
+      filtered.forEach(e => {
+        if (!dayGroups[e.date]) dayGroups[e.date] = { hours: 0, dkk: 0 };
+        dayGroups[e.date].hours += e.hours;
+        if (!isDiaeterName(e.rateName)) dayGroups[e.date].dkk += e.totalDkk;
+      });
+
+      const days = Object.keys(dayGroups)
+        .map(date => ({ date, rate: dayGroups[date].hours > 0 ? dayGroups[date].dkk / dayGroups[date].hours : 0 }))
+        .filter(d => d.rate > 0)
+        .sort((a, b) => b.rate - a.rate)
+        .slice(0, 3);
+
+      if (days.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">Ikke nok data endnu i denne periode.</p>';
+        return;
+      }
+
+      container.innerHTML = days.map((d, i) => {
+        const parts = d.date.split('-');
+        const label = `${parseInt(parts[2], 10)}. ${getDanishMonthName(parseInt(parts[1], 10) - 1)}`;
+        return `
+          <div class="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-xs">
+            <span class="flex items-center gap-2">
+              <span class="w-5 h-5 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center text-[10px]">${i + 1}</span>
+              <span class="font-semibold text-slate-800">${label}</span>
+            </span>
+            <span class="font-bold text-brand-600">${formatCurrency(d.rate)}/t</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // "Gennemsnit pr. Uge": viser om den effektive timeløn er på vej op eller
+    // ned over tid, uge for uge (seneste 8 uger med data i den valgte periode).
+    function renderWeeklyAverages(filtered) {
+      const container = document.getElementById('weeklyAverageList');
+      if (!container) return;
+
+      const weekGroups = {};
+      filtered.forEach(e => {
+        const { week, year } = getISOWeekInfo(e.date);
+        const key = year + '-' + week;
+        if (!weekGroups[key]) weekGroups[key] = { week, year, hours: 0, dkk: 0 };
+        weekGroups[key].hours += e.hours;
+        if (!isDiaeterName(e.rateName)) weekGroups[key].dkk += e.totalDkk;
+      });
+
+      const distinctYears = new Set(Object.values(weekGroups).map(g => g.year));
+      const showYear = distinctYears.size > 1;
+
+      const weeks = Object.values(weekGroups)
+        .map(g => ({ ...g, rate: g.hours > 0 ? g.dkk / g.hours : 0 }))
+        .filter(w => w.rate > 0)
+        .sort((a, b) => (a.year - b.year) || (a.week - b.week))
+        .slice(-8);
+
+      if (weeks.length === 0) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-2 text-xs">Ikke nok data endnu i denne periode.</p>';
+        return;
+      }
+
+      container.innerHTML = weeks.map(w => `
+        <div class="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2 text-xs">
+          <span class="font-semibold text-slate-800">Uge ${w.week}${showYear ? ' (' + w.year + ')' : ''}</span>
+          <span class="font-bold text-slate-900">${formatCurrency(w.rate)}/t</span>
+        </div>
+      `).join('');
     }
 
     function renderWeatherComparison(filtered) {
@@ -3260,10 +3546,15 @@
 
       sorted.forEach(e => {
         if (!dateMap[e.date]) {
-          dateMap[e.date] = { dkk: 0, hours: 0 };
+          dateMap[e.date] = { dkkAll: 0, dkkForRate: 0, hours: 0 };
         }
-        dateMap[e.date].dkk += e.totalDkk;
+        dateMap[e.date].dkkAll += e.totalDkk;
         dateMap[e.date].hours += e.hours;
+        // Diæter tæller ikke med i grundlaget for timeløn-linjen (giver kr.
+        // uden nogen af de fælles timer, og ville ellers trække den skævt op).
+        if (!isDiaeterName(e.rateName)) {
+          dateMap[e.date].dkkForRate += e.totalDkk;
+        }
       });
 
       const labels = Object.keys(dateMap).map(d => {
@@ -3273,10 +3564,10 @@
 
       const hourlyRates = Object.keys(dateMap).map(d => {
         const item = dateMap[d];
-        return item.hours > 0 ? (item.dkk / item.hours).toFixed(0) : 0;
+        return item.hours > 0 ? (item.dkkForRate / item.hours).toFixed(0) : 0;
       });
 
-      const totalEarnings = Object.keys(dateMap).map(d => dateMap[d].dkk);
+      const totalEarnings = Object.keys(dateMap).map(d => dateMap[d].dkkAll);
 
       if (chartInstance) {
         chartInstance.destroy();
@@ -3477,6 +3768,8 @@
         el.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
 
         const isOpstartEntry = isOpstartName(entry.rateName);
+        const isDiaeterEntry = isDiaeterName(entry.rateName);
+        const hideHourlyBadge = isOpstartEntry || isDiaeterEntry;
 
         el.innerHTML = `
           <div class="flex justify-between items-start">
@@ -3490,10 +3783,12 @@
                 ? (entry.totalDkk > 0
                     ? `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>`
                     : '<span class="text-[11px] font-semibold text-slate-400 italic">Lagt til akkordløn</span>')
-                : `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>
-                   <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                     ${formatCurrency(entry.hourlyRate)}/t
-                   </span>`
+                : (isDiaeterEntry
+                    ? `<span class="text-base font-extrabold text-amber-600 block">${formatCurrency(entry.totalDkk)}</span>`
+                    : `<span class="text-base font-extrabold text-emerald-600 block">${formatCurrency(entry.totalDkk)}</span>
+                       <span class="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md inline-block mt-0.5">
+                         ${formatCurrency(entry.hourlyRate)}/t
+                       </span>`)
               }
             </div>
           </div>
@@ -3501,7 +3796,7 @@
           <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs text-slate-600">
             <div>
               <span class="font-semibold text-slate-800">${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)}</span>
-              ${isOpstartEntry ? '' : `<span class="text-slate-400 mx-1">•</span><span>${formatNumber(entry.hours)} timer</span>`}
+              ${hideHourlyBadge ? '' : `<span class="text-slate-400 mx-1">•</span><span>${formatNumber(entry.hours)} timer</span>`}
             </div>
             <div class="flex items-center gap-1">
               <button onclick="openEditEntryModal('${entry.id}')" class="text-slate-400 hover:text-brand-600 p-1">
@@ -3571,7 +3866,7 @@
       document.getElementById('editEntryCaseFallback').value = entryCaseRef ? JSON.stringify(entryCaseRef) : '';
 
       const select = document.getElementById('editEntryRate');
-      select.innerHTML = rates.map(r => `<option value="${r.id}">${escapeHtml(r.name)}</option>`).join('');
+      select.innerHTML = rates.map(r => `<option value="${r.id}">${escapeHtml(r.name)}${r.active === false ? ' (gammel sats)' : ''}</option>`).join('');
       // Vælg den sats registreringen oprindeligt blev lavet med, hvis den stadig findes
       if (entry.rateId && rates.some(r => r.id === entry.rateId)) {
         select.value = entry.rateId;
@@ -3628,14 +3923,15 @@
 
       const timelon = isTimelonName(rate.name);
       const opstart = isOpstartName(rate.name);
+      const diaeter = isDiaeterName(rate.name);
 
       if (timelon) {
         // Timeløn: Mængden ER timerne, feltet er ikke nødvendigt at røre selv
         hoursWrap.classList.add('hidden');
         hoursInput.value = quantity;
         previewEl.textContent = formatCurrency(quantity * rate.price);
-      } else if (opstart) {
-        // Opstart: ingen timer, beløbet vises for sig selv ved redigering
+      } else if (opstart || diaeter) {
+        // Opstart/Diæter: ingen timer, beløbet vises for sig selv ved redigering
         hoursWrap.classList.add('hidden');
         hoursInput.value = 0;
         previewEl.textContent = formatCurrency(quantity * rate.price);
@@ -3680,12 +3976,21 @@
 
       const timelon = isTimelonName(rate.name);
       const opstart = isOpstartName(rate.name);
+      const diaeter = isDiaeterName(rate.name);
+
+      if (diaeter) {
+        const otherDiaeterExists = entries.some(en => en.id !== id && en.date === date && isDiaeterName(en.rateName));
+        if (otherDiaeterExists || quantity > 1) {
+          showToast('Diæter kan maks sættes én gang om dagen', 'error');
+          return;
+        }
+      }
 
       let hours, hourlyRate;
       if (timelon) {
         hours = quantity;
         hourlyRate = hours > 0 ? (totalDkk / hours) : rate.price;
-      } else if (opstart) {
+      } else if (opstart || diaeter) {
         hours = 0;
         hourlyRate = 0;
       } else {
@@ -3725,6 +4030,41 @@
         .reduce((sum, e) => sum + e.totalDkk, 0);
 
       document.getElementById('headerTodayEarned').textContent = formatCurrency(periodTotal);
+    }
+
+    // Udfylder desktop-sidepanelet på Registrer-fanen (dagens indtjening +
+    // seneste registreringer). Panelet er skjult på mobil, men elementerne
+    // findes altid i DOM'en, så det er harmløst blot at opdatere dem.
+    function renderDesktopSidePanel() {
+      const earnedEl = document.getElementById('desktopTodayEarned');
+      const recentEl = document.getElementById('desktopRecentEntries');
+      if (!earnedEl || !recentEl) return;
+
+      const todayStr = getFormattedDate(0);
+      const todayTotal = entries
+        .filter(e => e.date === todayStr)
+        .reduce((sum, e) => sum + e.totalDkk, 0);
+      earnedEl.textContent = formatCurrency(todayTotal);
+
+      const recent = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+      if (recent.length === 0) {
+        recentEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Ingen registreringer endnu.</p>';
+        return;
+      }
+
+      recentEl.innerHTML = recent.map(e => {
+        const parts = e.date.split('-');
+        const label = `${parseInt(parts[2], 10)}. ${getDanishMonthName(parseInt(parts[1], 10) - 1)}`;
+        return `
+          <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-800 truncate">${escapeHtml(e.rateName)}</div>
+              <div class="text-slate-400">${label}</div>
+            </div>
+            <div class="font-bold text-emerald-600 flex-shrink-0">${formatCurrency(e.totalDkk)}</div>
+          </div>
+        `;
+      }).join('');
     }
 
     // Gør note-tekster robuste at gruppere på: "456", " 456 " og "Sag 456"
@@ -4032,6 +4372,93 @@
         });
       });
     }
+
+    // ==========================================
+    // "TILFØJ TIL HJEMMESKÆRM" (PWA-installation)
+    // ==========================================
+    let deferredInstallPrompt = null;
+
+    function isStandaloneApp() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    function isIOSDevice() {
+      return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    // Chrome/Edge/Android sender denne besked, når appen kan installeres -
+    // vi opsnapper den, så vi selv kan vise en pæn invitation i stedet for
+    // at stole på browserens egen (ofte gemte) installations-menu.
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      maybeShowInstallBanner();
+    });
+
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      hideInstallBanner();
+      localStorage.setItem('akkord_install_dismissed', 'true');
+    });
+
+    function maybeShowInstallBanner() {
+      if (isStandaloneApp()) return; // kører allerede som installeret app
+      if (localStorage.getItem('akkord_install_dismissed') === 'true') return;
+
+      const banner = document.getElementById('installBanner');
+      const textEl = document.getElementById('installBannerText');
+      const actionBtn = document.getElementById('installBannerActionBtn');
+      if (!banner) return;
+
+      if (deferredInstallPrompt) {
+        textEl.textContent = 'Installér AkkordLøn som app på din hjemmeskærm';
+        actionBtn.textContent = 'Installér';
+        actionBtn.onclick = triggerInstallPrompt;
+        banner.classList.remove('hidden');
+      } else if (isIOSDevice()) {
+        textEl.textContent = 'Tryk på Del-ikonet i browseren, og vælg "Føj til hjemmeskærm"';
+        actionBtn.textContent = 'OK';
+        actionBtn.onclick = dismissInstallBanner;
+        banner.classList.remove('hidden');
+      }
+    }
+
+    function triggerInstallPrompt() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      deferredInstallPrompt.userChoice.finally(() => {
+        deferredInstallPrompt = null;
+        hideInstallBanner();
+      });
+    }
+
+    function dismissInstallBanner() {
+      hideInstallBanner();
+      localStorage.setItem('akkord_install_dismissed', 'true');
+    }
+
+    function hideInstallBanner() {
+      const banner = document.getElementById('installBanner');
+      if (banner) banner.classList.add('hidden');
+    }
+
+    // Kaldes fra kontomenuen, hvis nogen har afvist banneret men vil
+    // installere senere.
+    function promptInstallApp() {
+      if (deferredInstallPrompt) {
+        triggerInstallPrompt();
+      } else if (isIOSDevice()) {
+        localStorage.removeItem('akkord_install_dismissed');
+        closeAccountModal();
+        maybeShowInstallBanner();
+      }
+    }
+
+    // Fanger tilfældet hvor beforeinstallprompt aldrig fyrer (iOS, eller
+    // hvis kriterierne allerede var opfyldt før siden loadede).
+    window.addEventListener('load', () => {
+      setTimeout(maybeShowInstallBanner, 1500);
+    });
 
     window.onload = function() {
       if (window.lucide) lucide.createIcons();
