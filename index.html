@@ -177,12 +177,44 @@
     </div>
   </header>
 
-  <!-- Main Scrollable Content Area -->
-  <main class="flex-1 overflow-y-auto pb-24 custom-scrollbar">
+  <!-- Desktop app-shell: fast venstre-sidebar + scrollbart hovedindhold -->
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- Desktop Sidebar (kun ≥1024px - erstatter bundnavigationen der) -->
+    <aside class="hidden lg:flex lg:flex-col lg:w-56 lg:flex-shrink-0 bg-white border-r border-slate-200/80 overflow-y-auto p-4 space-y-1">
+      <button onclick="switchTab('overview')" id="sidenav-overview" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-brand-600 bg-brand-50 transition-colors">
+        <i data-lucide="home" class="w-4 h-4"></i> Oversigt
+      </button>
+      <button onclick="switchTab('register')" id="sidenav-register" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="pen-tool" class="w-4 h-4"></i> Registrer
+      </button>
+      <button onclick="switchTab('stats')" id="sidenav-stats" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Statistik
+      </button>
+      <button onclick="switchTab('cases')" id="sidenav-cases" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="briefcase" class="w-4 h-4"></i> Sager
+      </button>
+
+      <div class="border-t border-slate-100 my-2"></div>
+
+      <button onclick="switchTab('rates')" id="sidenav-rates" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="tags" class="w-4 h-4"></i> Satser
+      </button>
+      <button id="sidenavEmployeesRow" onclick="switchTab('employees')" class="hidden sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="users" class="w-4 h-4"></i> Medarbejdere
+      </button>
+      <button onclick="switchTab('export')" id="sidenav-export" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="download" class="w-4 h-4"></i> Eksport
+      </button>
+      <button onclick="openAccountModal()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="user" class="w-4 h-4"></i> Konto
+      </button>
+    </aside>
+
+    <!-- Main Scrollable Content Area -->
+    <main class="flex-1 overflow-y-auto pb-24 lg:pb-6 custom-scrollbar">
     <div class="max-w-md lg:max-w-5xl mx-auto p-4 space-y-4">
 
-      <!-- ========================================== -->
-      <!-- TAB 1: REGISTRERING (Log Work)             -->
       <!-- ========================================== -->
       <!-- TAB: OVERSIGT (Dashboard/Hjem)              -->
       <!-- ========================================== -->
@@ -192,6 +224,25 @@
           <h2 class="text-lg font-bold text-slate-900">Oversigt</h2>
           <p class="text-xs text-slate-500">Din løn og dagens status</p>
         </div>
+
+        <!-- Tom tilstand: vises kun for helt nye brugere uden registreringer -->
+        <div id="overviewEmptyState" class="hidden text-center py-8 space-y-4">
+          <div class="w-16 h-16 bg-brand-50 rounded-full flex items-center justify-center mx-auto">
+            <i data-lucide="party-popper" class="w-8 h-8 text-brand-600"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Kom godt i gang</h3>
+            <p class="text-sm text-slate-500 mt-1">Du har endnu ingen registreringer</p>
+          </div>
+          <button onclick="switchTab('register')" class="bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-brand-600/30 inline-flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-5 h-5"></i>
+            <span>Registrér din første arbejdsdag</span>
+          </button>
+          <p class="text-xs text-slate-400 pt-2 max-w-xs mx-auto">💡 Tip: Når du har registreret én dag, kan du bruge "Gentag sidste dag" for hurtigt at logge den næste.</p>
+        </div>
+
+        <!-- Udfyldt tilstand: vises når der findes mindst én registrering -->
+        <div id="overviewFilledState" class="space-y-4">
 
         <!-- Lønperiode-total -->
         <div class="bg-slate-900 rounded-2xl p-5 text-white shadow-md">
@@ -227,6 +278,8 @@
           </div>
         </div>
 
+        </div>
+
       </section>
 
       <!-- ========================================== -->
@@ -245,6 +298,11 @@
           </div>
           <i data-lucide="file-plus" class="absolute -right-2 -bottom-2 w-24 h-24 text-white/5 pointer-events-none"></i>
         </div>
+
+        <!-- Gentag sidste dag: vises kun hvis der findes en tidligere dag at gentage -->
+        <button type="button" id="repeatLastDayBtn" onclick="repeatLastDay()" class="hidden w-full bg-white hover:bg-slate-50 text-slate-700 font-semibold py-2.5 rounded-xl border border-slate-200 text-xs flex items-center justify-center gap-1.5">
+          <i data-lucide="repeat" class="w-3.5 h-3.5"></i> Gentag sidste dag
+        </button>
 
         <!-- Registration Form Card -->
         <form id="logForm" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 space-y-4" onsubmit="handleSaveLog(event)">
@@ -701,7 +759,24 @@
 
         <div>
           <h2 class="text-lg font-bold text-slate-900">Eksport</h2>
-          <p class="text-xs text-slate-500">Excel-filer til lønseddel, selvangivelse og fuld historik</p>
+          <p class="text-xs text-slate-500">Backup, samt Excel-filer til lønseddel, selvangivelse og fuld historik</p>
+        </div>
+
+        <!-- Backup (JSON) - reel katastrofe-gendannelse, ikke bare Excel -->
+        <div class="bg-slate-900 rounded-2xl p-4 text-white space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Backup
+          </h3>
+          <p class="text-[11px] text-slate-400">Excel-filerne herunder er til lønseddel og selvangivelse - de kan ikke bruges til at gendanne appen. Denne backup gemmer ALT (satser, registreringer, fravær) i én fil, du selv kan opbevare og importere igen, hvis du fx skifter telefon eller mister adgang til din konto.</p>
+          <div class="flex gap-2">
+            <button onclick="exportFullBackup()" class="flex-1 bg-white text-slate-900 px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Download Backup
+            </button>
+            <button onclick="triggerImportBackup()" class="flex-1 bg-white/10 hover:bg-white/20 text-white px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-white/20">
+              <i data-lucide="upload" class="w-3.5 h-3.5"></i> Importér Backup
+            </button>
+          </div>
+          <input type="file" id="importBackupInput" accept="application/json" onchange="handleImportBackupFile(this)" class="hidden">
         </div>
 
         <!-- Generel eksport -->
@@ -709,7 +784,7 @@
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Al Historik</h3>
           <p class="text-[11px] text-slate-500">Eksporterer alle dine registreringer nogensinde som én samlet Excel-fil.</p>
           <button onclick="exportToExcel()" class="w-full bg-slate-900 hover:bg-slate-800 text-white px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
-            <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér Alt
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér til Excel
           </button>
         </div>
 
@@ -763,10 +838,12 @@
       </section>
 
     </div>
-  </main>
+    </main>
 
-  <!-- Bottom Navigation Bar (Mobile Native Style) -->
-  <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
+  </div>
+
+  <!-- Bottom Navigation Bar (Mobile Native Style - skjult på desktop, hvor sidebaren styrer navigation) -->
+  <nav class="lg:hidden bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
     <div id="navGrid" class="max-w-md lg:max-w-5xl mx-auto grid grid-cols-5 h-16">
 
       <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
@@ -1013,6 +1090,7 @@
     let syncEnabled = false;
     let myCompany = null; // { id, name, inviteCode } - udfyldt hvis brugeren ejer en virksomhed
     let viewingEmployee = null; // { uid, name } - sat mens en arbejdsgiver kigger på en medarbejders data (skrivebeskyttet)
+    let editEntryOpenedUpdatedAt = null; // "updatedAt" fra dengang redigerings-boksen blev åbnet, til konflikttjek ved gem
     let ownEntries = null; // midlertidig opbevaring af egne data, mens man kigger på en medarbejder
     let ownRates = null;
     let ownAbsences = null;
@@ -1512,6 +1590,7 @@
       updateHeaderBadge();
       renderDesktopSidePanel();
       renderOverview();
+      updateRepeatLastDayButton();
       renderAccountModalBody();
       updateHourlyRateEmphasis();
       const statsTab = document.getElementById('tab-stats');
@@ -1587,10 +1666,14 @@
     function showEmployeesTab() {
       const row = document.getElementById('settingsEmployeesRow');
       if (row) row.classList.remove('hidden');
+      const sideRow = document.getElementById('sidenavEmployeesRow');
+      if (sideRow) sideRow.classList.remove('hidden');
     }
     function hideEmployeesTab() {
       const row = document.getElementById('settingsEmployeesRow');
       if (row) row.classList.add('hidden');
+      const sideRow = document.getElementById('sidenavEmployeesRow');
+      if (sideRow) sideRow.classList.add('hidden');
     }
 
     // Tjekker hvilken virksomhed brugeren er tilknyttet (companyId), og om
@@ -2600,6 +2683,7 @@
       renderCalendar();
       renderDesktopSidePanel();
       renderOverview();
+      updateRepeatLastDayButton();
       updateAccountIndicator();
       updateHourlyRateEmphasis();
       if (window.lucide) lucide.createIcons();
@@ -2621,30 +2705,44 @@
         el.classList.remove('text-brand-600');
         el.classList.add('text-slate-400');
       });
+      document.querySelectorAll('.sidenav-item').forEach(el => {
+        el.classList.remove('text-brand-600', 'bg-brand-50');
+        el.classList.add('text-slate-600');
+      });
 
       // "history" er nu en undervisning inde i Statistik-fanen (ikke sin
-      // egen fane), og "rates"/"employees"/"export" har ikke deres egen
-      // bund-knap - de hører alle under "Indstillinger".
+      // egen fane). I bundnavigationen (mobil) hører "rates"/"employees"/
+      // "export" alle under "Indstillinger", da der ikke er plads til dem
+      // hver især - men i desktop-sidebaren har de deres egen faste knap,
+      // så de fremhæves der direkte i stedet.
       let actualTabId = tabId;
-      let navTabId = tabId;
+      let bottomNavTabId = tabId;
+      let sidebarNavTabId = tabId;
       if (tabId === 'history') {
         actualTabId = 'stats';
-        navTabId = 'stats';
+        bottomNavTabId = 'stats';
+        sidebarNavTabId = 'stats';
       } else if (tabId === 'rates' || tabId === 'employees' || tabId === 'export') {
-        navTabId = 'settings';
+        bottomNavTabId = 'settings';
       }
 
       const activeTab = document.getElementById(`tab-${actualTabId}`);
-      const activeNav = document.getElementById(`nav-${navTabId}`);
+      const activeNav = document.getElementById(`nav-${bottomNavTabId}`);
+      const activeSidebarNav = document.getElementById(`sidenav-${sidebarNavTabId}`);
 
       if (activeTab) activeTab.classList.remove('hidden');
       if (activeNav) {
         activeNav.classList.remove('text-slate-400');
         activeNav.classList.add('text-brand-600');
       }
+      if (activeSidebarNav) {
+        activeSidebarNav.classList.remove('text-slate-600');
+        activeSidebarNav.classList.add('text-brand-600', 'bg-brand-50');
+      }
 
       if (tabId === 'overview') {
         renderOverview();
+        updateRepeatLastDayButton();
       } else if (tabId === 'stats') {
         switchStatsSubView('stats');
       } else if (tabId === 'history') {
@@ -2812,6 +2910,53 @@
         updateRemoveButtons();
         calculateLiveSummary();
       }
+    }
+
+    // Viser/skjuler "Gentag sidste dag"-knappen alt efter om der findes en
+    // tidligere dag med registreringer at gentage fra.
+    function updateRepeatLastDayButton() {
+      const btn = document.getElementById('repeatLastDayBtn');
+      if (!btn) return;
+      const todayStr = getFormattedDate(0);
+      const hasPastDay = entries.some(e => e.date !== todayStr);
+      btn.classList.toggle('hidden', !hasPastDay);
+    }
+
+    // Genopbygger registreringsformularens rækker ud fra den seneste
+    // tidligere dag med registreringer - så man slipper for at vælge sats
+    // og taste mængde forfra, når man laver det samme arbejde flere dage i træk.
+    function repeatLastDay() {
+      const todayStr = getFormattedDate(0);
+      const pastDates = [...new Set(entries.map(e => e.date))].filter(d => d !== todayStr).sort().reverse();
+      if (pastDates.length === 0) {
+        showToast('Der er endnu ingen tidligere dage at gentage', 'error');
+        return;
+      }
+
+      const lastDate = pastDates[0];
+      const lastDayEntries = entries.filter(e => e.date === lastDate);
+
+      const container = document.getElementById('logRowsContainer');
+      container.innerHTML = '';
+      lastDayEntries.forEach(entry => {
+        addLogRow();
+        const allRows = container.querySelectorAll('.log-row');
+        const newRow = allRows[allRows.length - 1];
+        const rateSelect = newRow.querySelector('.log-rate-select');
+        if (rateSelect && rates.some(r => r.id === entry.rateId && r.active !== false)) {
+          rateSelect.value = entry.rateId;
+          updateRowUnit(rateSelect);
+        }
+        newRow.querySelector('.log-quantity').value = entry.quantity;
+      });
+
+      updateRemoveButtons();
+      calculateLiveSummary();
+
+      const parts = lastDate.split('-');
+      const label = `${parseInt(parts[2], 10)}. ${getDanishMonthName(parseInt(parts[1], 10) - 1)}`;
+      showToast(`Gentaget fra ${label} - husk at rette timer og mængder efter behov`);
+      if (window.lucide) lucide.createIcons();
     }
 
     function updateRemoveButtons() {
@@ -3207,7 +3352,8 @@
           note,
           caseId: selectedCase ? selectedCase.id : null,
           caseNumber: selectedCase ? selectedCase.number : null,
-          caseName: selectedCase ? selectedCase.name : null
+          caseName: selectedCase ? selectedCase.name : null,
+          updatedAt: new Date().toISOString()
         });
       });
 
@@ -3224,6 +3370,7 @@
       renderHistoryList(); // Opdaterer historik med det samme, hvis man kigger på den
       renderDesktopSidePanel();
       renderOverview();
+      updateRepeatLastDayButton();
 
       showToast('Registrering(er) gemt!');
 
@@ -4022,6 +4169,11 @@
       const entry = entries.find(e => e.id === id);
       if (!entry) return;
 
+      // Husker tidsstemplet fra dengang redigeringen blev åbnet, så vi kan
+      // opdage, om registreringen er blevet ændret på en anden enhed i
+      // mellemtiden (se handleSaveEditedEntry).
+      editEntryOpenedUpdatedAt = entry.updatedAt || null;
+
       document.getElementById('editEntryId').value = entry.id;
       document.getElementById('editEntryDate').value = entry.date;
       document.getElementById('editEntryQuantity').value = entry.quantity;
@@ -4162,26 +4314,54 @@
         hourlyRate = hours > 0 ? (totalDkk / hours) : 0;
       }
 
-      entry.date = date;
-      entry.rateId = rate.id;
-      entry.rateName = rate.name;
-      entry.unit = rate.unit;
-      entry.pricePerUnit = rate.price;
-      entry.quantity = quantity;
-      entry.hours = hours;
-      entry.totalDkk = totalDkk;
-      entry.hourlyRate = hourlyRate;
-      entry.note = note;
-      entry.caseId = selectedCase ? selectedCase.id : null;
-      entry.caseNumber = selectedCase ? selectedCase.number : null;
-      entry.caseName = selectedCase ? selectedCase.name : null;
+      const applyAndSave = () => {
+        entry.date = date;
+        entry.rateId = rate.id;
+        entry.rateName = rate.name;
+        entry.unit = rate.unit;
+        entry.pricePerUnit = rate.price;
+        entry.quantity = quantity;
+        entry.hours = hours;
+        entry.totalDkk = totalDkk;
+        entry.hourlyRate = hourlyRate;
+        entry.note = note;
+        entry.caseId = selectedCase ? selectedCase.id : null;
+        entry.caseNumber = selectedCase ? selectedCase.number : null;
+        entry.caseName = selectedCase ? selectedCase.name : null;
+        entry.updatedAt = new Date().toISOString();
 
-      saveData();
-      syncEntryToCloud(entry);
-      closeEditEntryModal();
-      renderHistoryList();
-      updateHeaderBadge();
-      showToast('Registrering opdateret');
+        saveData();
+        syncEntryToCloud(entry);
+        closeEditEntryModal();
+        renderHistoryList();
+        updateHeaderBadge();
+        showToast('Registrering opdateret');
+      };
+
+      // Tjekker for konflikt: er registreringen blevet ændret på en anden
+      // enhed, siden vi åbnede den her til redigering? Kun muligt at tjekke
+      // hvis man er logget ind med cloud-sync og er online lige nu.
+      if (currentUser && db && navigator.onLine) {
+        db.collection('users').doc(currentUser.uid).collection('entries').doc(id).get().then(doc => {
+          const remoteUpdatedAt = doc.exists ? doc.data().updatedAt : null;
+          if (editEntryOpenedUpdatedAt && remoteUpdatedAt && remoteUpdatedAt !== editEntryOpenedUpdatedAt) {
+            showConfirmModal(
+              '⚠️ Konflikt fundet',
+              'Denne registrering er blevet ændret på en anden enhed, siden du åbnede den til redigering. Tryk "Behold min ændring" for at overskrive med det, du lige har indtastet - eller annuller for at beholde den nyeste version i stedet.',
+              applyAndSave,
+              'Behold min ændring'
+            );
+          } else {
+            applyAndSave();
+          }
+        }).catch(() => {
+          // Kunne ikke tjekke (fx mistede forbindelsen undervejs) - gemmer
+          // alligevel lokalt, det er bedre end at miste brugerens arbejde.
+          applyAndSave();
+        });
+      } else {
+        applyAndSave();
+      }
     }
 
     function updateHeaderBadge() {
@@ -4204,6 +4384,17 @@
     function renderOverview() {
       const periodEarnedEl = document.getElementById('overviewPeriodEarned');
       if (!periodEarnedEl) return;
+
+      const emptyState = document.getElementById('overviewEmptyState');
+      const filledState = document.getElementById('overviewFilledState');
+      if (entries.length === 0) {
+        emptyState.classList.remove('hidden');
+        filledState.classList.add('hidden');
+        if (window.lucide) lucide.createIcons();
+        return;
+      }
+      emptyState.classList.add('hidden');
+      filledState.classList.remove('hidden');
 
       const { start, end } = getPayPeriodRange(new Date());
       const periodTotal = entries
@@ -4439,6 +4630,111 @@
       if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
 
       return wb;
+    }
+
+    // ==========================================
+    // FULD BACKUP (JSON) - til reel katastrofe-gendannelse
+    // ==========================================
+    // Excel-eksporterne ovenfor er lavet til lønseddel/selvangivelse, ikke
+    // til at gendanne appen fra bunden. Denne funktion gemmer ALT (satser,
+    // registreringer, fravær) i ét JSON-format, der kan importeres igen.
+    function exportFullBackup() {
+      const backup = {
+        app: 'AkkordLøn',
+        backupVersion: 1,
+        exportedAt: new Date().toISOString(),
+        entries,
+        rates,
+        absences
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `AkkordLøn_Backup_${getFormattedDate(0)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Backup downloadet');
+    }
+
+    function triggerImportBackup() {
+      document.getElementById('importBackupInput').click();
+    }
+
+    function handleImportBackupFile(fileInput) {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        let backup;
+        try {
+          backup = JSON.parse(e.target.result);
+        } catch (err) {
+          showToast('Filen kunne ikke læses - er det en gyldig backup-fil?', 'error');
+          fileInput.value = '';
+          return;
+        }
+
+        if (!backup || !Array.isArray(backup.entries) || !Array.isArray(backup.rates)) {
+          showToast('Filen ser ikke ud til at være en gyldig AkkordLøn-backup', 'error');
+          fileInput.value = '';
+          return;
+        }
+
+        const dateLabel = backup.exportedAt ? new Date(backup.exportedAt).toLocaleDateString('da-DK') : 'ukendt dato';
+        showConfirmModal(
+          'Importér backup?',
+          `Filen er fra ${dateLabel} og indeholder ${backup.entries.length} registreringer og ${backup.rates.length} satser. Manglende data tilføjes til det, du allerede har - intet af det, du har nu, bliver overskrevet eller slettet.`,
+          () => applyImportedBackup(backup),
+          'Importér'
+        );
+        fileInput.value = '';
+      };
+      reader.readAsText(file);
+    }
+
+    function applyImportedBackup(backup) {
+      let addedEntries = 0, addedRates = 0, addedAbsences = 0;
+
+      const existingEntryIds = new Set(entries.map(e => e.id));
+      backup.entries.forEach(en => {
+        if (en && en.id && !existingEntryIds.has(en.id)) {
+          entries.push(en);
+          addedEntries++;
+          syncEntryToCloud(en);
+        }
+      });
+      entries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const existingRateIds = new Set(rates.map(r => r.id));
+      backup.rates.forEach(r => {
+        if (r && r.id && !existingRateIds.has(r.id)) {
+          rates.push(r);
+          addedRates++;
+        }
+      });
+      if (addedRates > 0) syncRatesToCloud();
+
+      if (Array.isArray(backup.absences)) {
+        const existingAbsenceDates = new Set(absences.map(a => a.date));
+        backup.absences.forEach(a => {
+          if (a && a.date && !existingAbsenceDates.has(a.date)) {
+            absences.push(a);
+            addedAbsences++;
+            syncAbsenceToCloud(a);
+          }
+        });
+      }
+
+      saveData();
+      refreshAllViews();
+
+      const parts = [`${addedEntries} registreringer`, `${addedRates} satser`];
+      if (addedAbsences > 0) parts.push(`${addedAbsences} fraværsdage`);
+      showToast('Gendannet: ' + parts.join(', '));
     }
 
     function exportToExcel() {
