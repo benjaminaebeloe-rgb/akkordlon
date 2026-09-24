@@ -184,7 +184,55 @@
       <!-- ========================================== -->
       <!-- TAB 1: REGISTRERING (Log Work)             -->
       <!-- ========================================== -->
-      <section id="tab-register" class="tab-content space-y-4">
+      <!-- TAB: OVERSIGT (Dashboard/Hjem)              -->
+      <!-- ========================================== -->
+      <section id="tab-overview" class="tab-content space-y-4">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Oversigt</h2>
+          <p class="text-xs text-slate-500">Din løn og dagens status</p>
+        </div>
+
+        <!-- Lønperiode-total -->
+        <div class="bg-slate-900 rounded-2xl p-5 text-white shadow-md">
+          <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din løn (indeværende lønperiode)</div>
+          <div id="overviewPeriodEarned" class="text-3xl font-black text-emerald-400 mt-1">0,00 kr.</div>
+        </div>
+
+        <!-- Dagens status: indtjening, vejr, fravær -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">I dag</h3>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-500">Indtjening i dag</span>
+            <span id="overviewTodayEarned" class="text-base font-extrabold text-slate-900">0,00 kr.</span>
+          </div>
+          <div id="overviewTodayWeather" class="hidden flex items-center justify-between text-xs">
+            <span class="text-slate-500">Vejr i dag</span>
+            <span id="overviewTodayWeatherValue" class="font-semibold text-slate-700"></span>
+          </div>
+          <div id="overviewTodayAbsence" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs font-semibold text-amber-800"></div>
+        </div>
+
+        <!-- Hurtig handling -->
+        <button onclick="switchTab('register')" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-brand-600/30 flex items-center justify-center gap-2">
+          <i data-lucide="plus-circle" class="w-5 h-5"></i>
+          <span>Ny Registrering</span>
+        </button>
+
+        <!-- Seneste registreringer -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Seneste Registreringer</h3>
+          <div id="overviewRecentEntries" class="space-y-1">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: REGISTRERING (Log Work)                -->
+      <!-- ========================================== -->
+      <section id="tab-register" class="tab-content space-y-4 hidden">
 
         <div class="lg:grid lg:grid-cols-5 lg:gap-6 lg:items-start">
         <div class="lg:col-span-2 space-y-4">
@@ -317,7 +365,11 @@
       <!-- TAB 2: SATSER (Rate Management)            -->
       <!-- ========================================== -->
       <section id="tab-rates" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
-        
+
+        <button onclick="switchTab('settings')" class="text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Indstillinger
+        </button>
+
         <div class="flex justify-between items-center">
           <div>
             <h2 class="text-lg font-bold text-slate-900">Akkordsatser</h2>
@@ -377,9 +429,17 @@
       <section id="tab-stats" class="tab-content space-y-4 hidden">
         
         <div>
-          <h2 class="text-lg font-bold text-slate-900">Statistik & Oversigt</h2>
-          <p class="text-xs text-slate-500">Analyse af timeløn, indtjening og præstation</p>
+          <h2 class="text-lg font-bold text-slate-900">Statistik & Historik</h2>
+          <p class="text-xs text-slate-500">Udvikling, indtjening og alle dine registreringer</p>
         </div>
+
+        <!-- Under-navigation: Statistik / Historik -->
+        <div class="flex gap-1.5">
+          <button onclick="switchStatsSubView('stats')" id="statsSubNav-stats" class="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white shadow-sm transition-colors">Statistik</button>
+          <button onclick="switchStatsSubView('history')" id="statsSubNav-history" class="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-200 text-slate-700 transition-colors">Historik</button>
+        </div>
+
+        <div id="statsSubView-stats" class="space-y-4">
 
         <!-- Time Filter Pills -->
         <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
@@ -498,54 +558,13 @@
           </div>
         </div>
 
-        <!-- Export Lønperiode (til lønseddel) -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Eksportér Lønperiode</h3>
-            <p class="text-[11px] text-slate-500 mt-1">Vælg den måned lønnen udbetales i - eksporterer lønperioden 21.-20. som en Excel-fil (.xlsx) med data, satser og noter samlet, klar til brug for din lønseddel.</p>
-          </div>
-          <div class="flex gap-2 items-end">
-            <div class="flex-1">
-              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lønmåned</label>
-              <input type="month" id="exportPayMonth" oninput="updatePayPeriodPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
-            </div>
-            <button onclick="exportPayPeriodExcel()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 whitespace-nowrap">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
-            </button>
-          </div>
-
-          <div id="payPeriodPreview" class="hidden grid grid-cols-2 gap-2">
-            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
-              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Kr. i alt</div>
-              <div id="payPeriodPreviewDkk" class="text-sm font-extrabold text-slate-900 mt-0.5">0,00 kr.</div>
-            </div>
-            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
-              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Timer i alt</div>
-              <div id="payPeriodPreviewHours" class="text-sm font-extrabold text-slate-900 mt-0.5">0 t</div>
-            </div>
-          </div>
         </div>
 
-      </section>
+        <div id="statsSubView-history" class="space-y-4 hidden">
 
-      <!-- ========================================== -->
-      <!-- TAB 4: HISTORIK (Log History)             -->
-      <!-- ========================================== -->
-      <section id="tab-history" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
-        
         <button id="historyBackToOwnBtn" onclick="stopViewingEmployee()" class="hidden w-full bg-amber-50 border border-amber-200 text-amber-800 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
           <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Tilbage til mine egne registreringer
         </button>
-
-        <div class="flex justify-between items-center">
-          <div>
-            <h2 class="text-lg font-bold text-slate-900">Arbejdshistorik</h2>
-            <p class="text-xs text-slate-500">Oversigt over alle dine registrerede dage</p>
-          </div>
-          <button onclick="exportToExcel()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
-            <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksport
-          </button>
-        </div>
 
         <!-- Kalenderoversigt -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
@@ -581,12 +600,21 @@
           <!-- Rendered dynamically via JS -->
         </div>
 
+        </div>
+
       </section>
 
+      <!-- ========================================== -->
+      <!-- TAB 4: HISTORIK (Log History)             -->
+      <!-- ========================================== -->
       <!-- ========================================== -->
       <!-- TAB 5: MEDARBEJDERE (kun for arbejdsgivere) -->
       <!-- ========================================== -->
       <section id="tab-employees" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
+
+        <button onclick="switchTab('settings')" class="text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Indstillinger
+        </button>
 
         <div>
           <h2 class="text-lg font-bold text-slate-900">Mine Medarbejdere</h2>
@@ -616,26 +644,139 @@
 
       </section>
 
+      <!-- ========================================== -->
+      <!-- TAB: INDSTILLINGER                          -->
+      <!-- ========================================== -->
+      <section id="tab-settings" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Indstillinger</h2>
+          <p class="text-xs text-slate-500">Satser, medarbejdere, eksport og din konto</p>
+        </div>
+
+        <div class="space-y-2.5">
+          <button onclick="switchTab('rates')" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+            <span class="flex items-center gap-3">
+              <i data-lucide="tags" class="w-5 h-5 text-slate-400"></i>
+              <span class="font-bold text-slate-900 text-sm">Satser</span>
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+          </button>
+
+          <button id="settingsEmployeesRow" onclick="switchTab('employees')" class="hidden w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+            <span class="flex items-center gap-3">
+              <i data-lucide="users" class="w-5 h-5 text-slate-400"></i>
+              <span class="font-bold text-slate-900 text-sm">Medarbejdere</span>
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+          </button>
+
+          <button onclick="switchTab('export')" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+            <span class="flex items-center gap-3">
+              <i data-lucide="download" class="w-5 h-5 text-slate-400"></i>
+              <span class="font-bold text-slate-900 text-sm">Eksport</span>
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+          </button>
+
+          <button onclick="openAccountModal()" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+            <span class="flex items-center gap-3">
+              <i data-lucide="user" class="w-5 h-5 text-slate-400"></i>
+              <span class="font-bold text-slate-900 text-sm">Konto</span>
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+          </button>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: EKSPORT                                -->
+      <!-- ========================================== -->
+      <section id="tab-export" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
+
+        <button onclick="switchTab('settings')" class="text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Indstillinger
+        </button>
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Eksport</h2>
+          <p class="text-xs text-slate-500">Excel-filer til lønseddel, selvangivelse og fuld historik</p>
+        </div>
+
+        <!-- Generel eksport -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Al Historik</h3>
+          <p class="text-[11px] text-slate-500">Eksporterer alle dine registreringer nogensinde som én samlet Excel-fil.</p>
+          <button onclick="exportToExcel()" class="w-full bg-slate-900 hover:bg-slate-800 text-white px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér Alt
+          </button>
+        </div>
+
+        <!-- Lønperiode -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Lønperiode</h3>
+            <p class="text-[11px] text-slate-500 mt-1">Vælg den måned lønnen udbetales i - eksporterer lønperioden 21.-20. som en Excel-fil (.xlsx) med data, satser og noter samlet, klar til brug for din lønseddel.</p>
+          </div>
+          <div class="flex gap-2 items-end">
+            <div class="flex-1">
+              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lønmåned</label>
+              <input type="month" id="exportPayMonth" oninput="updatePayPeriodPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+            <button onclick="exportPayPeriodExcel()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 whitespace-nowrap">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
+          </div>
+
+          <div id="payPeriodPreview" class="hidden grid grid-cols-2 gap-2">
+            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Kr. i alt</div>
+              <div id="payPeriodPreviewDkk" class="text-sm font-extrabold text-slate-900 mt-0.5">0,00 kr.</div>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-2.5 text-center border border-slate-100">
+              <div class="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Timer i alt</div>
+              <div id="payPeriodPreviewHours" class="text-sm font-extrabold text-slate-900 mt-0.5">0 t</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Årsopgørelse -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Årsopgørelse</h3>
+            <p class="text-[11px] text-slate-500 mt-1">Vælg et år - eksporterer hele årets indtjening som en Excel-fil, med et måned-for-måned overblik forrest, klar til selvangivelsen.</p>
+          </div>
+          <div class="flex gap-2 items-end">
+            <div class="flex-1">
+              <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">År</label>
+              <select id="exportYearSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+                <!-- Rendered dynamically via JS -->
+              </select>
+            </div>
+            <button onclick="exportAnnualStatement()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
+          </div>
+        </div>
+
+      </section>
+
     </div>
   </main>
 
   <!-- Bottom Navigation Bar (Mobile Native Style) -->
   <nav class="bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
     <div id="navGrid" class="max-w-md lg:max-w-5xl mx-auto grid grid-cols-5 h-16">
-      
-      <button onclick="switchTab('register')" id="nav-register" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
+
+      <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
+        <i data-lucide="home" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Oversigt</span>
+      </button>
+
+      <button onclick="switchTab('register')" id="nav-register" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="pen-tool" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Registrer</span>
-      </button>
-
-      <button onclick="switchTab('rates')" id="nav-rates" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-        <i data-lucide="tags" class="w-5 h-5"></i>
-        <span class="text-[10px] font-semibold mt-1">Satser</span>
-      </button>
-
-      <button onclick="switchTab('cases')" id="nav-cases" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-        <i data-lucide="briefcase" class="w-5 h-5"></i>
-        <span class="text-[10px] font-semibold mt-1">Sager</span>
       </button>
 
       <button onclick="switchTab('stats')" id="nav-stats" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
@@ -643,14 +784,14 @@
         <span class="text-[10px] font-semibold mt-1">Statistik</span>
       </button>
 
-      <button onclick="switchTab('history')" id="nav-history" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-        <i data-lucide="history" class="w-5 h-5"></i>
-        <span class="text-[10px] font-semibold mt-1">Historik</span>
+      <button onclick="switchTab('cases')" id="nav-cases" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="briefcase" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Sager</span>
       </button>
 
-      <button onclick="switchTab('employees')" id="nav-employees" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-        <i data-lucide="users" class="w-5 h-5"></i>
-        <span class="text-[10px] font-semibold mt-1">Medarbejdere</span>
+      <button onclick="switchTab('settings')" id="nav-settings" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Indstillinger</span>
       </button>
 
     </div>
@@ -1123,22 +1264,6 @@
         </div>
       `;
 
-      const annualStatementHtml = `
-        <div class="border-t border-slate-100 pt-3 space-y-2">
-          <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Årsopgørelse
-          </div>
-          <div class="flex gap-2">
-            <select id="exportYearSelect" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
-              <!-- Rendered dynamically via JS -->
-            </select>
-            <button onclick="exportAnnualStatement()" class="bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap flex items-center gap-1.5">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
-            </button>
-          </div>
-        </div>
-      `;
-
       const installAppHtml = (!isStandaloneApp() && (deferredInstallPrompt || isIOSDevice())) ? `
         <div class="border-t border-slate-100 pt-3 flex items-center justify-between gap-2">
           <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
@@ -1152,7 +1277,6 @@
         body.innerHTML = `
           <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
           ${weatherLocationHtml}
-          ${annualStatementHtml}
           ${installAppHtml}
           ${themeToggleHtml}
         `;
@@ -1209,7 +1333,6 @@
             ${companySectionHtml}
           </div>
           ${weatherLocationHtml}
-          ${annualStatementHtml}
           ${installAppHtml}
           ${themeToggleHtml}
           <button onclick="signOutUser()" class="w-full py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50">Log ud</button>
@@ -1223,7 +1346,6 @@
             <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
           </button>
           ${weatherLocationHtml}
-          ${annualStatementHtml}
           ${installAppHtml}
           ${themeToggleHtml}
         `;
@@ -1334,7 +1456,6 @@
         ownRates = null;
         document.getElementById('viewingEmployeeBanner').classList.add('hidden');
         document.getElementById('nav-register').classList.remove('hidden');
-        document.getElementById('nav-rates').classList.remove('hidden');
         document.getElementById('historyBackToOwnBtn').classList.add('hidden');
       }
 
@@ -1390,6 +1511,7 @@
       renderCalendar();
       updateHeaderBadge();
       renderDesktopSidePanel();
+      renderOverview();
       renderAccountModalBody();
       updateHourlyRateEmphasis();
       const statsTab = document.getElementById('tab-stats');
@@ -1463,14 +1585,12 @@
     // medarbejder. Køres efter login, og opdaterer kontomenu + Medarbejdere-fanen.
     // Viser/skjuler Medarbejdere-fanen i bundnavigationen
     function showEmployeesTab() {
-      document.getElementById('nav-employees').classList.remove('hidden');
-      document.getElementById('navGrid').classList.remove('grid-cols-5');
-      document.getElementById('navGrid').classList.add('grid-cols-6');
+      const row = document.getElementById('settingsEmployeesRow');
+      if (row) row.classList.remove('hidden');
     }
     function hideEmployeesTab() {
-      document.getElementById('nav-employees').classList.add('hidden');
-      document.getElementById('navGrid').classList.remove('grid-cols-6');
-      document.getElementById('navGrid').classList.add('grid-cols-5');
+      const row = document.getElementById('settingsEmployeesRow');
+      if (row) row.classList.add('hidden');
     }
 
     // Tjekker hvilken virksomhed brugeren er tilknyttet (companyId), og om
@@ -2438,7 +2558,6 @@
         document.getElementById('viewingEmployeeBanner').classList.remove('hidden');
         document.getElementById('viewingEmployeeName').textContent = name;
         document.getElementById('nav-register').classList.add('hidden');
-        document.getElementById('nav-rates').classList.add('hidden');
         document.getElementById('historyBackToOwnBtn').classList.remove('hidden');
 
         switchTab('history');
@@ -2461,7 +2580,6 @@
 
       document.getElementById('viewingEmployeeBanner').classList.add('hidden');
       document.getElementById('nav-register').classList.remove('hidden');
-      document.getElementById('nav-rates').classList.remove('hidden');
       document.getElementById('historyBackToOwnBtn').classList.add('hidden');
 
       if (currentUser && db) {
@@ -2481,6 +2599,7 @@
       renderHistoryList();
       renderCalendar();
       renderDesktopSidePanel();
+      renderOverview();
       updateAccountIndicator();
       updateHourlyRateEmphasis();
       if (window.lucide) lucide.createIcons();
@@ -2503,8 +2622,20 @@
         el.classList.add('text-slate-400');
       });
 
-      const activeTab = document.getElementById(`tab-${tabId}`);
-      const activeNav = document.getElementById(`nav-${tabId}`);
+      // "history" er nu en undervisning inde i Statistik-fanen (ikke sin
+      // egen fane), og "rates"/"employees"/"export" har ikke deres egen
+      // bund-knap - de hører alle under "Indstillinger".
+      let actualTabId = tabId;
+      let navTabId = tabId;
+      if (tabId === 'history') {
+        actualTabId = 'stats';
+        navTabId = 'stats';
+      } else if (tabId === 'rates' || tabId === 'employees' || tabId === 'export') {
+        navTabId = 'settings';
+      }
+
+      const activeTab = document.getElementById(`tab-${actualTabId}`);
+      const activeNav = document.getElementById(`nav-${navTabId}`);
 
       if (activeTab) activeTab.classList.remove('hidden');
       if (activeNav) {
@@ -2512,15 +2643,12 @@
         activeNav.classList.add('text-brand-600');
       }
 
-      if (tabId === 'stats') {
-        renderStats();
+      if (tabId === 'overview') {
+        renderOverview();
+      } else if (tabId === 'stats') {
+        switchStatsSubView('stats');
       } else if (tabId === 'history') {
-        // Nulstiller søgefeltet og visningsgrænsen, så man altid starter fra toppen
-        const searchInput = document.getElementById('historySearch');
-        if (searchInput) searchInput.value = '';
-        historyRenderLimit = 50;
-        renderHistoryList();
-        renderCalendar();
+        switchStatsSubView('history');
       } else if (tabId === 'rates') {
         renderRatesList();
       } else if (tabId === 'employees') {
@@ -2529,6 +2657,41 @@
         loadCases();
       }
 
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Skifter mellem "Statistik" og "Historik"-undervisningen inde i
+    // Statistik-fanen (de to hørte tidligere til hver sin bund-fane).
+    function switchStatsSubView(view) {
+      const statsView = document.getElementById('statsSubView-stats');
+      const historyView = document.getElementById('statsSubView-history');
+      const statsNav = document.getElementById('statsSubNav-stats');
+      const historyNav = document.getElementById('statsSubNav-history');
+      if (!statsView || !historyView) return;
+
+      if (view === 'history') {
+        statsView.classList.add('hidden');
+        historyView.classList.remove('hidden');
+        statsNav.classList.remove('bg-slate-900', 'text-white', 'shadow-sm');
+        statsNav.classList.add('bg-slate-200', 'text-slate-700');
+        historyNav.classList.remove('bg-slate-200', 'text-slate-700');
+        historyNav.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
+
+        const searchInput = document.getElementById('historySearch');
+        if (searchInput) searchInput.value = '';
+        historyRenderLimit = 50;
+        renderHistoryList();
+        renderCalendar();
+      } else {
+        historyView.classList.add('hidden');
+        statsView.classList.remove('hidden');
+        historyNav.classList.remove('bg-slate-900', 'text-white', 'shadow-sm');
+        historyNav.classList.add('bg-slate-200', 'text-slate-700');
+        statsNav.classList.remove('bg-slate-200', 'text-slate-700');
+        statsNav.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
+
+        renderStats();
+      }
       if (window.lucide) lucide.createIcons();
     }
 
@@ -3060,6 +3223,7 @@
       updateHeaderBadge();
       renderHistoryList(); // Opdaterer historik med det samme, hvis man kigger på den
       renderDesktopSidePanel();
+      renderOverview();
 
       showToast('Registrering(er) gemt!');
 
@@ -4035,6 +4199,67 @@
     // Udfylder desktop-sidepanelet på Registrer-fanen (dagens indtjening +
     // seneste registreringer). Panelet er skjult på mobil, men elementerne
     // findes altid i DOM'en, så det er harmløst blot at opdatere dem.
+    // Udfylder den nye "Oversigt"-fane: lønperiodens total, dagens status
+    // (indtjening, vejr, fravær), og de seneste registreringer.
+    function renderOverview() {
+      const periodEarnedEl = document.getElementById('overviewPeriodEarned');
+      if (!periodEarnedEl) return;
+
+      const { start, end } = getPayPeriodRange(new Date());
+      const periodTotal = entries
+        .filter(e => {
+          const d = new Date(e.date + 'T12:00:00');
+          return d >= start && d <= end;
+        })
+        .reduce((sum, e) => sum + e.totalDkk, 0);
+      periodEarnedEl.textContent = formatCurrency(periodTotal);
+
+      const todayStr = getFormattedDate(0);
+      const todayEntries = entries.filter(e => e.date === todayStr);
+      const todayTotal = todayEntries.reduce((sum, e) => sum + e.totalDkk, 0);
+      document.getElementById('overviewTodayEarned').textContent = formatCurrency(todayTotal);
+
+      const weatherEntry = todayEntries.find(e => e.weatherSummary);
+      const weatherEl = document.getElementById('overviewTodayWeather');
+      if (weatherEntry) {
+        document.getElementById('overviewTodayWeatherValue').textContent = (weatherEntry.weatherBad ? '🌧️ ' : '☀️ ') + weatherEntry.weatherSummary;
+        weatherEl.classList.remove('hidden');
+      } else {
+        weatherEl.classList.add('hidden');
+      }
+
+      const todayAbsence = absences.find(a => a.date === todayStr);
+      const absenceEl = document.getElementById('overviewTodayAbsence');
+      if (todayAbsence) {
+        absenceEl.textContent = ABSENCE_LABELS[todayAbsence.type] + ' i dag';
+        absenceEl.classList.remove('hidden');
+      } else {
+        absenceEl.classList.add('hidden');
+      }
+
+      const recentEl = document.getElementById('overviewRecentEntries');
+      const recent = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+      if (recent.length === 0) {
+        recentEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Ingen registreringer endnu.</p>';
+      } else {
+        recentEl.innerHTML = recent.map(e => {
+          const parts = e.date.split('-');
+          const label = `${parseInt(parts[2], 10)}. ${getDanishMonthName(parseInt(parts[1], 10) - 1)}`;
+          return `
+            <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
+              <div class="min-w-0">
+                <div class="font-semibold text-slate-800 truncate">${escapeHtml(e.rateName)}</div>
+                <div class="text-slate-400">${label}</div>
+              </div>
+              <div class="font-bold text-emerald-600 flex-shrink-0">${formatCurrency(e.totalDkk)}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      if (window.lucide) lucide.createIcons();
+    }
+
     function renderDesktopSidePanel() {
       const earnedEl = document.getElementById('desktopTodayEarned');
       const recentEl = document.getElementById('desktopRecentEntries');
@@ -4491,8 +4716,7 @@
             ownRates = null;
             document.getElementById('viewingEmployeeBanner').classList.add('hidden');
             document.getElementById('nav-register').classList.remove('hidden');
-            document.getElementById('nav-rates').classList.remove('hidden');
-            document.getElementById('historyBackToOwnBtn').classList.add('hidden');
+                document.getElementById('historyBackToOwnBtn').classList.add('hidden');
           }
           updateAccountIndicator();
           renderAccountModalBody();
