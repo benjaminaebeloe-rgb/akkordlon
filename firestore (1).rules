@@ -1,0 +1,112 @@
+// AkkordLøn - Firestore Security Rules
+//
+// VIGTIGT: Denne fil er KUN til dokumentation/versionsstyring i GitHub.
+// Firebase læser IKKE denne fil automatisk - de faktiske, gældende regler
+// skal indsættes manuelt i Firebase Console under:
+// Firestore Database > Rules > (indsæt indholdet herunder) > Publish
+//
+// Opdatér denne fil, hver gang reglerne ændres i Firebase Console, så den
+// altid afspejler det, der reelt er i produktion.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCompanyOwner(companyId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    function isCompanyAdmin(companyId) {
+      return isSignedIn() && (
+        isCompanyOwner(companyId) ||
+        get(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isCompanyMember(companyId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+
+    // En administrator for den virksomhed, som userId hører til, må læse
+    // userId's egne data (registreringer, fravær, profil) - men aldrig skrive.
+    function isEmployerOf(userId) {
+      let targetUser = get(/databases/$(database)/documents/users/$(userId));
+      return isSignedIn() &&
+        targetUser.data.companyId != null &&
+        isCompanyAdmin(targetUser.data.companyId);
+    }
+
+    match /users/{userId} {
+      // Enhver kan kun læse/skrive sin egen brugerprofil (satser m.m.)
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      // ...eller læses (ikke skrives) af egen virksomheds administrator
+      allow read: if isEmployerOf(userId);
+
+      // Løndata: kun ejeren selv og virksomhedens administratorer må se dem
+      match /entries/{entryId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isEmployerOf(userId);
+      }
+
+      // Fravær (sygdom/ferie): samme adgang som løndata
+      match /absences/{absenceDate} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isEmployerOf(userId);
+      }
+
+      // Personlige sager (kun til solo-brugere uden virksomhed)
+      match /cases/{caseId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /meta/{metaId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    match /companies/{companyId} {
+      // Bemærk: læses bredt af enhver logget-ind bruger med vilje, så
+      // invitationskoder kan slås op på tværs af virksomheder uden en
+      // server-backend. Kun navn, ejer-id og kode ligger her - ingen løndata.
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isCompanyAdmin(companyId);
+      allow delete: if isCompanyOwner(companyId);
+
+      // Medarbejderliste (navn/e-mail/rolle) - kun synlig for virksomhedens
+      // egne medlemmer, ikke for udefrakommende.
+      match /employees/{employeeId} {
+        allow read: if isCompanyMember(companyId) || isCompanyAdmin(companyId);
+        allow write: if isSignedIn() && (request.auth.uid == employeeId || isCompanyAdmin(companyId));
+      }
+
+      // Sager: alle medlemmer kan oprette/omdøbe, kun admins kan ændre
+      // status (færdigmelde/genåbne) eller slette. Afsluttede sager kan
+      // kun ses af administratorer.
+      match /cases/{caseId} {
+        allow read: if isCompanyMember(companyId) && (resource.data.status == 'open' || isCompanyAdmin(companyId));
+        allow create: if isCompanyMember(companyId);
+        allow update: if isCompanyAdmin(companyId) ||
+          (isCompanyMember(companyId) && request.resource.data.status == resource.data.status);
+        allow delete: if isCompanyAdmin(companyId);
+
+        // Kommentarer på en sag - alle virksomhedens medlemmer kan læse og
+        // skrive. Ingen redigering/sletning af egne kommentarer i appen
+        // endnu, så kun read/create er nødvendigt her.
+        match /comments/{commentId} {
+          allow read, create: if isCompanyMember(companyId) || isCompanyAdmin(companyId);
+        }
+      }
+
+      match /meta/{metaId} {
+        allow read, write: if isCompanyMember(companyId);
+      }
+    }
+  }
+}
