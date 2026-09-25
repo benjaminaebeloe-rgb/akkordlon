@@ -38,6 +38,43 @@
   <!-- Google Fonts: Inter -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
+  <!--
+    ==========================================
+    DESIGNSYSTEM - de faste byggeklodser, som al ny UI i denne fil bør
+    genbruge, i stedet for at opfinde en ny variant. Formålet er, at appen
+    ikke "føles bygget løbende" - samme type element skal altid se ens ud,
+    uanset hvornår i udviklingen det blev tilføjet.
+
+    KORT (den mest brugte komponent i appen):
+      bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm
+      (p-5/p-6 for hhv. modaler og tomme-tilstande; ellers altid p-4)
+
+    PRIMÆR KNAP (den vigtigste handling på skærmen):
+      bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl
+      (+ shadow-lg/md shadow-brand-600/20-30 for ekstra vægt på store CTA'er)
+
+    SEKUNDÆR KNAP (næstvigtigst, fx eksport, log ind):
+      bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl
+
+    DANGER-KNAP (destruktive handlinger: slet, log ud, forlad):
+      w-full py-2.5 text-red-600 font-bold text-xs hover:bg-red-50 rounded-xl border border-red-200
+      Ikon-only slet-knapper i lister er derimod dæmpede som standard:
+      text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg
+
+    MODAL:
+      Ydre: fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4
+      Indre: bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200
+
+    INPUT-TYPE (tekst, tal, dato, select):
+      bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500
+
+    SPACING-SYSTEM (border-radius efter elementstørrelse):
+      rounded-2xl  = kort og modaler (de store flader)
+      rounded-xl   = knapper og inputs
+      rounded-lg   = små badges, ikon-knapper, tags
+      rounded-full = cirkulære elementer (prikker, runde ikon-knapper)
+  -->
+
   <script>
     tailwind.config = {
       theme: {
@@ -216,6 +253,9 @@
       <button onclick="switchTab('data')" id="sidenav-data" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
         <i data-lucide="database" class="w-4 h-4"></i> Data
       </button>
+      <button onclick="switchTab('privacy')" id="sidenav-privacy" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="shield-check" class="w-4 h-4"></i> Data &amp; Privatliv
+      </button>
       <button onclick="openAccountModal()" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
         <i data-lucide="user" class="w-4 h-4"></i> Konto
       </button>
@@ -272,6 +312,17 @@
             <span id="overviewTodayWeatherValue" class="font-semibold text-slate-700"></span>
           </div>
           <div id="overviewTodayAbsence" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs font-semibold text-amber-800"></div>
+        </div>
+
+        <!-- Advarsel om måske glemte registreringer på normale arbejdsdage -->
+        <div id="overviewMissingDaysWarning" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+          <div class="flex items-center gap-2 text-amber-800 font-bold text-sm">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            <span>Måske glemt registrering?</span>
+          </div>
+          <div id="overviewMissingDaysList" class="space-y-1.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
         </div>
 
         <!-- Hurtig handling -->
@@ -352,7 +403,7 @@
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logDate">Dato</label>
             <div class="relative">
-              <input type="date" id="logDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+              <input type="date" id="logDate" oninput="saveDraftToLocalStorage()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
             </div>
             <button type="button" onclick="toggleAbsenceBox()" class="text-[11px] text-slate-500 font-semibold hover:text-slate-700 mt-1.5">🏖 Marker fravær for denne dag i stedet</button>
           </div>
@@ -403,7 +454,7 @@
               <label class="text-xs font-semibold uppercase tracking-wider text-slate-500" for="logCase">Sag (valgfri)</label>
               <button type="button" onclick="promptCreateCase()" class="text-[11px] text-brand-600 font-semibold hover:text-brand-700">+ Ny sag</button>
             </div>
-            <select id="logCase" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            <select id="logCase" onchange="saveDraftToLocalStorage()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
               <option value="">Ingen sag</option>
             </select>
           </div>
@@ -496,7 +547,7 @@
         </div>
 
         <!-- New Case Form -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2.5">
           <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider" for="newCaseName">Ny sag</label>
           <div class="flex gap-2">
             <input type="text" id="newCaseName" placeholder="f.eks. Vejgade 12 eller Kundenavn" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
@@ -563,14 +614,14 @@
             <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Til</label>
             <input type="date" id="customEndDate" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-xs font-medium outline-none focus:ring-2 focus:ring-brand-500">
           </div>
-          <button onclick="applyCustomDateFilter()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap">Anvend</button>
+          <button onclick="applyCustomDateFilter()" class="bg-brand-600 hover:bg-brand-700 text-white px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap">Anvend</button>
         </div>
 
         <!-- Key Metrics Cards (2x2 Grid på mobil, 4-i-en-række på store skærme) -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
           
           <!-- Metric 1: Total Earnings -->
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm relative overflow-hidden">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden">
             <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Samlet Indtjening</div>
             <div id="statTotalEarnings" class="text-xl font-extrabold text-slate-900 mt-1">0 kr.</div>
             <div class="mt-2 flex items-center text-[10px] text-emerald-600 font-semibold gap-1">
@@ -580,21 +631,21 @@
           </div>
 
           <!-- Metric 2: Effective Hourly Wage -->
-          <div id="statHourlyWageCard" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+          <div id="statHourlyWageCard" class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
             <div id="statHourlyWageLabel" class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Effektiv Timeløn</div>
             <div id="statHourlyWage" class="text-xl font-extrabold text-slate-900 mt-1">0 kr./t</div>
             <div id="statHourlyWageSubtext" class="mt-2 text-[10px] text-slate-400 font-medium">Gennemsnit i perioden</div>
           </div>
 
           <!-- Metric 3: Total Hours -->
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
             <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Timer Arbejdet</div>
             <div id="statTotalHours" class="text-xl font-extrabold text-slate-900 mt-1">0 t</div>
             <div class="mt-2 text-[10px] text-slate-400 font-medium">Registreret tid</div>
           </div>
 
           <!-- Metric 4: Units Done -->
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
             <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Enheder Udført</div>
             <div id="statTotalUnits" class="text-xl font-extrabold text-slate-900 mt-1">0 stk</div>
             <div class="mt-2 text-[10px] text-slate-400 font-medium">Elementer / plader</div>
@@ -603,7 +654,7 @@
         </div>
 
         <!-- Chart Card -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Daglig Timeløn & Indtjening</h3>
             <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium">Oversigt</span>
@@ -614,7 +665,7 @@
         </div>
 
         <!-- Vejr-sammenligning (skjult hvis ingen registreringer har vejrdata) -->
-        <div id="weatherComparisonSection" class="hidden bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+        <div id="weatherComparisonSection" class="hidden bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Vejr-sammenligning</h3>
           <div class="grid grid-cols-2 gap-2">
             <div class="bg-sky-50 rounded-xl p-3 border border-sky-100">
@@ -634,7 +685,7 @@
         </div>
 
         <!-- Task Breakdown Table -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Fordeling pr. Akkordsats</h3>
           <div id="taskBreakdownList" class="space-y-2 text-xs">
             <!-- Populated via JS -->
@@ -642,7 +693,7 @@
         </div>
 
         <!-- Bedste Dage -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Bedste Dage</h3>
           <div id="bestDaysList" class="space-y-1.5">
             <!-- Rendered dynamically via JS -->
@@ -650,7 +701,7 @@
         </div>
 
         <!-- Gennemsnit pr. Uge -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Gennemsnit pr. Uge</h3>
           <div id="weeklyAverageList" class="space-y-1.5">
             <!-- Rendered dynamically via JS -->
@@ -666,7 +717,7 @@
         </button>
 
         <!-- Kalenderoversigt -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <div class="flex items-center justify-between">
             <button onclick="changeCalendarMonth(-1)" class="p-1.5 text-slate-400 hover:text-slate-700">
               <i data-lucide="chevron-left" class="w-4 h-4"></i>
@@ -692,6 +743,12 @@
         <div class="relative">
           <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
           <input type="text" id="historySearch" oninput="historyRenderLimit = 50; renderHistoryList();" placeholder="Søg i historik eller noter..." class="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-3.5 py-2 text-xs font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Visningsvælger: kompakt (én linje pr. registrering) eller detaljeret -->
+        <div class="flex gap-1.5">
+          <button onclick="setHistoryViewMode('detailed')" id="historyViewBtn-detailed" class="flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors">Detaljeret</button>
+          <button onclick="setHistoryViewMode('compact')" id="historyViewBtn-compact" class="flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-colors">Kompakt</button>
         </div>
 
         <!-- Log List -->
@@ -737,7 +794,7 @@
           <!-- Rendered dynamically via JS -->
         </div>
 
-        <button id="deleteCompanyBtn" onclick="confirmDeleteCompany()" class="hidden w-full py-2.5 text-red-600 font-semibold text-xs hover:bg-red-50 rounded-xl border border-red-100">
+        <button id="deleteCompanyBtn" onclick="confirmDeleteCompany()" class="hidden w-full py-2.5 text-red-600 font-bold text-xs hover:bg-red-50 rounded-xl border border-red-200">
           Slet virksomhed
         </button>
 
@@ -754,7 +811,7 @@
         </div>
 
         <div class="space-y-2.5">
-          <button onclick="switchTab('rates')" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <button onclick="switchTab('rates')" class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
             <span class="flex items-center gap-3">
               <i data-lucide="tags" class="w-5 h-5 text-slate-400"></i>
               <span class="font-bold text-slate-900 text-sm">Satser</span>
@@ -762,7 +819,7 @@
             <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
           </button>
 
-          <button id="settingsEmployeesRow" onclick="switchTab('employees')" class="hidden w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <button id="settingsEmployeesRow" onclick="switchTab('employees')" class="hidden w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
             <span class="flex items-center gap-3">
               <i data-lucide="users" class="w-5 h-5 text-slate-400"></i>
               <span class="font-bold text-slate-900 text-sm">Medarbejdere</span>
@@ -770,7 +827,7 @@
             <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
           </button>
 
-          <button onclick="switchTab('export')" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <button onclick="switchTab('export')" class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
             <span class="flex items-center gap-3">
               <i data-lucide="download" class="w-5 h-5 text-slate-400"></i>
               <span class="font-bold text-slate-900 text-sm">Eksport</span>
@@ -778,7 +835,7 @@
             <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
           </button>
 
-          <button onclick="switchTab('data')" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <button onclick="switchTab('data')" class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
             <span class="flex items-center gap-3">
               <i data-lucide="database" class="w-5 h-5 text-slate-400"></i>
               <span class="font-bold text-slate-900 text-sm">Data</span>
@@ -786,7 +843,15 @@
             <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
           </button>
 
-          <button onclick="openAccountModal()" class="w-full bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+          <button onclick="switchTab('privacy')" class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
+            <span class="flex items-center gap-3">
+              <i data-lucide="shield-check" class="w-5 h-5 text-slate-400"></i>
+              <span class="font-bold text-slate-900 text-sm">Data &amp; Privatliv</span>
+            </span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+          </button>
+
+          <button onclick="openAccountModal()" class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
             <span class="flex items-center gap-3">
               <i data-lucide="user" class="w-5 h-5 text-slate-400"></i>
               <span class="font-bold text-slate-900 text-sm">Konto</span>
@@ -795,6 +860,59 @@
           </button>
         </div>
 
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: DATA & PRIVATLIV (i almindeligt sprog) -->
+      <!-- ========================================== -->
+      <section id="tab-privacy" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
+
+        <button onclick="switchTab('settings')" class="text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Indstillinger
+        </button>
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Data &amp; Privatliv</h2>
+          <p class="text-xs text-slate-500">I almindeligt sprog - ikke juridisk volapyk</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Hvad gemmer vi?</h3>
+          <ul class="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
+            <li>Dit navn og din e-mail, hvis du logger ind med Google</li>
+            <li>De akkordsatser, du selv opretter</li>
+            <li>De registreringer (arbejde, timer, løn), du selv indtaster</li>
+            <li>Fraværsdage, du selv markerer</li>
+            <li>Er du med i en virksomhed: virksomhedens navn og hvem der er medlem af den</li>
+          </ul>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Hvorfor?</h3>
+          <p class="text-xs text-slate-600">Udelukkende for at appen kan regne din løn ud, vise dig statistik over din egen indtjening, og - hvis du er med i en virksomhed - lade en administrator følge sine medarbejderes arbejde og løn. Det er hele formålet med appen. Dine data bruges ikke til noget andet, og deles ikke med tredjepart.</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Hvor gemmes det?</h3>
+          <p class="text-xs text-slate-600">Altid lokalt på din egen enhed. Logger du ind med Google, gemmes det desuden hos Google Firebase (en sky-tjeneste), så du kan tilgå dine data fra flere enheder, og så det ikke går tabt, hvis telefonen går i stykker.</p>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Hvem kan se hvad?</h3>
+          <ul class="text-xs text-slate-600 space-y-1.5 list-disc pl-4">
+            <li>Kun du selv kan se dine egne registreringer, satser og fravær som udgangspunkt</li>
+            <li>Er du medlem af en virksomhed, kan virksomhedens administratorer se dine registreringer, satser og fravær - det er nødvendigt for, at de kan udbetale din løn korrekt</li>
+            <li>Almindelige medarbejdere (uden administrator-rolle) kan aldrig se andre medarbejderes løn eller registreringer</li>
+            <li>Ingen uden for din egen virksomhed har adgang til dine data</li>
+          </ul>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Sletning</h3>
+          <p class="text-xs text-slate-600">Du kan til enhver tid selv slette dine satser, registreringer og fravær under Historik. Forlader du en virksomhed, mister virksomhedens administratorer automatisk adgang til at se dine fremtidige data.</p>
+        </div>
+
+      </section>
       </section>
 
       <!-- ========================================== -->
@@ -834,6 +952,18 @@
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Opdatér tal
         </button>
 
+        <!-- Selvtest af de grundlæggende lønberegninger -->
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Selvtest af beregninger</h3>
+            <button onclick="runAndShowSelfTests()" class="text-[10px] font-bold text-brand-600">Kør test</button>
+          </div>
+          <p class="text-[11px] text-slate-500">Tjekker at de grundlæggende løn-udregninger stadig virker som forventet, uafhængigt af resten af appen.</p>
+          <div id="selfTestResults" class="space-y-1">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
       </section>
 
       <!-- ========================================== -->
@@ -868,7 +998,7 @@
         </div>
 
         <!-- Generel eksport -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Al Historik</h3>
           <p class="text-[11px] text-slate-500">Eksporterer alle dine registreringer nogensinde som én samlet Excel-fil.</p>
           <button onclick="exportToExcel()" class="w-full bg-slate-900 hover:bg-slate-800 text-white px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5">
@@ -877,7 +1007,7 @@
         </div>
 
         <!-- Lønperiode -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <div>
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Lønperiode</h3>
             <p class="text-[11px] text-slate-500 mt-1">Vælg den måned lønnen udbetales i - eksporterer lønperioden 21.-20. som en Excel-fil (.xlsx) med data, satser og noter samlet, klar til brug for din lønseddel.</p>
@@ -885,7 +1015,7 @@
           <div class="flex gap-2 items-end">
             <div class="flex-1">
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Lønmåned</label>
-              <input type="month" id="exportPayMonth" oninput="updatePayPeriodPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+              <input type="month" id="exportPayMonth" oninput="updatePayPeriodPreview()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
             </div>
             <button onclick="exportPayPeriodExcel()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 whitespace-nowrap">
               <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
@@ -905,7 +1035,7 @@
         </div>
 
         <!-- Årsopgørelse -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <div>
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Årsopgørelse</h3>
             <p class="text-[11px] text-slate-500 mt-1">Vælg et år - eksporterer hele årets indtjening som en Excel-fil, med et måned-for-måned overblik forrest, klar til selvangivelsen.</p>
@@ -913,7 +1043,7 @@
           <div class="flex gap-2 items-end">
             <div class="flex-1">
               <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">År</label>
-              <select id="exportYearSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+              <select id="exportYearSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
                 <!-- Rendered dynamically via JS -->
               </select>
             </div>
@@ -984,7 +1114,7 @@
 
   <!-- Modal: Account / Sync Status -->
   <div id="accountModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
-    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
       <div class="flex justify-between items-center border-b border-slate-100 pb-3">
         <h3 class="font-bold text-slate-900 text-base">Konto & Synkronisering</h3>
         <button onclick="closeAccountModal()" class="text-slate-400 hover:text-slate-600 p-1">
@@ -999,7 +1129,7 @@
 
   <!-- Modal: Case Details (kun for administratorer, på afsluttede sager) -->
   <div id="caseDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
-    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl max-h-[85vh] overflow-y-auto">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl max-h-[85vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
       <div class="flex justify-between items-center border-b border-slate-100 pb-3">
         <h3 id="caseDetailsTitle" class="font-bold text-slate-900 text-base">Sag</h3>
         <button onclick="closeCaseDetailsModal()" class="text-slate-400 hover:text-slate-600 p-1">
@@ -1014,7 +1144,7 @@
 
   <!-- Modal: Sags-kommentarer -->
   <div id="caseCommentsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
-    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[85vh]">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-200">
       <div class="flex justify-between items-center border-b border-slate-100 p-5 pb-3 flex-shrink-0">
         <h3 id="caseCommentsTitle" class="font-bold text-slate-900 text-base">Sag</h3>
         <button onclick="closeCaseCommentsModal()" class="text-slate-400 hover:text-slate-600 p-1">
@@ -1367,6 +1497,105 @@
       return !!name && name.trim().toLowerCase() === 'diæter';
     }
 
+    // ==========================================
+    // CALCULATIONS - rene funktioner, ingen DOM, ingen Firebase.
+    // ALT andet i appen (registrering, redigering, statistik, eksport) skal
+    // regne igennem disse, så de aldrig kan komme til at vise forskellige
+    // tal for den samme registrering.
+    // ==========================================
+
+    // Den mest grundlæggende beregning af alle: mængde × pris. Fandtes før
+    // duplikeret 6 forskellige steder i koden - nu findes den kun her.
+    function calculateEntryTotal(quantity, pricePerUnit) {
+      return quantity * pricePerUnit;
+    }
+
+    function calculateHourlyRate(totalDkk, hours) {
+      return hours > 0 ? (totalDkk / hours) : 0;
+    }
+
+    // Ren version af hele dagens akkord-fordeling: tager en liste af
+    // {rate, quantity}-par og dagens samlede timetal, og returnerer de
+    // færdigberegnede rækker (timer, kr., kr./t pr. række). Ingen DOM,
+    // ingen Firebase - kan derfor testes fuldstændig isoleret, og bruges af
+    // både selve registreringen og selvtesten herunder.
+    function calculateDayRows(rowInputs, totalDayHours) {
+      let grandTotalDkk = 0; // Kun "normale" satser (ekskl. Timeløn, Opstart og Diæter)
+      let opstartTotalDkk = 0;
+      let timelonHoursSum = 0;
+
+      const withFlags = rowInputs.map(({ rate, quantity }) => {
+        const totalDkk = calculateEntryTotal(quantity, rate.price);
+        const timelon = isTimelonName(rate.name);
+        const opstart = isOpstartName(rate.name);
+        const diaeter = isDiaeterName(rate.name);
+        if (opstart) opstartTotalDkk += totalDkk;
+        else if (timelon) timelonHoursSum += quantity;
+        else if (!diaeter) grandTotalDkk += totalDkk;
+        return { rate, quantity, totalDkk, timelon, opstart, diaeter };
+      });
+
+      const normalRowsCount = withFlags.filter(r => !r.timelon && !r.opstart && !r.diaeter).length;
+      // "Timer i alt" er for HELE dagen - Timeløn-timerne trækkes fra, så
+      // kun resten fordeles ud på akkordsatserne.
+      const akkordHoursAvailable = Math.max(0, totalDayHours - timelonHoursSum);
+
+      return withFlags.map(({ rate, quantity, totalDkk, timelon, opstart, diaeter }) => {
+        let hours, hourlyRate, storedTotalDkk;
+        if (timelon) {
+          hours = quantity;
+          storedTotalDkk = totalDkk;
+          hourlyRate = hours > 0 ? calculateHourlyRate(storedTotalDkk, hours) : rate.price;
+        } else if (diaeter) {
+          hours = 0;
+          hourlyRate = 0;
+          storedTotalDkk = totalDkk;
+        } else if (opstart) {
+          hours = 0;
+          hourlyRate = 0;
+          storedTotalDkk = normalRowsCount > 0 ? 0 : totalDkk;
+        } else {
+          hours = grandTotalDkk > 0
+            ? akkordHoursAvailable * (totalDkk / grandTotalDkk)
+            : (normalRowsCount > 0 ? akkordHoursAvailable / normalRowsCount : 0);
+          const opstartShare = grandTotalDkk > 0
+            ? opstartTotalDkk * (totalDkk / grandTotalDkk)
+            : (normalRowsCount > 0 ? opstartTotalDkk / normalRowsCount : 0);
+          storedTotalDkk = totalDkk + opstartShare;
+          hourlyRate = calculateHourlyRate(storedTotalDkk, hours);
+        }
+        return { rate, quantity, hours, totalDkk: storedTotalDkk, hourlyRate, timelon, opstart, diaeter };
+      });
+    }
+
+    // Lille, indbygget "sikkerhedsnet" for beregningerne ovenfor - ingen
+    // eksternt test-framework nødvendigt. Ikke udtømmende, men fanger
+    // præcis den slags fejl, der ellers først opdages, når lønnen er forkert.
+    function runSelfTests() {
+      const results = [];
+      function check(name, actual, expected, tolerance = 0.01) {
+        results.push({ name, pass: Math.abs(actual - expected) < tolerance, actual, expected });
+      }
+
+      check('184 stk × 15 kr = 2.760 kr', calculateEntryTotal(184, 15), 2760);
+      check('2.760 kr over 8 timer = 345 kr/t', calculateHourlyRate(2760, 8), 345);
+
+      const rateA = { id: 'test-r1', name: 'Plader', price: 15, unit: 'stk' };
+      const rateB = { id: 'test-r2', name: 'Rykninger', price: 25, unit: 'stk' };
+      const twoRates = calculateDayRows([{ rate: rateA, quantity: 100 }, { rate: rateB, quantity: 20 }], 8);
+      check('2 satser samme dag: korrekt samlet total', twoRates.reduce((s, r) => s + r.totalDkk, 0), 100 * 15 + 20 * 25);
+
+      const timelonRate = { id: 'test-rt', name: 'Timeløn', price: 210, unit: 'timer' };
+      const akkordRate = { id: 'test-ra', name: 'Plader', price: 15, unit: 'stk' };
+      const mixed = calculateDayRows([{ rate: timelonRate, quantity: 2 }, { rate: akkordRate, quantity: 100 }], 8);
+      check('Timeløn + akkord: timeløn får sine egne timer', mixed.find(r => r.timelon).hours, 2);
+      check('Timeløn + akkord: akkorden får resten af timerne', mixed.find(r => !r.timelon).hours, 6);
+
+      check('Redigering (samme input) giver samme resultat', calculateEntryTotal(184, 15), calculateEntryTotal(184, 15));
+
+      return results;
+    }
+
     // Sikrer at "Diæter"-satsen altid findes (både for nye og eksisterende
     // brugere) - den oprettes automatisk, hvis den mangler.
     function ensureDiaeterRateExists() {
@@ -1416,6 +1645,18 @@
       detachRealtimeListeners();
       detachCasesListeners();
       closeCaseCommentsModal();
+
+      // Nulstilles med det samme (i stedet for kun at vente på den
+      // asynkrone onAuthStateChanged-lytter), så en igangværende
+      // cloud-synkronisering ikke kan efterlade appen i en tvetydig
+      // "er jeg logget ind eller ej?"-tilstand i mellemtiden. Allerede
+      // afsendte skrivninger fortsætter uforstyrret i baggrunden - kun NYE
+      // synkroniseringsforsøg stoppes her.
+      currentUser = null;
+      syncEnabled = false;
+      lastSyncError = false;
+      updateAccountIndicator();
+
       if (auth) auth.signOut();
       closeAccountModal();
       showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
@@ -1466,6 +1707,22 @@
         </div>
       `;
 
+      const workDaysSetting = getWorkDaysSetting();
+      const workDayLabels = [{ day: 1, label: 'Man' }, { day: 2, label: 'Tir' }, { day: 3, label: 'Ons' }, { day: 4, label: 'Tor' }, { day: 5, label: 'Fre' }, { day: 6, label: 'Lør' }, { day: 7, label: 'Søn' }];
+      const workDaysHtml = `
+        <div class="border-t border-slate-100 pt-3 space-y-2">
+          <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+            <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i> Arbejdsdage
+          </div>
+          <p class="text-[10px] text-slate-500">Bruges til at opdage dage, du måske har glemt at registrere</p>
+          <div class="grid grid-cols-7 gap-1">
+            ${workDayLabels.map(({ day, label }) => `
+              <button onclick="toggleWorkDay(${day})" class="py-1.5 rounded-lg text-[10px] font-bold transition-colors ${workDaysSetting.includes(day) ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500'}">${label}</button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
       const installAppHtml = (!isStandaloneApp() && (deferredInstallPrompt || isIOSDevice())) ? `
         <div class="border-t border-slate-100 pt-3 flex items-center justify-between gap-2">
           <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
@@ -1479,6 +1736,7 @@
         body.innerHTML = `
           <p class="text-xs text-slate-500">Google-login er ikke sat op i denne app endnu. Tilføj din Firebase-konfiguration i koden for at aktivere det.</p>
           ${weatherLocationHtml}
+          ${workDaysHtml}
           ${installAppHtml}
           ${themeToggleHtml}
         `;
@@ -1496,7 +1754,7 @@
               </div>
               <button onclick="closeAccountModal(); switchTab('employees');" class="text-brand-600 text-xs font-bold whitespace-nowrap">Se medarbejdere →</button>
             </div>
-            ${!myCompany.isOwner ? '<button onclick="confirmLeaveCompany()" class="w-full text-center text-[11px] text-red-500 font-semibold py-1.5">Forlad virksomhed</button>' : ''}
+            ${!myCompany.isOwner ? '<button onclick="confirmLeaveCompany()" class="w-full py-2.5 text-red-600 font-bold text-xs hover:bg-red-50 rounded-xl border border-red-200">Forlad virksomhed</button>' : ''}
           `;
         } else if (myMembershipCompanyName) {
           companySectionHtml = `
@@ -1504,13 +1762,13 @@
               <div class="text-xs font-bold text-slate-900">${escapeHtml(myMembershipCompanyName)}</div>
               <div class="text-[10px] text-slate-500">Du er tilknyttet som medarbejder</div>
             </div>
-            <button onclick="confirmLeaveCompany()" class="w-full text-center text-[11px] text-red-500 font-semibold py-1.5">Forlad virksomhed</button>
+            <button onclick="confirmLeaveCompany()" class="w-full py-2.5 text-red-600 font-bold text-xs hover:bg-red-50 rounded-xl border border-red-200">Forlad virksomhed</button>
           `;
         } else {
           companySectionHtml = `
             <button onclick="promptCreateCompany()" class="w-full py-2.5 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">+ Opret virksomhed</button>
             <div class="flex gap-2">
-              <input type="text" id="joinCompanyCodeInput" placeholder="Indtast kode" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500">
+              <input type="text" id="joinCompanyCodeInput" placeholder="Indtast kode" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider outline-none focus:ring-2 focus:ring-brand-500">
               <button onclick="handleRedeemInviteCode()" class="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap">Tilknyt</button>
             </div>
           `;
@@ -1535,6 +1793,7 @@
             ${companySectionHtml}
           </div>
           ${weatherLocationHtml}
+          ${workDaysHtml}
           ${installAppHtml}
           ${themeToggleHtml}
           <button onclick="signOutUser()" class="w-full py-2.5 border border-red-200 text-red-600 font-bold rounded-xl text-xs hover:bg-red-50">Log ud</button>
@@ -1548,6 +1807,7 @@
             <i data-lucide="log-in" class="w-4 h-4"></i> Log ind med Google
           </button>
           ${weatherLocationHtml}
+          ${workDaysHtml}
           ${installAppHtml}
           ${themeToggleHtml}
         `;
@@ -1806,7 +2066,7 @@
       const statSubtext = document.getElementById('statHourlyWageSubtext');
       if (statCard && statLabel && statValue && statSubtext) {
         if (isAdmin) {
-          statCard.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm';
+          statCard.className = 'bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm';
           statLabel.className = 'text-[11px] font-semibold text-slate-400 uppercase tracking-wider';
           statValue.className = 'text-xl font-extrabold text-slate-900 mt-1';
           statSubtext.className = 'mt-2 text-[10px] text-slate-400 font-medium';
@@ -2135,6 +2395,10 @@
       // Kun den oprindelige opretter kan slette hele virksomheden
       if (deleteBtn) deleteBtn.classList.toggle('hidden', !myCompany.isOwner);
 
+      if (container) {
+        container.innerHTML = '<p class="text-slate-400 text-center py-4 text-xs">Henter medarbejdere...</p>';
+      }
+
       db.collection('companies').doc(myCompany.id).collection('employees').get().then(snapshot => {
         const list = snapshot.docs
           .map(d => ({ uid: d.id, ...d.data() }))
@@ -2142,6 +2406,9 @@
         renderEmployeesList(list);
       }).catch(err => {
         console.error('Kunne ikke hente medarbejdere:', err);
+        if (container) {
+          container.innerHTML = '<p class="text-red-500 text-center py-4 text-xs">Kunne ikke hente medarbejdere - tjek din internetforbindelse og prøv igen.</p>';
+        }
       });
     }
 
@@ -2160,7 +2427,7 @@
         const isOwnerRow = myCompany.ownerId === emp.uid;
 
         return `
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-2">
             <button onclick="viewEmployeeData('${emp.uid}', '${safeName}')" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
               <div class="min-w-0">
                 <div class="font-bold text-slate-900 text-sm truncate flex items-center gap-1.5">
@@ -2386,7 +2653,7 @@
         `;
 
         return `
-          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-2">
             ${admin
               ? `<button onclick="viewCaseDetails('${c.id}', '${safeName}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
                    ${infoBlock}
@@ -2428,7 +2695,7 @@
       container.innerHTML = list.map(c => {
         const safeName = escapeHtml(c.name).replace(/'/g, "\\'");
         return `
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-2">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-2">
           <button onclick="viewCaseDetails('${c.id}', '${safeName}', ${c.number})" class="flex-1 min-w-0 text-left flex items-center justify-between gap-2 hover:opacity-80 transition-opacity">
             <div class="min-w-0">
               <div class="font-bold text-slate-900 text-sm truncate">#${c.number} · ${escapeHtml(c.name)}</div>
@@ -2905,7 +3172,7 @@
         actualTabId = 'stats';
         bottomNavTabId = 'stats';
         sidebarNavTabId = 'stats';
-      } else if (tabId === 'rates' || tabId === 'employees' || tabId === 'export' || tabId === 'data') {
+      } else if (tabId === 'rates' || tabId === 'employees' || tabId === 'export' || tabId === 'data' || tabId === 'privacy') {
         bottomNavTabId = 'settings';
       }
 
@@ -3035,13 +3302,100 @@
       if (!dateInput.value) {
         dateInput.value = getFormattedDate(0);
       }
-      
+
+      // Forsøger først at genskabe en ufærdig kladde (fx hvis telefonen blev
+      // lukket midt i en registrering) - kun hvis der faktisk findes én.
+      if (restoreDraftIfExists()) return;
+
       const container = document.getElementById('logRowsContainer');
       if (container.children.length === 0) {
         addLogRow();
       } else {
         populateRateSelect();
       }
+    }
+
+    // ==========================================
+    // KLADDE (draft): en igangværende, endnu ikke gemt registrering
+    // ==========================================
+    // Der er forskel på "jeg er i gang med at registrere" og "jeg har gemt
+    // min arbejdsdag". Lukkes browseren/appen midt i det første, skal man
+    // kunne fortsætte, hvor man slap - især vigtigt hvis man står ude på en
+    // byggeplads og bliver afbrudt.
+    function saveDraftToLocalStorage() {
+      const dateInput = document.getElementById('logDate');
+      const hoursInput = document.getElementById('logHours');
+      const caseSelect = document.getElementById('logCase');
+      if (!dateInput) return;
+
+      const rowEls = document.querySelectorAll('.log-row');
+      const rows = [...rowEls].map(row => ({
+        rateId: row.querySelector('.log-rate-select').value,
+        quantity: row.querySelector('.log-quantity').value
+      }));
+
+      // Kun værd at gemme som kladde, hvis der reelt er indtastet noget -
+      // ellers er der ikke noget at genoptage senere.
+      const hasContent = (hoursInput && hoursInput.value) || rows.some(r => r.quantity);
+      if (!hasContent) {
+        localStorage.removeItem('akkord_draft');
+        return;
+      }
+
+      localStorage.setItem('akkord_draft', JSON.stringify({
+        date: dateInput.value,
+        hours: hoursInput ? hoursInput.value : '',
+        caseId: caseSelect ? caseSelect.value : '',
+        rows
+      }));
+    }
+
+    function restoreDraftIfExists() {
+      const stored = localStorage.getItem('akkord_draft');
+      if (!stored) return false;
+
+      let draft;
+      try {
+        draft = JSON.parse(stored);
+      } catch (e) {
+        localStorage.removeItem('akkord_draft');
+        return false;
+      }
+
+      const dateInput = document.getElementById('logDate');
+      const hoursInput = document.getElementById('logHours');
+      if (dateInput) dateInput.value = draft.date || getFormattedDate(0);
+      if (hoursInput) hoursInput.value = draft.hours || '';
+
+      const container = document.getElementById('logRowsContainer');
+      container.innerHTML = '';
+      const rowsToRestore = (draft.rows && draft.rows.length > 0) ? draft.rows : [{}];
+      rowsToRestore.forEach(r => {
+        addLogRow();
+        const allRows = container.querySelectorAll('.log-row');
+        const newRow = allRows[allRows.length - 1];
+        if (r.rateId) {
+          const rateSelect = newRow.querySelector('.log-rate-select');
+          if (rates.some(rt => rt.id === r.rateId && rt.active !== false)) {
+            rateSelect.value = r.rateId;
+            updateRowUnit(rateSelect);
+          }
+        }
+        if (r.quantity) newRow.querySelector('.log-quantity').value = r.quantity;
+      });
+
+      if (draft.caseId) {
+        const caseSelect = document.getElementById('logCase');
+        if (caseSelect) caseSelect.value = draft.caseId;
+      }
+
+      calculateLiveSummary();
+      showToast('Din ufærdige registrering er hentet frem igen');
+      return true;
+    }
+
+    function clearDraft() {
+      localStorage.removeItem('akkord_draft');
     }
 
     function getRateOptionsHtml() {
@@ -3203,7 +3557,7 @@
         
         const rate = rates.find(r => r.id === rateId);
         if (rate && quantity > 0) {
-          const rowDkk = quantity * rate.price;
+          const rowDkk = calculateEntryTotal(quantity, rate.price);
           if (isTimelonName(rate.name)) {
             timelonDkk += rowDkk;
             timelonHours += quantity;
@@ -3246,6 +3600,8 @@
       } else {
         diaeterWrap.classList.add('hidden');
       }
+
+      saveDraftToLocalStorage();
     }
 
     // ==========================================
@@ -3256,6 +3612,60 @@
     }
 
     const ABSENCE_LABELS = { sick: '🤒 Sygdom', vacation: '🌴 Ferie', other: '📝 Andet' };
+
+    // ==========================================
+    // ARBEJDSDAGE & GLEMTE REGISTRERINGER
+    // ==========================================
+    // ISO-ugedage: 1=mandag ... 7=søndag. Standard er mandag-fredag, da det
+    // er den mest almindelige arbejdsuge for akkordarbejde.
+    function getWorkDaysSetting() {
+      const stored = localStorage.getItem('akkord_work_days');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) { /* falder tilbage til standard herunder */ }
+      }
+      return [1, 2, 3, 4, 5];
+    }
+
+    function toggleWorkDay(day) {
+      let days = getWorkDaysSetting();
+      if (days.includes(day)) {
+        days = days.filter(d => d !== day);
+      } else {
+        days.push(day);
+      }
+      days.sort((a, b) => a - b);
+      localStorage.setItem('akkord_work_days', JSON.stringify(days));
+      renderAccountModalBody();
+      renderOverview();
+    }
+
+    // Finder normale arbejdsdage inden for de seneste `daysToCheck` dage,
+    // hvor der hverken er registreret arbejde eller markeret fravær - dvs.
+    // dage der sandsynligvis bare er glemt. Går aldrig længere tilbage end
+    // brugerens allerførste nogensinde registrering.
+    function getMissingWorkDays(daysToCheck = 14, maxResults = 5) {
+      if (entries.length === 0) return [];
+
+      const workDays = getWorkDaysSetting();
+      const entryDates = new Set(entries.map(e => e.date));
+      const absenceDates = new Set(absences.map(a => a.date));
+      const earliestDate = entries.reduce((min, e) => (e.date < min ? e.date : min), entries[0].date);
+
+      const missing = [];
+      for (let i = 1; i <= daysToCheck; i++) {
+        const dateStr = getFormattedDate(-i);
+        if (dateStr < earliestDate) break;
+        const d = new Date(dateStr + 'T12:00:00');
+        const isoWeekday = d.getDay() === 0 ? 7 : d.getDay();
+        if (!workDays.includes(isoWeekday)) continue;
+        if (entryDates.has(dateStr) || absenceDates.has(dateStr)) continue;
+        missing.push(dateStr);
+      }
+      return missing.slice(0, maxResults);
+    }
 
     function saveAbsence(type) {
       if (viewingEmployee) {
@@ -3475,10 +3885,11 @@
       // "Opstart"-satser lægges oveni de rigtige akkordrækkers egen totalsum
       // (så fx "10 plader" selv står med de fulde kr, inkl. opstart-tillægget),
       // og får derfor ikke selv nogen timer eller timeløn - kun antal.
-      let rowsData = [];
-      let grandTotalDkk = 0; // Kun "normale" satser (ekskl. Timeløn, Opstart og Diæter)
-      let opstartTotalDkk = 0;
-      let timelonHoursSum = 0; // Timer brugt på Timeløn - trækkes fra dagens samlede timer
+      //
+      // Selve dataindsamlingen (her, fra DOM'en) er bevidst adskilt fra selve
+      // beregningen (calculateDayRows, en ren funktion uden DOM) - så
+      // beregningen kan testes for sig, uafhængigt af browseren.
+      let rowInputs = [];
       let missingRateError = false;
       let missingQuantityError = false;
       rows.forEach(row => {
@@ -3495,18 +3906,7 @@
           hasError = true;
           return;
         }
-        const rowTotalDkk = quantity * rate.price;
-        const timelon = isTimelonName(rate.name);
-        const opstart = isOpstartName(rate.name);
-        const diaeter = isDiaeterName(rate.name);
-        if (opstart) {
-          opstartTotalDkk += rowTotalDkk;
-        } else if (timelon) {
-          timelonHoursSum += quantity;
-        } else if (!diaeter) {
-          grandTotalDkk += rowTotalDkk;
-        }
-        rowsData.push({ rate, quantity, totalDkk: rowTotalDkk, timelon, opstart, diaeter });
+        rowInputs.push({ rate, quantity });
       });
 
       if (hasError) {
@@ -3520,56 +3920,21 @@
 
       // Diæter kan maks sættes én gang om dagen - både i denne registrering
       // og i forhold til dage, hvor der allerede er registreret Diæter.
-      const diaeterRows = rowsData.filter(r => r.diaeter);
-      const diaeterQuantitySum = diaeterRows.reduce((sum, r) => sum + r.quantity, 0);
+      const diaeterRowInputs = rowInputs.filter(r => isDiaeterName(r.rate.name));
+      const diaeterQuantitySum = diaeterRowInputs.reduce((sum, r) => sum + r.quantity, 0);
       const diaeterAlreadyLoggedToday = entries.some(en => en.date === date && isDiaeterName(en.rateName));
-      if (diaeterRows.length > 1 || diaeterQuantitySum > 1) {
+      if (diaeterRowInputs.length > 1 || diaeterQuantitySum > 1) {
         showToast('Diæter kan maks sættes én gang om dagen', 'error');
         return;
       }
-      if (diaeterRows.length > 0 && diaeterAlreadyLoggedToday) {
+      if (diaeterRowInputs.length > 0 && diaeterAlreadyLoggedToday) {
         showToast('Der er allerede registreret Diæter denne dag', 'error');
         return;
       }
 
-      const normalRowsCount = rowsData.filter(r => !r.timelon && !r.opstart && !r.diaeter).length;
-      // "Timer i alt" er for HELE dagen - de timer der er brugt på Timeløn
-      // trækkes fra, så kun resten fordeles ud på akkordsatserne.
-      const akkordHoursAvailable = Math.max(0, totalHoursEntered - timelonHoursSum);
+      const calculatedRows = calculateDayRows(rowInputs, totalHoursEntered);
 
-      rowsData.forEach(({ rate, quantity, totalDkk, timelon, opstart, diaeter }) => {
-        let hours, hourlyRate, storedTotalDkk;
-        if (timelon) {
-          // Timeløn: Mængden ER timerne, til den faste timesats
-          hours = quantity;
-          storedTotalDkk = totalDkk;
-          hourlyRate = hours > 0 ? (storedTotalDkk / hours) : rate.price;
-        } else if (diaeter) {
-          // Diæter: helt sin egen sats - ingen timer, ingen sammenlægning
-          // med andre rækker, og tæller ikke med i akkorden/effektiv timeløn.
-          hours = 0;
-          hourlyRate = 0;
-          storedTotalDkk = totalDkk;
-        } else if (opstart) {
-          // Opstart: kronerne lægges over på akkordrækken(erne) herunder,
-          // så denne række kun tæller som antal - ingen timer/timeløn/kr her.
-          // (Hvis der ikke er nogen akkordrække at lægge dem over på, beholdes
-          // beløbet her, så pengene ikke bare forsvinder.)
-          hours = 0;
-          hourlyRate = 0;
-          storedTotalDkk = normalRowsCount > 0 ? 0 : totalDkk;
-        } else {
-          hours = grandTotalDkk > 0
-            ? akkordHoursAvailable * (totalDkk / grandTotalDkk)
-            : (normalRowsCount > 0 ? akkordHoursAvailable / normalRowsCount : 0);
-          // Denne rækkes andel af Opstart-tillægget, lagt oveni dens egen totalsum
-          const opstartShare = grandTotalDkk > 0
-            ? opstartTotalDkk * (totalDkk / grandTotalDkk)
-            : (normalRowsCount > 0 ? opstartTotalDkk / normalRowsCount : 0);
-          storedTotalDkk = totalDkk + opstartShare;
-          hourlyRate = hours > 0 ? (storedTotalDkk / hours) : 0;
-        }
-
+      calculatedRows.forEach(({ rate, quantity, hours, totalDkk, hourlyRate }) => {
         newEntries.push({
           id: 'entry-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
           date,
@@ -3579,7 +3944,7 @@
           pricePerUnit: rate.price,
           quantity,
           hours,
-          totalDkk: storedTotalDkk,
+          totalDkk,
           hourlyRate,
           note,
           caseId: selectedCase ? selectedCase.id : null,
@@ -3610,6 +3975,7 @@
         newEntries.reverse().forEach(entry => entries.unshift(entry));
         saveData();
         newEntries.forEach(entry => syncEntryToCloud(entry));
+        clearDraft();
 
         document.getElementById('logRowsContainer').innerHTML = '';
         addLogRow();
@@ -3664,7 +4030,7 @@
 
       if (activeRates.length === 0) {
         list.innerHTML = `
-          <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
+          <div class="bg-white rounded-2xl p-6 text-center border border-slate-200/80">
             <i data-lucide="tag" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
             <p class="text-xs text-slate-500 font-medium">Ingen akkordsatser oprettet endnu.</p>
             <button onclick="openRateModal()" class="mt-3 bg-brand-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Opret din første sats</button>
@@ -3676,7 +4042,7 @@
 
       activeRates.forEach(rate => {
         const item = document.createElement('div');
-        item.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center';
+        item.className = 'bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex justify-between items-center';
         const isDiaeter = isDiaeterName(rate.name);
         item.innerHTML = `
           <div>
@@ -4230,6 +4596,51 @@
     // HISTORIK (Log History) & EXPORT
     // ==========================================
     let historyRenderLimit = 50; // viser kun de nyeste 50 som udgangspunkt - undgår at tegne tusindvis af rækker på én gang
+    let historyViewMode = localStorage.getItem('akkord_history_view') || 'detailed'; // 'detailed' eller 'compact'
+
+    function setHistoryViewMode(mode) {
+      historyViewMode = mode;
+      localStorage.setItem('akkord_history_view', mode);
+      updateHistoryViewModeButtons();
+      renderHistoryList();
+    }
+
+    function updateHistoryViewModeButtons() {
+      const detailedBtn = document.getElementById('historyViewBtn-detailed');
+      const compactBtn = document.getElementById('historyViewBtn-compact');
+      if (!detailedBtn || !compactBtn) return;
+      const activeClasses = ['bg-slate-900', 'text-white', 'shadow-sm'];
+      const inactiveClasses = ['bg-slate-200', 'text-slate-700'];
+      if (historyViewMode === 'compact') {
+        detailedBtn.classList.remove(...activeClasses);
+        detailedBtn.classList.add(...inactiveClasses);
+        compactBtn.classList.remove(...inactiveClasses);
+        compactBtn.classList.add(...activeClasses);
+      } else {
+        compactBtn.classList.remove(...activeClasses);
+        compactBtn.classList.add(...inactiveClasses);
+        detailedBtn.classList.remove(...inactiveClasses);
+        detailedBtn.classList.add(...activeClasses);
+      }
+    }
+
+    // Kompakt visning: hele registreringen læst på én linje, fx
+    // "23/09 · Jensen · Plader · 184 stk · 8,0 t · 2.760 kr · 345 kr./t"
+    function formatCompactEntryLine(entry) {
+      const parts = entry.date.split('-');
+      const dateLabel = `${parts[2]}/${parts[1]}`;
+      const showHours = entry.hours > 0;
+
+      const segments = [dateLabel];
+      if (entry.caseName) segments.push(escapeHtml(entry.caseName));
+      segments.push(escapeHtml(entry.rateName));
+      segments.push(`${formatNumber(entry.quantity)} ${escapeHtml(entry.unit)}`);
+      if (showHours) segments.push(`${formatNumber(entry.hours)} t.`);
+      segments.push(formatCurrency(entry.totalDkk));
+      if (showHours) segments.push(formatCurrency(entry.hourlyRate) + '/t.');
+
+      return segments.join(' · ');
+    }
 
     // ==========================================
     // KALENDEROVERSIGT (Historik-fanen)
@@ -4297,26 +4708,38 @@
       const searchInput = document.getElementById('historySearch');
       const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
       container.innerHTML = '';
+      updateHistoryViewModeButtons();
 
-      const filteredEntries = entries.filter(e => {
-        if (!query) return true; // Viser ALT hvis søgefeltet er tomt
-        return e.rateName.toLowerCase().includes(query) || 
-               (e.note && e.note.toLowerCase().includes(query)) ||
-               e.date.includes(query);
-      }).map(e => ({ type: 'entry', date: e.date, data: e }));
+      // Én global søgning skal kunne finde alt - ikke kun satsnavn og note,
+      // men også mængde, beløb og månedsnavn på dansk (fx "september").
+      function entryMatchesQuery(e, q) {
+        if (!q) return true;
+        const monthName = getDanishMonthName(parseInt(e.date.split('-')[1], 10) - 1).toLowerCase();
+        return e.rateName.toLowerCase().includes(q) ||
+               (e.note && e.note.toLowerCase().includes(q)) ||
+               e.date.includes(q) ||
+               monthName.includes(q) ||
+               String(e.quantity).includes(q) ||
+               String(Math.round(e.totalDkk)).includes(q);
+      }
+
+      const filteredEntries = entries.filter(e => entryMatchesQuery(e, query))
+        .map(e => ({ type: 'entry', date: e.date, data: e }));
 
       const filteredAbsences = absences.filter(a => {
         if (!query) return true;
+        const monthName = getDanishMonthName(parseInt(a.date.split('-')[1], 10) - 1).toLowerCase();
         return ABSENCE_LABELS[a.type].toLowerCase().includes(query) ||
                (a.note && a.note.toLowerCase().includes(query)) ||
-               a.date.includes(query);
+               a.date.includes(query) ||
+               monthName.includes(query);
       }).map(a => ({ type: 'absence', date: a.date, data: a }));
 
       const filtered = [...filteredEntries, ...filteredAbsences].sort((a, b) => new Date(b.date) - new Date(a.date));
 
       if (filtered.length === 0) {
         container.innerHTML = `
-          <div class="bg-white p-6 rounded-2xl text-center border border-slate-200">
+          <div class="bg-white rounded-2xl p-6 text-center border border-slate-200/80">
             <i data-lucide="file-text" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
             <p class="text-xs text-slate-500 font-medium">Ingen registreringer fundet.</p>
           </div>
@@ -4334,6 +4757,19 @@
         if (item.type === 'absence') {
           const absence = item.data;
           const el = document.createElement('div');
+
+          if (historyViewMode === 'compact') {
+            el.className = 'bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center justify-between gap-2';
+            el.innerHTML = `
+              <span class="text-xs font-semibold text-amber-900 truncate">${dateParts[2]}/${dateParts[1]} · ${ABSENCE_LABELS[absence.type]}${absence.note ? ' · "' + escapeHtml(absence.note) + '"' : ''}</span>
+              <button onclick="confirmDeleteAbsence('${absence.date}')" class="text-amber-400 hover:text-red-600 p-1 flex-shrink-0">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            `;
+            container.appendChild(el);
+            return;
+          }
+
           el.className = 'bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-2';
           el.innerHTML = `
             <div class="min-w-0">
@@ -4352,7 +4788,25 @@
 
         const entry = item.data;
         const el = document.createElement('div');
-        el.className = 'bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-2';
+
+        if (historyViewMode === 'compact') {
+          el.className = 'bg-white border border-slate-200/80 rounded-xl px-3 py-2 flex items-center justify-between gap-2';
+          el.innerHTML = `
+            <span class="text-xs font-medium text-slate-700 truncate">${formatCompactEntryLine(entry)}</span>
+            <div class="flex items-center gap-0.5 flex-shrink-0">
+              <button onclick="openEditEntryModal('${entry.id}')" class="text-slate-400 hover:text-brand-600 p-1">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="confirmDeleteEntry('${entry.id}')" class="text-slate-400 hover:text-red-600 p-1">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          `;
+          container.appendChild(el);
+          return;
+        }
+
+        el.className = 'bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2';
 
         const isOpstartEntry = isOpstartName(entry.rateName);
         const isDiaeterEntry = isDiaeterName(entry.rateName);
@@ -4522,15 +4976,15 @@
         // Timeløn: Mængden ER timerne, feltet er ikke nødvendigt at røre selv
         hoursWrap.classList.add('hidden');
         hoursInput.value = quantity;
-        previewEl.textContent = formatCurrency(quantity * rate.price);
+        previewEl.textContent = formatCurrency(calculateEntryTotal(quantity, rate.price));
       } else if (opstart || diaeter) {
         // Opstart/Diæter: ingen timer, beløbet vises for sig selv ved redigering
         hoursWrap.classList.add('hidden');
         hoursInput.value = 0;
-        previewEl.textContent = formatCurrency(quantity * rate.price);
+        previewEl.textContent = formatCurrency(calculateEntryTotal(quantity, rate.price));
       } else {
         hoursWrap.classList.remove('hidden');
-        previewEl.textContent = formatCurrency(quantity * rate.price);
+        previewEl.textContent = formatCurrency(calculateEntryTotal(quantity, rate.price));
       }
     }
 
@@ -4573,7 +5027,7 @@
         } catch (err) { /* ignorer ugyldig fallback */ }
       }
       const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
-      const totalDkk = quantity * rate.price;
+      const totalDkk = calculateEntryTotal(quantity, rate.price);
 
       const timelon = isTimelonName(rate.name);
       const opstart = isOpstartName(rate.name);
@@ -4736,6 +5190,40 @@
 
       if (window.lucide) lucide.createIcons();
       loadMasterOverview();
+      renderMissingDaysWarning();
+    }
+
+    function renderMissingDaysWarning() {
+      const wrap = document.getElementById('overviewMissingDaysWarning');
+      const listEl = document.getElementById('overviewMissingDaysList');
+      if (!wrap || !listEl) return;
+
+      const missing = getMissingWorkDays();
+      if (missing.length === 0) {
+        wrap.classList.add('hidden');
+        return;
+      }
+      wrap.classList.remove('hidden');
+
+      const weekdayNames = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
+      listEl.innerHTML = missing.map(dateStr => {
+        const parts = dateStr.split('-');
+        const d = new Date(dateStr + 'T12:00:00');
+        const label = `${weekdayNames[d.getDay()]} ${parseInt(parts[2], 10)}/${parseInt(parts[1], 10)}`;
+        return `
+          <button onclick="jumpToRegisterForDate('${dateStr}')" class="w-full flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors">
+            <span>Ingen registrering for ${label}</span>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5 flex-shrink-0"></i>
+          </button>
+        `;
+      }).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function jumpToRegisterForDate(dateStr) {
+      switchTab('register');
+      const dateInput = document.getElementById('logDate');
+      if (dateInput) dateInput.value = dateStr;
     }
 
     // Mester-oversigt: kun relevant for administratorer i en virksomhed.
@@ -4769,6 +5257,10 @@
       const startStr = toDateStr(start);
       const endStr = toDateStr(end);
 
+      const totalEl = document.getElementById('masterOverviewTotalDkk');
+      const listEl = document.getElementById('masterOverviewEmployeeList');
+      if (listEl) listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Henter...</p>';
+
       db.collection('companies').doc(myCompanyId).collection('employees').get().then(snapshot => {
         const people = snapshot.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email || 'Ukendt' }));
 
@@ -4782,10 +5274,8 @@
         ));
       }).then(results => {
         const totalDkk = results.reduce((sum, r) => sum + r.dkk, 0);
-        const totalEl = document.getElementById('masterOverviewTotalDkk');
         if (totalEl) totalEl.textContent = formatCurrency(totalDkk);
 
-        const listEl = document.getElementById('masterOverviewEmployeeList');
         if (listEl) {
           const sorted = results.filter(r => r.dkk > 0).sort((a, b) => b.dkk - a.dkk);
           if (sorted.length === 0) {
@@ -4802,6 +5292,8 @@
         if (window.lucide) lucide.createIcons();
       }).catch(err => {
         console.error('Kunne ikke hente mester-oversigt:', err);
+        if (totalEl) totalEl.textContent = 'Kunne ikke hente';
+        if (listEl) listEl.innerHTML = '<p class="text-xs text-red-500 text-center py-2">Kunne ikke hente holdets data - tjek din internetforbindelse.</p>';
       });
     }
 
@@ -4863,6 +5355,22 @@
         console.error('Kunne ikke hente antal fra skyen:', err);
         cloudEl.textContent = 'Kunne ikke hente';
       });
+    }
+
+    function runAndShowSelfTests() {
+      const results = runSelfTests();
+      const container = document.getElementById('selfTestResults');
+      if (!container) return;
+
+      const allPassed = results.every(r => r.pass);
+      container.innerHTML = results.map(r => `
+        <div class="flex items-center justify-between text-[11px] px-2 py-1.5 rounded-lg ${r.pass ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}">
+          <span>${r.pass ? '✓' : '✗'} ${escapeHtml(r.name)}</span>
+          ${!r.pass ? `<span class="font-bold whitespace-nowrap ml-2">forventet ${formatNumber(r.expected)}, fik ${formatNumber(r.actual)}</span>` : ''}
+        </div>
+      `).join('');
+
+      showToast(allPassed ? 'Alle tests bestået ✓' : 'Nogle tests fejlede - se detaljer', allPassed ? 'success' : 'error');
     }
 
     function renderDesktopSidePanel() {
@@ -5057,6 +5565,7 @@
         app: 'AkkordLøn',
         backupVersion: 1,
         exportedAt: new Date().toISOString(),
+        exportedFor: viewingEmployee ? viewingEmployee.name : 'mig selv',
         entries,
         rates,
         absences
@@ -5065,12 +5574,16 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `AkkordLøn_Backup_${getFormattedDate(0)}.json`;
+      // Tydeligt mærket med medarbejderens navn, hvis en administrator
+      // eksporterer en medarbejders data i stedet for sine egne - så det
+      // aldrig er tvivlsomt, hvis backup senere ligger blandt egne filer.
+      const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
+      a.download = `AkkordLøn_Backup${namePart}_${getFormattedDate(0)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast('Backup downloadet');
+      showToast(viewingEmployee ? `Backup for ${viewingEmployee.name} downloadet` : 'Backup downloadet');
     }
 
     function triggerImportBackup() {
@@ -5124,8 +5637,15 @@
       entries.sort((a, b) => new Date(b.date) - new Date(a.date));
 
       const existingRateIds = new Set(rates.map(r => r.id));
+      let skippedInvalidRates = 0;
       backup.rates.forEach(r => {
+        const validPrice = typeof r.price === 'number' && isFinite(r.price) && r.price > 0;
+        const validNameAndUnit = r && typeof r.name === 'string' && r.name.trim() && typeof r.unit === 'string' && r.unit.trim();
         if (r && r.id && !existingRateIds.has(r.id)) {
+          if (!validPrice || !validNameAndUnit) {
+            skippedInvalidRates++;
+            return;
+          }
           rates.push(r);
           addedRates++;
         }
@@ -5149,6 +5669,9 @@
       const parts = [`${addedEntries} registreringer`, `${addedRates} satser`];
       if (addedAbsences > 0) parts.push(`${addedAbsences} fraværsdage`);
       showToast('Gendannet: ' + parts.join(', '));
+      if (skippedInvalidRates > 0) {
+        showToast(`${skippedInvalidRates} sats(er) i filen sprunget over pga. ugyldig pris eller enhed`, 'error');
+      }
     }
 
     function exportToExcel() {
@@ -5158,9 +5681,10 @@
       }
 
       const wb = buildEntriesWorkbook(entries, { includeHourlyRateColumn: true });
-      XLSX.writeFile(wb, `AkkordLøn_Eksport_${getFormattedDate(0)}.xlsx`);
+      const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
+      XLSX.writeFile(wb, `AkkordLøn_Eksport${namePart}_${getFormattedDate(0)}.xlsx`);
 
-      showToast('Excel-fil downloadet!');
+      showToast(viewingEmployee ? `Excel-fil for ${viewingEmployee.name} downloadet!` : 'Excel-fil downloadet!');
     }
 
     // Finder lønperioden (21.-20.) og de tilhørende registreringer for et
@@ -5227,9 +5751,10 @@
         periodLabel,
         includeTotalRow: true
       });
-      XLSX.writeFile(wb, `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}.xlsx`);
+      const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
+      XLSX.writeFile(wb, `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}${namePart}.xlsx`);
 
-      showToast('Lønperiode eksporteret!');
+      showToast(viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret!` : 'Lønperiode eksporteret!');
     }
 
     // Udfylder årsvælgeren med de år, der faktisk findes registreringer i,
@@ -5270,9 +5795,12 @@
         includeTotalRow: true,
         annualSummaryYear: year
       });
-      XLSX.writeFile(wb, `Årsopgørelse_${year}.xlsx`);
+      const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
+      XLSX.writeFile(wb, `Årsopgørelse_${year}${namePart}.xlsx`);
 
-      showToast('Årsopgørelse for ' + year + ' eksporteret!');
+      showToast(viewingEmployee
+        ? `Årsopgørelse ${year} for ${viewingEmployee.name} eksporteret!`
+        : 'Årsopgørelse for ' + year + ' eksporteret!');
     }
 
     // ==========================================
