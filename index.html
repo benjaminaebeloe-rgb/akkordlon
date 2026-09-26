@@ -1234,6 +1234,7 @@
           <div>
             <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mængde (<span id="editEntryUnitLabel">...</span>)</label>
             <input type="number" step="0.01" min="0.01" id="editEntryQuantity" oninput="updateEditEntryFields()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <input type="hidden" id="editEntryPricePerUnit">
           </div>
           <div id="editEntryHoursWrap">
             <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Timer</label>
@@ -1308,6 +1309,11 @@
     let syncEnabled = false;
     let lastSyncError = false; // Sat til true hvis en cloud-synkronisering fejlede og ikke siden er lykkedes
     let lastSyncTime = null; // Tidspunktet for sidste succesfulde synkronisering til skyen
+    // Øges hver gang nogen logger ind eller ud. Fanger asynkrone
+    // synk-kald, der blev afsendt under én bruger, men først svarer, efter
+    // en anden bruger er logget ind på samme enhed - deres resultat skal
+    // ignoreres, ikke anvendes på den forkerte person.
+    let currentSessionId = 0;
     let myCompany = null; // { id, name, inviteCode } - udfyldt hvis brugeren ejer en virksomhed
     let viewingEmployee = null; // { uid, name } - sat mens en arbejdsgiver kigger på en medarbejders data (skrivebeskyttet)
     let editEntryOpenedUpdatedAt = null; // "updatedAt" fra dengang redigerings-boksen blev åbnet, til konflikttjek ved gem
@@ -1365,24 +1371,36 @@
     let chartInstance = null;
 
     // Gemmer altid lokalt (satser + registreringer + fravær) som backup/cache
+    // Returnerer true/false, så en kaldende funktion kan give en ÆRLIG
+    // besked, hvis lagringen fejler (fx "storage quota exceeded") - i
+    // stedet for at vise "Gemt ✅", selvom data reelt ikke blev gemt.
     function saveData() {
-      localStorage.setItem('akkord_rates', JSON.stringify(rates));
-      localStorage.setItem('akkord_entries', JSON.stringify(entries));
-      localStorage.setItem('akkord_absences', JSON.stringify(absences));
+      try {
+        localStorage.setItem('akkord_rates', JSON.stringify(rates));
+        localStorage.setItem('akkord_entries', JSON.stringify(entries));
+        localStorage.setItem('akkord_absences', JSON.stringify(absences));
+        return true;
+      } catch (err) {
+        console.error('Kunne ikke gemme lokalt:', err);
+        return false;
+      }
     }
 
     // Satser er få og ændres sjældent - de ligger samlet i selve brugerens
     // hoveddokument, som derfor forbliver småt.
     function syncRatesToCloud() {
       if (syncEnabled && currentUser && db) {
+        const dispatchedSessionId = currentSessionId;
         db.collection('users').doc(currentUser.uid).set({
           rates,
           updatedAt: new Date().toISOString()
         }, { merge: true }).then(() => {
+          if (dispatchedSessionId !== currentSessionId) return; // en anden bruger er logget ind siden
           lastSyncError = false;
           lastSyncTime = new Date();
           updateSyncStatusIndicator();
         }).catch(err => {
+          if (dispatchedSessionId !== currentSessionId) return;
           console.error('Cloud-sync fejlede (satser):', err);
           showToast('Kunne ikke synkronisere satser til skyen', 'error');
           lastSyncError = true;
@@ -1397,13 +1415,16 @@
     // kun rører netop den ene registrering.
     function syncEntryToCloud(entry) {
       if (syncEnabled && currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('entries').doc(entry.id).set(entry)
+        const dispatchedSessionId = currentSessionId;
+        db.collection('users').doc(currentUser.uid).collection('entries').doc(entry.id).set(entry, { merge: true })
           .then(() => {
+            if (dispatchedSessionId !== currentSessionId) return;
             lastSyncError = false;
             lastSyncTime = new Date();
             updateSyncStatusIndicator();
           })
           .catch(err => {
+            if (dispatchedSessionId !== currentSessionId) return;
             console.error('Cloud-sync fejlede (registrering):', err);
             showToast('Kunne ikke synkronisere registreringen til skyen', 'error');
             lastSyncError = true;
@@ -1412,15 +1433,49 @@
       }
     }
 
+    // Gemmer FLERE registreringer (fx alle satser fra én dags registrering)
+    // som ÉN atomisk operation: enten skrives de alle sammen, eller ingen af
+    // dem gør. Det forhindrer den tvetydige mellemtilstand, hvor 2 ud af 3
+    // rækker fra samme dag er nået til skyen, og statistik/en anden enhed
+    // kan se en ufuldstændig version af dagen. Fejler batchen, forbliver
+    // hver enkelt registrering "ikke-synkroniseret endnu" lokalt, og den
+    // almindelige genforsøgs-logik i entries-lytteren tager over derfra.
+    function syncEntriesBatchToCloud(entryList) {
+      if (!entryList.length || !(syncEnabled && currentUser && db)) return;
+      const dispatchedSessionId = currentSessionId;
+      const batch = db.batch();
+      entryList.forEach(entry => {
+        const ref = db.collection('users').doc(currentUser.uid).collection('entries').doc(entry.id);
+        batch.set(ref, entry, { merge: true });
+      });
+      batch.commit()
+        .then(() => {
+          if (dispatchedSessionId !== currentSessionId) return;
+          lastSyncError = false;
+          lastSyncTime = new Date();
+          updateSyncStatusIndicator();
+        })
+        .catch(err => {
+          if (dispatchedSessionId !== currentSessionId) return;
+          console.error('Cloud-sync fejlede (samlet registrering):', err);
+          showToast('Kunne ikke synkronisere registreringen til skyen', 'error');
+          lastSyncError = true;
+          updateSyncStatusIndicator();
+        });
+    }
+
     function deleteEntryFromCloud(entryId) {
       if (syncEnabled && currentUser && db) {
+        const dispatchedSessionId = currentSessionId;
         db.collection('users').doc(currentUser.uid).collection('entries').doc(entryId).delete()
           .then(() => {
+            if (dispatchedSessionId !== currentSessionId) return;
             lastSyncError = false;
             lastSyncTime = new Date();
             updateSyncStatusIndicator();
           })
           .catch(err => {
+            if (dispatchedSessionId !== currentSessionId) return;
             console.error('Cloud-sync fejlede (sletning):', err);
             showToast('Kunne ikke slette registreringen i skyen', 'error');
             lastSyncError = true;
@@ -1433,13 +1488,16 @@
     // opstå to fraværs-registreringer for samme dag ved en fejl.
     function syncAbsenceToCloud(absence) {
       if (syncEnabled && currentUser && db) {
-        db.collection('users').doc(currentUser.uid).collection('absences').doc(absence.date).set(absence)
+        const dispatchedSessionId = currentSessionId;
+        db.collection('users').doc(currentUser.uid).collection('absences').doc(absence.date).set(absence, { merge: true })
           .then(() => {
+            if (dispatchedSessionId !== currentSessionId) return;
             lastSyncError = false;
             lastSyncTime = new Date();
             updateSyncStatusIndicator();
           })
           .catch(err => {
+            if (dispatchedSessionId !== currentSessionId) return;
             console.error('Cloud-sync fejlede (fravær):', err);
             showToast('Kunne ikke synkronisere fraværet til skyen', 'error');
             lastSyncError = true;
@@ -1450,13 +1508,16 @@
 
     function deleteAbsenceFromCloud(date) {
       if (syncEnabled && currentUser && db) {
+        const dispatchedSessionId = currentSessionId;
         db.collection('users').doc(currentUser.uid).collection('absences').doc(date).delete()
           .then(() => {
+            if (dispatchedSessionId !== currentSessionId) return;
             lastSyncError = false;
             lastSyncTime = new Date();
             updateSyncStatusIndicator();
           })
           .catch(err => {
+            if (dispatchedSessionId !== currentSessionId) return;
             console.error('Cloud-sync fejlede (sletning af fravær):', err);
             showToast('Kunne ikke slette fraværet i skyen', 'error');
             lastSyncError = true;
@@ -1593,6 +1654,43 @@
 
       check('Redigering (samme input) giver samme resultat', calculateEntryTotal(184, 15), calculateEntryTotal(184, 15));
 
+      // Matematiske randtilfælde - tal, der ofte glemmes i praksis.
+      check('0,01 stk (mindste tilladte mængde)', calculateEntryTotal(0.01, 15), 0.15);
+      check('99.999 stk', calculateEntryTotal(99999, 15), 99999 * 15);
+      check('100.000 stk', calculateEntryTotal(100000, 15), 100000 * 15);
+      check('100.001 stk', calculateEntryTotal(100001, 15), 100001 * 15);
+      check('0,01 time -> kr./t', calculateHourlyRate(15, 0.01), 1500);
+      check('24 timer -> kr./t', calculateHourlyRate(3600, 24), 150);
+
+      // Invariant-test: uanset hvor mange tilfældige satser og timetal man
+      // kombinerer, skal summen af det, der reelt bliver gemt, ALTID stemme
+      // overens med en simpel, uafhængig sum af mængde × pris. Fordelingen
+      // af timer/opstart mellem rækkerne må ALDRIG ændre den samlede sum -
+      // det er selve fundamentet, resten af appens tal hviler på.
+      let invariantFailures = 0;
+      for (let i = 0; i < 200; i++) {
+        const numRows = 1 + Math.floor(Math.random() * 5);
+        const rowInputs = [];
+        let expectedTotal = 0;
+        for (let r = 0; r < numRows; r++) {
+          const quantity = Math.round((Math.random() * 500 + 0.1) * 100) / 100;
+          const price = Math.round((Math.random() * 500 + 0.1) * 100) / 100;
+          const rate = { id: 'rand-' + i + '-' + r, name: 'Tilfældig sats ' + r, price, unit: 'stk' };
+          rowInputs.push({ rate, quantity });
+          expectedTotal += quantity * price;
+        }
+        const totalHours = Math.round(Math.random() * 24 * 100) / 100;
+        const calculated = calculateDayRows(rowInputs, totalHours);
+        const calculatedTotal = calculated.reduce((sum, r) => sum + r.totalDkk, 0);
+        if (Math.abs(calculatedTotal - expectedTotal) > 0.05) invariantFailures++;
+      }
+      results.push({
+        name: '200 tilfældige kombinationer: summen stemmer altid (antal fejlede)',
+        pass: invariantFailures === 0,
+        actual: invariantFailures,
+        expected: 0
+      });
+
       return results;
     }
 
@@ -1655,11 +1753,31 @@
       currentUser = null;
       syncEnabled = false;
       lastSyncError = false;
+      currentSessionId++;
       updateAccountIndicator();
+
+      // Rydder al PERSONLIG data fra enheden - ikke bare fra hukommelsen.
+      // Uden dette ville en anden person, der logger ind på samme telefon
+      // bagefter, kunne nå at se den forrige brugers løndata, satser og
+      // virksomhedsoplysninger, før skyen har nået at overskrive dem.
+      // Enheds-indstillinger (tema, vejr-lokation osv.) er ikke personlige
+      // på samme måde og bevares med vilje.
+      entries = [];
+      rates = JSON.parse(JSON.stringify(DEFAULT_RATES));
+      absences = [];
+      myCompany = null;
+      myCompanyId = null;
+      localStorage.removeItem('akkord_entries');
+      localStorage.removeItem('akkord_rates');
+      localStorage.removeItem('akkord_absences');
+      localStorage.removeItem('akkord_draft');
+      localStorage.removeItem('akkord_myCompany');
+      ensureDiaeterRateExists();
+      refreshAllViews();
 
       if (auth) auth.signOut();
       closeAccountModal();
-      showToast('Logget ud - data gemmes nu kun lokalt på denne enhed');
+      showToast('Logget ud - alt lokalt data på denne enhed er ryddet');
     }
 
     function continueOffline() {
@@ -1905,6 +2023,29 @@
     window.addEventListener('online', updateSyncStatusIndicator);
     window.addEventListener('offline', updateSyncStatusIndicator);
 
+    // Holder flere faner af samme bruger (samme browser) synkroniseret med
+    // hinandens LOKALE ændringer - ikke kun via skyen. Fires i alle ANDRE
+    // faner, når én fane skriver til localStorage, så en fane, der har stået
+    // åben et stykke tid, ikke ved et uheld overskriver en anden fanes
+    // nyere ændringer med sin egen, nu forældede kopi i hukommelsen.
+    window.addEventListener('storage', (e) => {
+      if (!e.key) return;
+      try {
+        if (e.key === 'akkord_entries') {
+          entries = e.newValue ? JSON.parse(e.newValue) : [];
+          refreshAllViews();
+        } else if (e.key === 'akkord_rates') {
+          rates = e.newValue ? JSON.parse(e.newValue) : [];
+          refreshAllViews();
+        } else if (e.key === 'akkord_absences') {
+          absences = e.newValue ? JSON.parse(e.newValue) : [];
+          refreshAllViews();
+        }
+      } catch (err) {
+        console.warn('Kunne ikke overtage ændring fra en anden fane:', err);
+      }
+    });
+
     // Henter data fra Firestore for den loggede-ind bruger og erstatter
     // lokale data med brugerens cloud-data (eller opretter dem, hvis det
     // er første login).
@@ -1940,6 +2081,10 @@
         const cloudEntries = snapshot.docs.map(d => {
           const data = d.data();
           data.pendingSync = d.metadata.hasPendingWrites;
+          // Sat permanent til true, første gang skyen bekræfter dokumentet -
+          // bruges til at afgøre, om et senere "forsvundet fra skyen" betyder
+          // "blev aldrig uploadet" eller "blev rigtigt slettet et andet sted".
+          if (!d.metadata.hasPendingWrites) data.everConfirmedSynced = true;
           return data;
         });
 
@@ -1953,21 +2098,32 @@
           console.warn(invalidCloudCount + ' registrering(er) fra skyen sprunget over pga. ugyldige/manglende felter');
         }
 
-        // Beskyttelse mod DELVIST mislykkede synkroniseringer: gemmes fx 4
-        // registreringer på én gang, og kun 3 af dem når reelt frem til
-        // skyen, må den 4. ikke bare forsvinde stille og roligt, fordi
-        // skyens svar ikke indeholder den. Den beholdes lokalt, tydeligt
-        // mærket som ikke-synkroniseret, i stedet for at blive tabt.
-        // (Rammer aldrig en faktisk slettet registrering - sletning fjerner
-        // den fra "entries" med det samme, længe før dette lytter-svar når frem.)
+        // Beskyttelse mod DELVIST mislykkede synkroniseringer - men KUN for
+        // registreringer, der aldrig er blevet bekræftet af skyen endnu
+        // (everConfirmedSynced er ikke sat). En registrering, der ÉN GANG er
+        // blevet bekræftet og som nu mangler i skyens svar, er blevet
+        // RIGTIGT slettet et andet sted (fx en anden enhed med gammel,
+        // offline data der selv har slettet den) - den skal IKKE genopstå
+        // her, bare fordi den stadig ligger i denne enheds hukommelse.
         const cloudIds = new Set(validCloudEntries.map(e => e.id));
-        const orphanedLocalEntries = entries
-          .filter(e => !cloudIds.has(e.id))
-          .map(e => ({ ...e, pendingSync: true }));
+        const genuinelyOrphaned = entries.filter(e => !cloudIds.has(e.id) && !e.everConfirmedSynced);
 
-        // Forsøg automatisk at hele bruddet igen, i stedet for at lade
-        // registreringen ligge fast som "ikke-synkroniseret" for evigt.
-        orphanedLocalEntries.forEach(e => syncEntryToCloud(e));
+        // Automatisk genforsøg, men med et loft: efter 5 mislykkede forsøg
+        // (og mindst 10 sekunder mellem hvert) opgiver vi at blive ved med
+        // at prøve, og viser i stedet en permanent, tydelig advarsel - i
+        // stedet for evigt at blive ved med at hamre løs på en registrering,
+        // der aldrig kommer til at kunne synkronisere (fx pga. ugyldige data).
+        const now = Date.now();
+        const orphanedLocalEntries = genuinelyOrphaned.map(e => {
+          const attempts = e.syncAttempts || 0;
+          const lastAttempt = e.lastSyncAttemptAt || 0;
+          const readyToRetry = attempts < 5 && (now - lastAttempt) > 10000;
+          if (readyToRetry) {
+            syncEntryToCloud(e);
+            return { ...e, pendingSync: true, syncAttempts: attempts + 1, lastSyncAttemptAt: now };
+          }
+          return { ...e, pendingSync: true, syncAttempts: attempts, lastSyncAttemptAt: lastAttempt, syncGaveUp: attempts >= 5 };
+        });
 
         entries = [...validCloudEntries, ...orphanedLocalEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
         refreshAllViews();
@@ -1986,6 +2142,7 @@
     function loadUserDataFromCloud(user) {
       currentUser = user;
       syncEnabled = true;
+      currentSessionId++;
       updateAccountIndicator();
       applyCachedCompanyInfo(user.uid);
 
@@ -2245,6 +2402,14 @@
             email: currentUser.email || '',
             role: 'admin',
             joinedAt: new Date().toISOString()
+          }),
+          // Snævert, bredt læsbart opslagsdokument - indeholder KUN det, en
+          // ny bruger reelt skal bruge for at kunne tilslutte sig via kode
+          // (companyId + navn til bekræftelsen), ikke hele virksomheds-
+          // dokumentet med ejer-id og andre indstillinger.
+          db.collection('inviteCodes').doc(inviteCode).set({
+            companyId: companyRef.id,
+            companyName: name
           })
         ]);
       }).then(() => {
@@ -2349,15 +2514,14 @@
       if (joiningCompanyInProgress) return;
       joiningCompanyInProgress = true;
 
-      db.collection('companies').where('inviteCode', '==', code).limit(1).get().then(snapshot => {
-        if (snapshot.empty) {
+      db.collection('inviteCodes').doc(code).get().then(inviteDoc => {
+        if (!inviteDoc.exists) {
           showToast('Koden blev ikke fundet - tjek at den er skrevet korrekt', 'error');
           joiningCompanyInProgress = false;
           return;
         }
-        const companyDoc = snapshot.docs[0];
-        const companyId = companyDoc.id;
-        const companyName = companyDoc.data().name;
+        const companyId = inviteDoc.data().companyId;
+        const companyName = inviteDoc.data().companyName;
 
         db.collection('users').doc(currentUser.uid).get().then(userDoc => {
           const oldCompanyId = userDoc.exists ? userDoc.data().companyId : null;
@@ -2370,7 +2534,11 @@
             : Promise.resolve();
 
           cleanupOld.then(() => {
-            return db.collection('users').doc(currentUser.uid).set({ companyId }, { merge: true });
+            // Selve koden sendes MED i skrivningen, så Firestore-reglerne kan
+            // bekræfte, at companyId rent faktisk matcher en gyldig,
+            // eksisterende invitationskode - i stedet for blot at stole på,
+            // at klienten allerede har slået koden op korrekt.
+            return db.collection('users').doc(currentUser.uid).set({ companyId, joinCode: code }, { merge: true });
           }).then(() => {
             return db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
               name: currentUser.displayName || '',
@@ -2378,6 +2546,12 @@
               role: 'employee',
               joinedAt: new Date().toISOString()
             });
+          }).then(() => {
+            // Selve koden er kun nødvendig i det øjeblik companyId sættes -
+            // ryddes igen bagefter, så den ikke bare ligger og fylder.
+            return db.collection('users').doc(currentUser.uid).update({
+              joinCode: firebase.firestore.FieldValue.delete()
+            }).catch(() => {}); // rent kosmetisk oprydning - fejler den, er det ikke kritisk
           }).then(() => {
             myMembershipCompanyName = companyName;
             input.value = '';
@@ -3549,12 +3723,23 @@
     // Viser en blid (ikke-blokerende) advarsel, hvis en indtastet mængde er
     // meget højere end det, brugeren plejer at registrere for netop den
     // sats - typisk tegn på en tastefejl (fx "1842" i stedet for "184").
+    // En absolut, "det her er nok en tastefejl uanset hvad" grænse - vigtig
+    // for helt nye satser uden nogen historik at sammenligne med endnu,
+    // hvor det relative tjek herunder slet ikke har noget at måle imod.
+    const ABSOLUTE_UNUSUAL_QUANTITY_THRESHOLD = 100000;
+
     function updateUnusualQuantityWarning(row, rate, quantity) {
       const warningEl = row.querySelector('.unusual-quantity-warning');
       if (!warningEl) return;
 
       if (!rate || !quantity || isTimelonName(rate.name) || isOpstartName(rate.name) || isDiaeterName(rate.name)) {
         warningEl.classList.add('hidden');
+        return;
+      }
+
+      if (quantity > ABSOLUTE_UNUSUAL_QUANTITY_THRESHOLD) {
+        warningEl.querySelector('span').textContent = `${formatNumber(quantity)} er usædvanlig højt - kontrollér værdien (måske et 0 for meget?).`;
+        warningEl.classList.remove('hidden');
         return;
       }
 
@@ -4001,8 +4186,21 @@
 
       const finalizeSaveLog = () => {
         newEntries.reverse().forEach(entry => entries.unshift(entry));
-        saveData();
-        newEntries.forEach(entry => syncEntryToCloud(entry));
+        const saved = saveData();
+
+        if (!saved) {
+          // Rulles tilbage - de blev reelt ALDRIG gemt, så de skal heller
+          // ikke stå i hukommelsen, som om de var. Formularen ryddes IKKE,
+          // og kladden bevares, så man ikke skal taste det hele forfra.
+          newEntries.forEach(entry => {
+            const idx = entries.indexOf(entry);
+            if (idx !== -1) entries.splice(idx, 1);
+          });
+          showToast('Kunne ikke gemme lokalt - din registrering er IKKE gemt endnu. Ryd plads på enheden (fx ved at eksportere gammel historik) og prøv igen.', 'error');
+          return;
+        }
+
+        syncEntriesBatchToCloud(newEntries);
         clearDraft();
 
         document.getElementById('logRowsContainer').innerHTML = '';
@@ -4845,7 +5043,9 @@
             <div>
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">${formattedDate}</span>
               ${entry.weatherSummary ? `<span class="text-[10px] text-slate-400 ml-1">${entry.weatherBad ? '🌧️' : '☀️'} ${escapeHtml(entry.weatherSummary)}</span>` : ''}
-              ${currentUser && entry.pendingSync ? '<span class="text-[10px] font-semibold text-amber-600 ml-1">☁️ Ikke synkroniseret endnu</span>' : ''}
+              ${currentUser && entry.syncGaveUp
+                ? '<span class="text-[10px] font-semibold text-red-600 ml-1">⚠️ Kunne ikke synkronisere denne registrering</span>'
+                : (currentUser && entry.pendingSync ? '<span class="text-[10px] font-semibold text-amber-600 ml-1">☁️ Ikke synkroniseret endnu</span>' : '')}
               <h4 class="font-bold text-slate-900 text-sm mt-0.5">${escapeHtml(entry.rateName)}</h4>
             </div>
             <div class="text-right">
@@ -4990,6 +5190,12 @@
       if (!rate) return;
 
       document.getElementById('editEntryUnitLabel').textContent = rate.unit;
+      // Fastfryser prisen HER, på det tidspunkt brugeren faktisk ser og
+      // interagerer med den - ikke ved selve gemningen. Ellers kunne satsen
+      // nå at ændre sig på en anden enhed, mens redigeringsboksen står
+      // åben, og den pris, der rent faktisk bliver gemt, ville afvige fra
+      // den, brugeren så og godkendte i forhåndsvisningen.
+      document.getElementById('editEntryPricePerUnit').value = rate.price;
 
       const quantity = parseFloat(document.getElementById('editEntryQuantity').value) || 0;
       const hoursWrap = document.getElementById('editEntryHoursWrap');
@@ -5055,7 +5261,13 @@
         } catch (err) { /* ignorer ugyldig fallback */ }
       }
       const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
-      const totalDkk = calculateEntryTotal(quantity, rate.price);
+      // Bruger den fastfrosne pris fra dengang redigeringsboksen selv viste
+      // den - IKKE en frisk opslag i "rates" - så det, der rent faktisk
+      // bliver gemt, aldrig kan afvige fra det, brugeren så og godkendte,
+      // selvom satsen skulle nå at blive ændret på en anden enhed imens.
+      const frozenPriceRaw = parseFloat(document.getElementById('editEntryPricePerUnit').value);
+      const pricePerUnit = isFinite(frozenPriceRaw) ? frozenPriceRaw : rate.price;
+      const totalDkk = calculateEntryTotal(quantity, pricePerUnit);
 
       const timelon = isTimelonName(rate.name);
       const opstart = isOpstartName(rate.name);
@@ -5082,11 +5294,13 @@
       }
 
       const applyAndSave = () => {
+        const before = { ...entry }; // så vi kan rulle tilbage, hvis lagringen fejler
+
         entry.date = date;
         entry.rateId = rate.id;
         entry.rateName = rate.name;
         entry.unit = rate.unit;
-        entry.pricePerUnit = rate.price;
+        entry.pricePerUnit = pricePerUnit;
         entry.quantity = quantity;
         entry.hours = hours;
         entry.totalDkk = totalDkk;
@@ -5097,7 +5311,19 @@
         entry.caseName = selectedCase ? selectedCase.name : null;
         entry.updatedAt = new Date().toISOString();
 
-        saveData();
+        // Nulstiller en evt. tidligere "opgivet"-status: en legitim ny
+        // ændring skal altid have en frisk chance for at synkronisere, ikke
+        // hænge fast i en gammel fejl fra før redigeringen.
+        entry.syncAttempts = 0;
+        entry.syncGaveUp = false;
+        entry.lastSyncAttemptAt = 0;
+
+        if (!saveData()) {
+          Object.assign(entry, before); // rul tilbage - ændringen blev reelt aldrig gemt
+          showToast('Kunne ikke gemme lokalt - dine ændringer er IKKE gemt. Ryd plads på enheden og prøv igen.', 'error');
+          return;
+        }
+
         syncEntryToCloud(entry);
         closeEditEntryModal();
         renderHistoryList();
@@ -5638,6 +5864,11 @@
       const hours = typeof en.hours === 'number' ? en.hours : parseFloat(en.hours);
       if (!isFinite(hours) || hours < 0) return false;
 
+      if (typeof en.unit !== 'string' || !en.unit.trim()) return false;
+
+      const pricePerUnit = typeof en.pricePerUnit === 'number' ? en.pricePerUnit : parseFloat(en.pricePerUnit);
+      if (!isFinite(pricePerUnit)) return false;
+
       return true;
     }
 
@@ -5688,24 +5919,55 @@
           return;
         }
 
+        // Hvor mange af de gyldige findes allerede (samme ID) - vigtigt at
+        // vise tydeligt, hvis man ved et uheld importerer den samme fil to
+        // gange, i stedet for bare stille og roligt at springe dem over.
+        const existingIds = new Set(entries.map(e => e.id));
+        const alreadyPresentCount = validEntries.filter(en => existingIds.has(en.id)).length;
+        const genuinelyNewCount = validEntries.length - alreadyPresentCount;
+
         const dateLabel = backup.exportedAt ? new Date(backup.exportedAt).toLocaleDateString('da-DK') : 'ukendt dato';
-        let message = `Filen er fra ${dateLabel} og indeholder ${validEntries.length} gyldige registreringer og ${backup.rates.length} satser. Manglende data tilføjes til det, du allerede har - intet af det, du har nu, bliver overskrevet eller slettet.`;
-        if (invalidEntries > 0 || duplicateIdsInFile > 0) {
-          const problems = [];
-          if (invalidEntries > 0) problems.push(`${invalidEntries} med ugyldige data`);
-          if (duplicateIdsInFile > 0) problems.push(`${duplicateIdsInFile} dublet-ID'er i filen selv`);
-          message += ` (${problems.join(', ')} springes automatisk over)`;
+        fileInput.value = '';
+
+        // Alt-eller-intet som standard: findes der bare én ugyldig
+        // registrering i filen, afbrydes importen helt, i stedet for at
+        // gætte på, hvilke der er sikre at tage med. Det er langt sikrere
+        // end at importere de første 1000 og først opdage nr. 1001 er
+        // ugyldig undervejs.
+        if (invalidEntries > 0) {
+          showConfirmModal(
+            '❌ Import afbrudt',
+            `Filen indeholder ${invalidEntries} ugyldig(e) registrering(er) ud af ${backup.entries.length} i alt. Ingen af dine eksisterende data er ændret. Vil du i stedet importere kun de ${validEntries.length} gyldige (springer ${invalidEntries} ugyldige over)?`,
+            () => showImportConfirmation(backup, validEntries, alreadyPresentCount, genuinelyNewCount, dateLabel, duplicateIdsInFile),
+            `Importér kun de ${validEntries.length} gyldige`
+          );
+          return;
         }
 
-        showConfirmModal(
-          'Importér backup?',
-          message,
-          () => applyImportedBackup({ ...backup, entries: validEntries }),
-          'Importér'
-        );
-        fileInput.value = '';
+        showImportConfirmation(backup, validEntries, alreadyPresentCount, genuinelyNewCount, dateLabel, duplicateIdsInFile);
       };
       reader.readAsText(file);
+    }
+
+    function showImportConfirmation(backup, validEntries, alreadyPresentCount, genuinelyNewCount, dateLabel, duplicateIdsInFile) {
+      let message;
+      if (alreadyPresentCount > 0 && genuinelyNewCount === 0) {
+        message = `Alle ${alreadyPresentCount} registreringer i filen findes allerede - der er ikke noget nyt at hente. Filen er fra ${dateLabel}.`;
+      } else if (alreadyPresentCount > 0) {
+        message = `Filen er fra ${dateLabel}. ${genuinelyNewCount} nye registreringer tilføjes - ${alreadyPresentCount} findes allerede og springes automatisk over. Intet af det, du har nu, bliver overskrevet eller slettet.`;
+      } else {
+        message = `Filen er fra ${dateLabel} og indeholder ${genuinelyNewCount} nye registreringer og ${backup.rates.length} satser. Intet af det, du har nu, bliver overskrevet eller slettet.`;
+      }
+      if (duplicateIdsInFile > 0) {
+        message += ` (${duplicateIdsInFile} dublet-ID'er inden i selve filen springes også over)`;
+      }
+
+      showConfirmModal(
+        'Importér backup?',
+        message,
+        () => applyImportedBackup({ ...backup, entries: validEntries }),
+        genuinelyNewCount > 0 ? 'Importér' : 'OK'
+      );
     }
 
     function applyImportedBackup(backup) {
@@ -5714,6 +5976,14 @@
       const existingEntryIds = new Set(entries.map(e => e.id));
       backup.entries.forEach(en => {
         if (en && en.id && !existingEntryIds.has(en.id)) {
+          // Markeres eksplicit som ventende, ligesom en helt ny registrering
+          // - ellers ville historikkens "ikke-synkroniseret"-badge ikke vise
+          // noget, selvom disse importerede registreringer reelt endnu ikke
+          // er bekræftet af skyen (fx hvis importen sker offline).
+          en.pendingSync = !!currentUser;
+          en.everConfirmedSynced = false;
+          en.syncAttempts = 0;
+          en.syncGaveUp = false;
           entries.push(en);
           addedEntries++;
           syncEntryToCloud(en);
