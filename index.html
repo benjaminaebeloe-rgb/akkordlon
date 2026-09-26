@@ -1937,11 +1937,39 @@
         // stadig kun ligger lokalt og venter på at nå serveren - det overlever
         // selv en genstart af browseren, så en registrering lavet uden signal
         // aldrig bare "ser ud til" at være gemt uden faktisk at være det endnu.
-        entries = snapshot.docs.map(d => {
+        const cloudEntries = snapshot.docs.map(d => {
           const data = d.data();
           data.pendingSync = d.metadata.hasPendingWrites;
           return data;
-        }).sort((a, b) => new Date(b.date) - new Date(a.date));
+        });
+
+        // Selv data direkte fra skyen kan i teorien være ufuldstændige (fx
+        // et dokument redigeret manuelt, eller fra en fremtidig version med
+        // andre felter) - filtreres fra her, i stedet for at risikere at få
+        // beregningerne til at vise NaN eller crashe et sted i appen.
+        const invalidCloudCount = cloudEntries.filter(e => !isValidBackupEntry(e)).length;
+        const validCloudEntries = cloudEntries.filter(e => isValidBackupEntry(e));
+        if (invalidCloudCount > 0) {
+          console.warn(invalidCloudCount + ' registrering(er) fra skyen sprunget over pga. ugyldige/manglende felter');
+        }
+
+        // Beskyttelse mod DELVIST mislykkede synkroniseringer: gemmes fx 4
+        // registreringer på én gang, og kun 3 af dem når reelt frem til
+        // skyen, må den 4. ikke bare forsvinde stille og roligt, fordi
+        // skyens svar ikke indeholder den. Den beholdes lokalt, tydeligt
+        // mærket som ikke-synkroniseret, i stedet for at blive tabt.
+        // (Rammer aldrig en faktisk slettet registrering - sletning fjerner
+        // den fra "entries" med det samme, længe før dette lytter-svar når frem.)
+        const cloudIds = new Set(validCloudEntries.map(e => e.id));
+        const orphanedLocalEntries = entries
+          .filter(e => !cloudIds.has(e.id))
+          .map(e => ({ ...e, pendingSync: true }));
+
+        // Forsøg automatisk at hele bruddet igen, i stedet for at lade
+        // registreringen ligge fast som "ikke-synkroniseret" for evigt.
+        orphanedLocalEntries.forEach(e => syncEntryToCloud(e));
+
+        entries = [...validCloudEntries, ...orphanedLocalEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
         refreshAllViews();
       }, err => console.error('Live-opdatering af registreringer fejlede:', err));
 
@@ -5590,6 +5618,29 @@
       document.getElementById('importBackupInput').click();
     }
 
+    // Tjekker at en enkelt registrering fra en importeret fil rent faktisk
+    // giver mening, før den får lov at komme ind i appens data. Rører aldrig
+    // eksisterende data - returnerer blot sandt/falsk.
+    function isValidBackupEntry(en) {
+      if (!en || typeof en !== 'object') return false;
+      if (typeof en.id !== 'string' || !en.id.trim()) return false;
+      if (typeof en.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(en.date)) return false;
+      if (isNaN(new Date(en.date + 'T12:00:00').getTime())) return false;
+      if (typeof en.rateId !== 'string' || !en.rateId.trim()) return false;
+      if (typeof en.rateName !== 'string' || !en.rateName.trim()) return false;
+
+      const quantity = typeof en.quantity === 'number' ? en.quantity : parseFloat(en.quantity);
+      if (!isFinite(quantity) || quantity <= 0) return false;
+
+      const totalDkk = typeof en.totalDkk === 'number' ? en.totalDkk : parseFloat(en.totalDkk);
+      if (!isFinite(totalDkk)) return false;
+
+      const hours = typeof en.hours === 'number' ? en.hours : parseFloat(en.hours);
+      if (!isFinite(hours) || hours < 0) return false;
+
+      return true;
+    }
+
     function handleImportBackupFile(fileInput) {
       const file = fileInput.files[0];
       if (!file) return;
@@ -5611,11 +5662,45 @@
           return;
         }
 
+        // Valideres grundigt FØR forhåndsvisningen bygges, så tallene i
+        // bekræftelses-boksen er dem, der faktisk kommer til at ske - ikke
+        // bare et råt antal linjer i filen.
+        const seenIds = new Set();
+        let duplicateIdsInFile = 0;
+        let invalidEntries = 0;
+        const validEntries = [];
+        backup.entries.forEach(en => {
+          if (!isValidBackupEntry(en)) {
+            invalidEntries++;
+            return;
+          }
+          if (seenIds.has(en.id)) {
+            duplicateIdsInFile++;
+            return;
+          }
+          seenIds.add(en.id);
+          validEntries.push(en);
+        });
+
+        if (validEntries.length === 0 && backup.entries.length > 0) {
+          showToast('Filen indeholder ingen gyldige registreringer - importen stoppet', 'error');
+          fileInput.value = '';
+          return;
+        }
+
         const dateLabel = backup.exportedAt ? new Date(backup.exportedAt).toLocaleDateString('da-DK') : 'ukendt dato';
+        let message = `Filen er fra ${dateLabel} og indeholder ${validEntries.length} gyldige registreringer og ${backup.rates.length} satser. Manglende data tilføjes til det, du allerede har - intet af det, du har nu, bliver overskrevet eller slettet.`;
+        if (invalidEntries > 0 || duplicateIdsInFile > 0) {
+          const problems = [];
+          if (invalidEntries > 0) problems.push(`${invalidEntries} med ugyldige data`);
+          if (duplicateIdsInFile > 0) problems.push(`${duplicateIdsInFile} dublet-ID'er i filen selv`);
+          message += ` (${problems.join(', ')} springes automatisk over)`;
+        }
+
         showConfirmModal(
           'Importér backup?',
-          `Filen er fra ${dateLabel} og indeholder ${backup.entries.length} registreringer og ${backup.rates.length} satser. Manglende data tilføjes til det, du allerede har - intet af det, du har nu, bliver overskrevet eller slettet.`,
-          () => applyImportedBackup(backup),
+          message,
+          () => applyImportedBackup({ ...backup, entries: validEntries }),
           'Importér'
         );
         fileInput.value = '';
