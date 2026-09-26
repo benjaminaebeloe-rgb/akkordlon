@@ -1,0 +1,200 @@
+// AkkordLøn - Firestore Security Rules
+//
+// VIGTIGT: Denne fil er KUN til dokumentation/versionsstyring i GitHub.
+// Firebase læser IKKE denne fil automatisk - de faktiske, gældende regler
+// skal indsættes manuelt i Firebase Console under:
+// Firestore Database > Rules > (indsæt indholdet herunder) > Publish
+//
+// Opdatér denne fil, hver gang reglerne ændres i Firebase Console, så den
+// altid afspejler det, der reelt er i produktion.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCompanyOwner(companyId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == request.auth.uid;
+    }
+
+    function isCompanyAdmin(companyId) {
+      return isSignedIn() && (
+        isCompanyOwner(companyId) ||
+        get(/databases/$(database)/documents/companies/$(companyId)/employees/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isCompanyMember(companyId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId == companyId;
+    }
+
+    // En administrator for den virksomhed, som userId hører til, må læse
+    // userId's egne data (registreringer, fravær, profil) - men aldrig skrive.
+    function isEmployerOf(userId) {
+      let targetUser = get(/databases/$(database)/documents/users/$(userId));
+      return isSignedIn() &&
+        targetUser.data.companyId != null &&
+        isCompanyAdmin(targetUser.data.companyId);
+    }
+
+    // Er selve companyId-feltet ved at ændre værdi i denne skrivning?
+    function companyIdChanged() {
+      return request.resource.data.get('companyId', null) != resource.data.get('companyId', null);
+    }
+
+    // Forlader man blot sin nuværende virksomhed (sættes til intet)? Det
+    // kræver ingen kode at bekræfte - kun det at SÆTTE et nyt companyId gør.
+    function isLeavingCompany() {
+      return request.resource.data.get('companyId', null) == null && resource.data.get('companyId', null) != null;
+    }
+
+    // Sættes companyId til en NY værdi, skal en gyldig invitationskode være
+    // sendt MED i selve samme skrivning (som "joinCode"), og den skal rent
+    // faktisk pege på netop den virksomhed, der forsøges tilsluttet. Dette
+    // er det, der reelt forhindrer en bruger i bare selv at skrive et
+    // vilkårligt companyId ind og dermed "hoppe ind" i en fremmed
+    // virksomheds sager/kommentarer/meta - uden at skulle bygge en
+    // server-funktion for at bekræfte det.
+    function validJoinCode() {
+      return 'joinCode' in request.resource.data &&
+        get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.joinCode)).data.companyId == request.resource.data.get('companyId', null);
+    }
+
+    match /users/{userId} {
+      // Enhver kan kun læse/skrive sin egen brugerprofil (satser m.m.)
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      // ...eller læses (ikke skrives) af egen virksomheds administrator
+      allow read: if isEmployerOf(userId);
+
+      // Begrænset til de felter, appen reelt bruger. companyId må kun
+      // ændres, hvis: man forlader sin virksomhed (kræver ingen kode), man
+      // beviser en gyldig invitationskode i samme skrivning, eller man er
+      // den registrerede ejer af netop den virksomhed, man sætter (dækker
+      // øjeblikket, hvor man opretter sin egen nye virksomhed).
+      allow write: if isSignedIn() && request.auth.uid == userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rates', 'updatedAt', 'companyId', 'joinCode']) &&
+        (
+          !companyIdChanged() ||
+          isLeavingCompany() ||
+          validJoinCode() ||
+          isCompanyOwner(request.resource.data.get('companyId', 'none'))
+        );
+
+      // Løndata: kun ejeren selv og virksomhedens administratorer må se dem.
+      // Værdierne valideres her (positive tal, korrekte typer, og at
+      // totalDkk ikke er helt ude af proportion med mængde × pris), så en
+      // teknisk avanceret bruger ikke kan skrive ugyldige eller kunstigt
+      // opblæste data direkte via SDK'en, uafhængigt af klientens egen
+      // validering. Grænsen på 50× er bevidst rummelig, så den aldrig
+      // rammer et legitimt Opstart-tillæg, men stadig fanger fx et forsøg
+      // på at skrive 1.000.000 kr. for 2.760 kr. værd af arbejde.
+      match /entries/{entryId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isEmployerOf(userId);
+        allow create, update: if isSignedIn() && request.auth.uid == userId &&
+          request.resource.data.quantity is number && request.resource.data.quantity > 0 &&
+          request.resource.data.hours is number && request.resource.data.hours >= 0 &&
+          request.resource.data.pricePerUnit is number && request.resource.data.pricePerUnit > 0 &&
+          request.resource.data.totalDkk is number && request.resource.data.totalDkk >= 0 &&
+          request.resource.data.totalDkk <= (request.resource.data.quantity * request.resource.data.pricePerUnit) * 50 + 1 &&
+          request.resource.data.date is string && request.resource.data.date.size() > 0;
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Fravær (sygdom/ferie): samme adgang som løndata
+      match /absences/{absenceDate} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isEmployerOf(userId);
+      }
+
+      // Personlige sager (kun til solo-brugere uden virksomhed)
+      match /cases/{caseId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      match /meta/{metaId} {
+        allow read, write: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // Snævert opslagsdokument til selve "join via kode"-flowet: indeholder
+    // KUN det, en helt ny bruger reelt skal bruge (hvilket companyId koden
+    // peger på, og virksomhedens navn til bekræftelsen) - ALDRIG ejer-id
+    // eller andre indstillinger. Findes én gang pr. virksomhed, oprettes
+    // kun ved selve virksomhedsoprettelsen, og ændres aldrig senere (der er
+    // ingen "generér ny kode"-funktion i appen). Bruges desuden af
+    // validJoinCode() ovenfor til at bekræfte en invitationskode server-side.
+    match /inviteCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.ownerId == request.auth.uid;
+    }
+
+    match /companies/{companyId} {
+      // Læses nu KUN af virksomhedens egne medlemmer - IKKE længere af
+      // enhver logget-ind bruger (det gamle, brede "allow read: if
+      // isSignedIn()" eksponerede ejer-id og indstillinger unødigt bredt).
+      // Selve invitationskode-opslaget går i stedet igennem det snævre
+      // inviteCodes-dokument ovenfor, som stadig er bredt læsbart med vilje.
+      allow read: if isCompanyMember(companyId) || isCompanyAdmin(companyId);
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      // En administrator må opdatere virksomheden, men ALDRIG ændre selve
+      // ejerskabet (ownerId) via denne almindelige opdatering - det ville
+      // ellers svare til en administrator, der overtager hele virksomheden.
+      allow update: if isCompanyAdmin(companyId) &&
+        request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isCompanyOwner(companyId);
+
+      // Medarbejderliste (navn/e-mail/rolle) - kun synlig for virksomhedens
+      // egne medlemmer, ikke for udefrakommende.
+      match /employees/{employeeId} {
+        allow read: if isCompanyMember(companyId) || isCompanyAdmin(companyId);
+        // Oprettelse: kun af sig selv. Må kun oprettes med rollen 'admin',
+        // hvis man rent faktisk ER virksomhedens registrerede ejer (dækker
+        // netop øjeblikket, hvor man opretter sin egen virksomhed og
+        // automatisk bliver dens første administrator) - ALDRIG for at
+        // kunne udnævne sig selv til administrator i en vilkårlig virksomhed.
+        allow create: if isSignedIn() && request.auth.uid == employeeId &&
+          (request.resource.data.role != 'admin' || isCompanyOwner(companyId));
+        // Opdatering: administratorer må ændre alt for enhver (inkl. rolle).
+        // Man må selv opdatere sin egen post (fx navn), MEN ALDRIG selve
+        // "role"-feltet - det ville ellers være ren selvudnævnelse.
+        allow update: if isCompanyAdmin(companyId) ||
+          (isSignedIn() && request.auth.uid == employeeId &&
+           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+        allow delete: if isCompanyAdmin(companyId);
+      }
+
+      // Sager: alle medlemmer kan oprette. Almindelige medlemmer må KUN
+      // ændre selve navnet (fx omdøbe en sag) - status, færdigmeld-felter
+      // og alt andet er forbeholdt administratorer, så en menig medarbejder
+      // ikke kan ændre fx hvem der har afsluttet sagen eller hvornår.
+      match /cases/{caseId} {
+        allow read: if isCompanyMember(companyId) && (resource.data.status == 'open' || isCompanyAdmin(companyId));
+        allow create: if isCompanyMember(companyId);
+        allow update: if isCompanyAdmin(companyId) ||
+          (isCompanyMember(companyId) &&
+           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name']));
+        allow delete: if isCompanyAdmin(companyId);
+
+        // Kommentarer på en sag - alle virksomhedens medlemmer kan læse og
+        // skrive. Ingen redigering/sletning af egne kommentarer i appen
+        // endnu, så kun read/create er nødvendigt her.
+        match /comments/{commentId} {
+          allow read, create: if isCompanyMember(companyId) || isCompanyAdmin(companyId);
+        }
+      }
+
+      // Indeholder KUN en løbenummer-tæller til sagsnumre - derfor må alle
+      // medlemmer skrive til den (enhver kan jo oprette en ny sag).
+      match /meta/{metaId} {
+        allow read, write: if isCompanyMember(companyId);
+      }
+    }
+  }
+}
