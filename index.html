@@ -86,9 +86,13 @@
             brand: {
               50: '#f0fdf4',
               100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
               500: '#22c55e',
               600: '#16a34a',
               700: '#15803d',
+              800: '#166534',
               900: '#14532d',
             }
           }
@@ -98,7 +102,11 @@
   </script>
   <style>
     /* Mobile app optimizations */
-    -webkit-tap-highlight-color: transparent;
+    /* Fjerner det grå/blå blink, som mobilbrowsere viser ved tryk på
+       knapper og links - appen har sine egne hover/active-tilstande. */
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
     body {
       user-select: none;
       -webkit-user-select: none;
@@ -171,6 +179,36 @@
 
     .dark .custom-scrollbar::-webkit-scrollbar-thumb {
       background: #475569;
+    }
+
+    /* Hover-tilstande: uden disse blev knapper og rækker næsten hvide,
+       når man førte musen over dem i mørkt tema. */
+    .dark .hover\:bg-slate-50:hover { background-color: #334155; }
+    .dark .hover\:bg-slate-100:hover { background-color: #334155; }
+    .dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.15); }
+    .dark .hover\:bg-brand-50:hover { background-color: rgba(22, 163, 74, 0.15); }
+    .dark .hover\:bg-emerald-50:hover { background-color: rgba(16, 185, 129, 0.15); }
+    .dark .hover\:bg-amber-100:hover { background-color: rgba(245, 158, 11, 0.22); }
+    .dark .hover\:text-slate-600:hover,
+    .dark .hover\:text-slate-700:hover { color: #e2e8f0; }
+    .dark .hover\:text-brand-700:hover { color: #4ade80; }
+    .dark .bg-brand-100 { background-color: rgba(22, 163, 74, 0.22); }
+    .dark .border-brand-100 { border-color: rgba(22, 163, 74, 0.3); }
+    .dark .text-brand-700 { color: #4ade80; }
+
+    /* ============================================
+       MODAL-ANIMATION
+       Klasserne animate-in / slide-in-from-bottom kommer fra et Tailwind-
+       plugin, som CDN-versionen ikke har - derfor defineres de her, så
+       modalerne faktisk glider op nedefra i stedet for bare at "poppe" frem.
+       ============================================ */
+    @keyframes akkordSlideUp {
+      from { transform: translateY(24px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .animate-in.slide-in-from-bottom { animation: akkordSlideUp 200ms ease-out; }
+    @media (prefers-reduced-motion: reduce) {
+      .animate-in.slide-in-from-bottom { animation: none; }
     }
   </style>
 </head>
@@ -1290,8 +1328,8 @@
   </div>
 
   <!-- Custom Confirmation Dialog Modal -->
-  <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white w-full max-w-xs rounded-2xl p-5 text-center space-y-4 shadow-xl">
+  <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md sm:max-w-xs rounded-t-2xl sm:rounded-2xl p-5 text-center space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
       <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
         <i data-lucide="alert-triangle" class="w-6 h-6"></i>
       </div>
@@ -1300,10 +1338,22 @@
         <p id="confirmModalMessage" class="text-xs text-slate-500 mt-1">Denne handling kan ikke fortrydes.</p>
       </div>
       <div class="flex gap-2">
-        <button id="confirmCancelBtn" class="flex-1 py-2.5 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+        <button id="confirmCancelBtn" class="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-xs">Annuller</button>
         <button id="confirmOkBtn" class="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs">Slet</button>
       </div>
     </div>
+  </div>
+
+  <!-- Input-modal: appens egen afløser for browserens prompt()-boks -->
+  <div id="inputModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <form id="inputModalForm" class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
+      <h4 id="inputModalTitle" class="font-bold text-slate-900 text-base"></h4>
+      <input type="text" id="inputModalField" autocomplete="off" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+      <div class="flex gap-2">
+        <button type="button" id="inputModalCancelBtn" class="flex-1 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-xs">Annuller</button>
+        <button type="submit" id="inputModalOkBtn" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl text-xs">Gem</button>
+      </div>
+    </form>
   </div>
 
   <!-- Toast Notification Message Container -->
@@ -2467,9 +2517,7 @@
     }
 
     function promptCreateCompany() {
-      const name = prompt('Navngiv din virksomhed (fx dit firmanavn):');
-      if (!name || !name.trim()) return;
-      createCompany(name.trim());
+      showInputModal('Navngiv din virksomhed', { placeholder: 'Fx dit firmanavn', confirmLabel: 'Opret' }, createCompany);
     }
 
     function createCompany(name) {
@@ -2506,7 +2554,7 @@
         localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
         showEmployeesTab();
         renderAccountModalBody();
-        showToast('Virksomheden "' + name + '" er oprettet!');
+        showToast('Virksomheden "' + name + '" er oprettet');
       }).catch(err => {
         console.error('Kunne ikke oprette virksomhed:', err);
         showToast('Kunne ikke oprette virksomhed', 'error');
@@ -2592,7 +2640,7 @@
       if (!input) return;
       const code = input.value.trim().toUpperCase();
       if (!code) {
-        showToast('Indtast venligst en kode', 'error');
+        showToast('Du mangler en kode - skriv den kode, du har fået af din arbejdsgiver', 'error');
         return;
       }
       if (!currentUser || !db) {
@@ -2644,7 +2692,7 @@
             myMembershipCompanyName = companyName;
             input.value = '';
             renderAccountModalBody();
-            showToast('Du er nu tilknyttet ' + companyName + '!');
+            showToast('Du er nu tilknyttet ' + companyName);
             joiningCompanyInProgress = false;
           }).catch(err => {
             console.error('Kunne ikke tilknytte koden:', err);
@@ -2662,7 +2710,7 @@
     function copyInviteCode() {
       if (!myCompany) return;
       navigator.clipboard.writeText(myCompany.inviteCode).then(() => {
-        showToast('Koden er kopieret!');
+        showToast('Koden er kopieret');
       }).catch(() => {
         showToast('Kunne ikke kopiere - koden er ' + myCompany.inviteCode, 'error');
       });
@@ -2795,12 +2843,12 @@
     }
 
     function promptCreateCase() {
-      const name = prompt('Navngiv sagen (fx vejnavn eller kundenavn):');
-      if (!name || !name.trim()) return;
-      checkDuplicateAndCreateCase(name.trim(), (newCase) => {
-        // Vælg den nye sag med det samme i registreringsformularen
-        const select = document.getElementById('logCase');
-        if (select) select.value = newCase.id;
+      showInputModal('Ny sag', { placeholder: 'Fx vejnavn eller kundenavn', confirmLabel: 'Opret sag' }, (name) => {
+        checkDuplicateAndCreateCase(name, (newCase) => {
+          // Vælg den nye sag med det samme i registreringsformularen
+          const select = document.getElementById('logCase');
+          if (select) select.value = newCase.id;
+        });
       });
     }
 
@@ -3046,9 +3094,10 @@
     }
 
     function promptRenameCase(caseId, currentName) {
-      const newName = prompt('Nyt navn for sagen:', currentName);
-      if (!newName || !newName.trim() || newName.trim() === currentName) return;
-      renameCase(caseId, newName.trim());
+      showInputModal('Omdøb sag', { defaultValue: currentName, confirmLabel: 'Gem navn' }, (newName) => {
+        if (newName === currentName) return;
+        renameCase(caseId, newName);
+      });
     }
 
     function renameCase(caseId, newName) {
@@ -3541,7 +3590,8 @@
       const icon = type === 'success' ? 'check-circle' : 'alert-circle';
       
       toast.className = `${bgColor} border-l-4 text-white p-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold mb-2 transition-all transform duration-300 translate-y-[-10px] opacity-0`;
-      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 ${type==='success'?'text-emerald-400':'text-red-400'}"></i><span>${message}</span>`;
+      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 flex-shrink-0 ${type==='success'?'text-emerald-400':'text-red-400'}"></i><span></span>`;
+      toast.querySelector('span').textContent = message;
       
       container.appendChild(toast);
       if (window.lucide) lucide.createIcons();
@@ -3550,11 +3600,81 @@
         toast.classList.remove('translate-y-[-10px]', 'opacity-0');
       }, 10);
 
+      // Fejl og lange beskeder bliver stående længere, så man kan nå at læse dem
+      const duration = Math.max(type === 'error' ? 5000 : 3000, message.length * 60);
       setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-[-10px]');
         setTimeout(() => toast.remove(), 300);
-      }, 3000);
+      }, duration);
     }
+
+    // Appens egen tekst-dialog. Kalder onSubmit med den trimmede tekst,
+    // men kun hvis der faktisk er skrevet noget.
+    function showInputModal(title, { placeholder = '', defaultValue = '', confirmLabel = 'Gem' } = {}, onSubmit) {
+      const modal = document.getElementById('inputModal');
+      const form = document.getElementById('inputModalForm');
+      const field = document.getElementById('inputModalField');
+      const cancelBtn = document.getElementById('inputModalCancelBtn');
+
+      document.getElementById('inputModalTitle').textContent = title;
+      document.getElementById('inputModalOkBtn').textContent = confirmLabel;
+      field.placeholder = placeholder;
+      field.value = defaultValue;
+      modal.classList.remove('hidden');
+      setTimeout(() => { field.focus(); field.select(); }, 50);
+
+      const close = () => {
+        modal.classList.add('hidden');
+        form.removeEventListener('submit', submitHandler);
+        cancelBtn.removeEventListener('click', close);
+      };
+      const submitHandler = (e) => {
+        e.preventDefault();
+        const value = field.value.trim();
+        if (!value) { field.focus(); return; }
+        close();
+        onSubmit(value);
+      };
+      form.addEventListener('submit', submitHandler);
+      cancelBtn.addEventListener('click', close);
+    }
+
+    // Escape og klik på den mørke baggrund lukker den øverste åbne modal -
+    // sådan forventer man, at en dialog opfører sig.
+    const MODAL_CLOSERS = {
+      inputModal: () => document.getElementById('inputModalCancelBtn').click(),
+      confirmModal: () => document.getElementById('confirmCancelBtn').click(),
+      caseCommentsModal: () => closeCaseCommentsModal(),
+      editEntryModal: () => closeEditEntryModal(),
+      rateModal: () => closeRateModal(),
+      caseDetailsModal: () => closeCaseDetailsModal(),
+      accountModal: () => closeAccountModal()
+    };
+
+    function closeTopModal() {
+      for (const [id, close] of Object.entries(MODAL_CLOSERS)) {
+        const el = document.getElementById(id);
+        if (el && !el.classList.contains('hidden')) { close(); return true; }
+      }
+      return false;
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && closeTopModal()) e.preventDefault();
+    });
+
+    Object.entries(MODAL_CLOSERS).forEach(([id, close]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // Kræver at både tryk og slip sker på baggrunden, så man ikke lukker
+      // en modal ved et uheld, når man markerer tekst og slipper udenfor.
+      let pressedOnBackdrop = false;
+      el.addEventListener('pointerdown', (e) => { pressedOnBackdrop = e.target === el; });
+      el.addEventListener('click', (e) => {
+        if (pressedOnBackdrop && e.target === el) close();
+        pressedOnBackdrop = false;
+      });
+    });
 
     function showConfirmModal(title, message, onConfirm, confirmLabel = 'Slet') {
       const modal = document.getElementById('confirmModal');
@@ -3711,13 +3831,13 @@
       row.innerHTML = `
         <button type="button" onclick="removeLogRow(this)" class="remove-row-btn absolute -top-2.5 -right-2.5 bg-white text-red-500 rounded-full shadow-sm hover:text-red-600 p-0.5 border border-slate-200"><i data-lucide="x-circle" class="w-5 h-5"></i></button>
         <div class="mb-3">
-          <select class="log-rate-select w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" onchange="updateRowUnit(this); calculateLiveSummary()">
+          <select class="log-rate-select w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" onchange="updateRowUnit(this); calculateLiveSummary()">
             ${getRateOptionsHtml()}
           </select>
         </div>
         <div>
           <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Mængde (<span class="unit-label">...</span>)</label>
-          <input type="number" step="0.01" min="0.1" class="log-quantity w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" oninput="calculateLiveSummary()">
+          <input type="number" step="0.01" min="0.1" class="log-quantity w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" oninput="calculateLiveSummary()">
           <p class="unusual-quantity-warning hidden text-[10px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
             <i data-lucide="alert-triangle" class="w-3 h-3 flex-shrink-0"></i> <span></span>
           </p>
@@ -3973,7 +4093,7 @@
       }
       const date = document.getElementById('logDate').value;
       if (!date) {
-        showToast('Vælg venligst en dato først', 'error');
+        showToast('Vælg en dato først', 'error');
         return;
       }
       const note = document.getElementById('absenceNote').value.trim();
@@ -4012,10 +4132,15 @@
     // VEJR (til at se om dårligt vejr påvirker tempoet)
     // ==========================================
     function promptSetWeatherLocation() {
-      const cityName = prompt('Hvilken by/område skal vejret hentes for?', weatherLocation ? weatherLocation.name : '');
-      if (!cityName || !cityName.trim()) return;
+      showInputModal('Hvilken by skal vejret hentes for?', {
+        placeholder: 'Fx Odense',
+        defaultValue: weatherLocation ? weatherLocation.name : '',
+        confirmLabel: 'Hent vejr'
+      }, setWeatherLocationFromCity);
+    }
 
-      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName.trim())}&count=1&language=da`)
+    function setWeatherLocationFromCity(cityName) {
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=da`)
         .then(res => res.json())
         .then(data => {
           if (!data.results || data.results.length === 0) {
@@ -4300,7 +4425,7 @@
         renderOverview();
         updateRepeatLastDayButton();
 
-        showToast('Registrering(er) gemt!');
+        showToast(newEntries.length === 1 ? 'Registrering gemt' : `${newEntries.length} registreringer gemt`);
 
         // Første gang der gemmes uden en vejr-lokation sat, prøver vi stille
         // og roligt at bruge enhedens GPS-placering i stedet for at kræve, at
@@ -4345,7 +4470,7 @@
           <div class="bg-white rounded-2xl p-6 text-center border border-slate-200/80">
             <i data-lucide="tag" class="w-8 h-8 text-slate-300 mx-auto mb-2"></i>
             <p class="text-xs text-slate-500 font-medium">Ingen akkordsatser oprettet endnu.</p>
-            <button onclick="openRateModal()" class="mt-3 bg-brand-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Opret din første sats</button>
+            <button onclick="openRateModal()" class="mt-3 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3 py-2 rounded-xl">Opret din første sats</button>
           </div>
         `;
         if (window.lucide) lucide.createIcons();
@@ -4458,7 +4583,7 @@
         populateRateSelect();
         renderRatesList();
         closeRateModal();
-        showToast('Akkordsats gemt!');
+        showToast('Akkordsats gemt');
       };
 
       // Advarsel hvis en omdøbning fjerner Timeløn/Opstart-satsens særlige
@@ -4564,7 +4689,7 @@
       const start = document.getElementById('customStartDate').value;
       const end = document.getElementById('customEndDate').value;
       if (!start || !end) {
-        showToast('Vælg venligst både en start- og slutdato', 'error');
+        showToast('Vælg både en start- og slutdato', 'error');
         return;
       }
       if (start > end) {
@@ -5436,7 +5561,7 @@
       const rateId = document.getElementById('editEntryRate').value;
       const rate = rates.find(r => r.id === rateId);
       if (!rate) {
-        showToast('Vælg venligst en gyldig akkordsats', 'error');
+        showToast('Vælg en akkordsats fra listen', 'error');
         return;
       }
 
@@ -6241,7 +6366,7 @@
       const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
       XLSX.writeFile(wb, `AkkordLøn_Eksport${namePart}_${getFormattedDate(0)}.xlsx`);
 
-      showToast(viewingEmployee ? `Excel-fil for ${viewingEmployee.name} downloadet!` : 'Excel-fil downloadet!');
+      showToast(viewingEmployee ? `Excel-fil for ${viewingEmployee.name} downloadet` : 'Excel-fil downloadet');
     }
 
     // Finder lønperioden (21.-20.) og de tilhørende registreringer for et
@@ -6291,7 +6416,7 @@
     function exportPayPeriodExcel() {
       const monthInput = document.getElementById('exportPayMonth').value; // "YYYY-MM"
       if (!monthInput) {
-        showToast('Vælg venligst en lønmåned', 'error');
+        showToast('Vælg en lønmåned', 'error');
         return;
       }
 
@@ -6311,7 +6436,7 @@
       const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
       XLSX.writeFile(wb, `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}${namePart}.xlsx`);
 
-      showToast(viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret!` : 'Lønperiode eksporteret!');
+      showToast(viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret` : 'Lønperiode eksporteret');
     }
 
     // Udfylder årsvælgeren med de år, der faktisk findes registreringer i,
@@ -6334,7 +6459,7 @@
       const yearSelect = document.getElementById('exportYearSelect');
       const year = parseInt(yearSelect.value, 10);
       if (!year) {
-        showToast('Vælg venligst et år', 'error');
+        showToast('Vælg et år', 'error');
         return;
       }
 
@@ -6356,8 +6481,8 @@
       XLSX.writeFile(wb, `Årsopgørelse_${year}${namePart}.xlsx`);
 
       showToast(viewingEmployee
-        ? `Årsopgørelse ${year} for ${viewingEmployee.name} eksporteret!`
-        : 'Årsopgørelse for ' + year + ' eksporteret!');
+        ? `Årsopgørelse ${year} for ${viewingEmployee.name} eksporteret`
+        : 'Årsopgørelse for ' + year + ' eksporteret');
     }
 
     // ==========================================
