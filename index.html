@@ -155,10 +155,19 @@
     .dark .text-sky-700 { color: #7dd3fc; }
 
     .dark .text-emerald-700 { color: #34d399; }
+    .dark .text-emerald-600 { color: #34d399; }
+    .dark .border-amber-200 { border-color: rgba(245, 158, 11, 0.35); }
+    .dark .border-amber-300 { border-color: rgba(245, 158, 11, 0.4); }
+    .dark .border-red-200 { border-color: rgba(239, 68, 68, 0.35); }
+    .dark .border-emerald-200 { border-color: rgba(16, 185, 129, 0.35); }
+    .dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.22); }
     .dark .text-red-700 { color: #f87171; }
     .dark .text-red-600 { color: #f87171; }
     .dark .text-red-500 { color: #f87171; }
     .dark .text-amber-800 { color: #fbbf24; }
+    .dark .text-amber-900 { color: #fcd34d; }
+    .dark .text-amber-700 { color: #fbbf24; }
+    .dark .text-amber-600 { color: #fbbf24; }
 
     .dark .custom-scrollbar::-webkit-scrollbar-thumb {
       background: #475569;
@@ -5783,16 +5792,25 @@
       }
 
       cloudEl.textContent = 'Henter...';
-      db.collection('users').doc(currentUser.uid).collection('entries').count().get().then(snapshot => {
-        const cloudCount = snapshot.data().count;
-        cloudEl.textContent = cloudCount + ' registrering' + (cloudCount === 1 ? '' : 'er');
-        if (cloudCount !== entries.length) {
-          mismatchEl.classList.remove('hidden');
-        }
-      }).catch(err => {
+      try {
+        // Bruger en almindelig .get() + at tælle svarets størrelse, i stedet
+        // for den nyere .count()-genvej - den findes ikke i alle browser-
+        // miljøer/SDK-versioner, og fejlede dér stille uden at blive fanget
+        // af .catch(), så siden hang fast på "Henter..." for evigt.
+        db.collection('users').doc(currentUser.uid).collection('entries').get().then(snapshot => {
+          const cloudCount = snapshot.size;
+          cloudEl.textContent = cloudCount + ' registrering' + (cloudCount === 1 ? '' : 'er');
+          if (cloudCount !== entries.length) {
+            mismatchEl.classList.remove('hidden');
+          }
+        }).catch(err => {
+          console.error('Kunne ikke hente antal fra skyen:', err);
+          cloudEl.textContent = 'Kunne ikke hente';
+        });
+      } catch (err) {
         console.error('Kunne ikke hente antal fra skyen:', err);
         cloudEl.textContent = 'Kunne ikke hente';
-      });
+      }
     }
 
     function runAndShowSelfTests() {
