@@ -653,6 +653,20 @@
 
         </div>
 
+        <!-- Udvikling siden forrige periode (skjult for "Altid", da der ikke findes en forrige periode) -->
+        <div id="periodComparisonCard" class="hidden bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700">Udvikling</h3>
+              <p id="periodComparisonLabel" class="text-[11px] text-slate-500 mt-0.5"></p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <i id="periodComparisonIcon" data-lucide="trending-up" class="w-4 h-4"></i>
+              <span id="periodComparisonValue" class="text-2xl font-black"></span>
+            </div>
+          </div>
+        </div>
+
         <!-- Chart Card -->
         <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <div class="flex justify-between items-center">
@@ -680,6 +694,9 @@
               <div id="weatherBadRate" class="text-base font-extrabold text-slate-900 mt-1">0 kr./t</div>
               <div id="weatherBadUnits" class="text-[10px] text-slate-500">0/dag</div>
             </div>
+          </div>
+          <div id="weatherDifferenceLine" class="hidden bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-center">
+            <span id="weatherDifferenceText" class="text-xs font-bold text-amber-800"></span>
           </div>
           <p class="text-[10px] text-slate-400">Baseret på registreringer med vejrdata i den valgte periode. "Dårligt vejr" = nedbør eller vindhastighed over 30 km/t.</p>
         </div>
@@ -1532,6 +1549,12 @@
     function getFormattedDate(offsetDays = 0) {
       const d = new Date();
       d.setDate(d.getDate() + offsetDays);
+      return dateToLocalString(d);
+    }
+
+    // Samme lokale (ikke UTC) formatering som getFormattedDate, men for en
+    // VILKÅRLIG Date-instans i stedet for altid relativt til i dag.
+    function dateToLocalString(d) {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
@@ -1632,6 +1655,27 @@
     // Lille, indbygget "sikkerhedsnet" for beregningerne ovenfor - ingen
     // eksternt test-framework nødvendigt. Ikke udtømmende, men fanger
     // præcis den slags fejl, der ellers først opdages, når lønnen er forkert.
+    // Ren beregningsfunktion: den gennemsnitlige effektive timeløn for en
+    // liste af registreringer. Diæter holdes udenfor (den giver kr. uden at
+    // bruge nogen af de fælles timer, og ville ellers kunstigt trække
+    // tallet op). Dette er nu det ENESTE sted, der beregner et "kr./t"-
+    // gennemsnit - bruges af den samlede statistik, vejr-sammenligningen,
+    // og periode-udviklingen, så de aldrig kan komme til at afvige.
+    function calculateEffectiveWage(entryList) {
+      const hours = entryList.reduce((sum, e) => sum + e.hours, 0);
+      const dkk = entryList.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
+      return hours > 0 ? dkk / hours : 0;
+    }
+
+    // Ren beregningsfunktion: procentvis forskel fra "previous" til
+    // "current". Returnerer null, hvis der intet meningsfuldt er at
+    // sammenligne med (begge skal være positive - en "uendelig stigning
+    // fra 0" er forvirrende, ikke oplysende).
+    function calculatePercentDifference(current, previous) {
+      if (!(current > 0) || !(previous > 0)) return null;
+      return ((current - previous) / previous) * 100;
+    }
+
     function runSelfTests() {
       const results = [];
       function check(name, actual, expected, tolerance = 0.01) {
@@ -1689,6 +1733,41 @@
         pass: invariantFailures === 0,
         actual: invariantFailures,
         expected: 0
+      });
+
+      // calculateEffectiveWage: grundlæggende beregning
+      const wageTestBasic = calculateEffectiveWage([
+        { hours: 4, totalDkk: 400, rateName: 'Testsats' }
+      ]);
+      check('Effektiv timeløn: 400 kr over 4 timer = 100 kr/t', wageTestBasic, 100);
+
+      // calculateEffectiveWage: Diæter skal IKKE tælle med i beløbet
+      const wageTestDiaeter = calculateEffectiveWage([
+        { hours: 4, totalDkk: 400, rateName: 'Testsats' },
+        { hours: 0, totalDkk: 625, rateName: 'Diæter' }
+      ]);
+      check('Effektiv timeløn: Diæter holdes udenfor (stadig 100 kr/t, ikke 256,25)', wageTestDiaeter, 100);
+
+      // calculateEffectiveWage: ingen timer overhovedet -> 0, ikke en fejl
+      check('Effektiv timeløn: 0 timer giver 0 (ingen division med nul)', calculateEffectiveWage([]), 0);
+
+      // calculatePercentDifference: stigning, fald, ingen ændring
+      check('Procentforskel: 110 vs. 100 = +10%', calculatePercentDifference(110, 100), 10);
+      check('Procentforskel: 90 vs. 100 = -10%', calculatePercentDifference(90, 100), -10);
+      check('Procentforskel: 100 vs. 100 = 0%', calculatePercentDifference(100, 100), 0);
+
+      // calculatePercentDifference: intet meningsfuldt at sammenligne med
+      results.push({
+        name: 'Procentforskel: forrige periode på 0 giver "ingen sammenligning" (null)',
+        pass: calculatePercentDifference(100, 0) === null,
+        actual: calculatePercentDifference(100, 0),
+        expected: null
+      });
+      results.push({
+        name: 'Procentforskel: nuværende periode på 0 giver "ingen sammenligning" (null)',
+        pass: calculatePercentDifference(0, 100) === null,
+        actual: calculatePercentDifference(0, 100),
+        expected: null
       });
 
       return results;
@@ -3051,8 +3130,7 @@
       // det samlede gennemsnit i statistikken (Diæter holdes udenfor, da den
       // ellers ville trække tallet kunstigt op).
       const totalHours = allEntries.reduce((sum, e) => sum + e.hours, 0);
-      const rateDkk = allEntries.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
-      const effHourly = totalHours > 0 ? (rateDkk / totalHours) : 0;
+      const effHourly = calculateEffectiveWage(allEntries);
 
       // Samme konvention som "Enheder Udført" i statistikken: Timeløn og
       // Opstart tæller ikke med - men nu opdelt pr. akkordsats i stedet for
@@ -3085,8 +3163,7 @@
       // hvordan holdet klarer sig på tværs af sagen.
       const peopleWithStats = currentCaseDetails.people.map(p => {
         const personHours = p.entries.reduce((sum, e) => sum + e.hours, 0);
-        const personRateDkk = p.entries.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
-        const personRate = personHours > 0 ? (personRateDkk / personHours) : 0;
+        const personRate = calculateEffectiveWage(p.entries);
         return { ...p, personHours, personRate };
       });
 
@@ -4522,6 +4599,103 @@
       });
     }
 
+    // Finder den periode, der ligger LIGE FØR den, man kigger på nu - af
+    // samme type og længde - så man kan sammenligne "denne uge" med
+    // "sidste uge", "denne lønmåned" med "sidste lønmåned" osv. Giver ikke
+    // mening for "Altid", så den returnerer null der.
+    function getPreviousPeriodEntries() {
+      const now = new Date();
+
+      if (currentStatsFilter === 'today') {
+        const yesterdayStr = getFormattedDate(-1);
+        return entries.filter(e => e.date === yesterdayStr);
+      }
+      if (currentStatsFilter === 'week') {
+        return entries.filter(e => {
+          const diffDays = Math.floor((now - new Date(e.date)) / (1000 * 60 * 60 * 24));
+          return diffDays >= 7 && diffDays < 14;
+        });
+      }
+      if (currentStatsFilter === 'month') {
+        const prevMonthRef = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return entries.filter(e => {
+          const entryDate = new Date(e.date);
+          return entryDate.getMonth() === prevMonthRef.getMonth() && entryDate.getFullYear() === prevMonthRef.getFullYear();
+        });
+      }
+      if (currentStatsFilter === 'paymonth') {
+        const prevPeriodRef = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+        const { start, end } = getPayPeriodRange(prevPeriodRef);
+        return entries.filter(e => {
+          const entryDateObj = new Date(e.date + 'T12:00:00');
+          return entryDateObj >= start && entryDateObj <= end;
+        });
+      }
+      if (currentStatsFilter === 'last30') {
+        return entries.filter(e => {
+          const diffDays = Math.floor((now - new Date(e.date)) / (1000 * 60 * 60 * 24));
+          return diffDays >= 30 && diffDays < 60;
+        });
+      }
+      if (currentStatsFilter === 'custom' && customDateRange) {
+        const startD = new Date(customDateRange.start + 'T12:00:00');
+        const endD = new Date(customDateRange.end + 'T12:00:00');
+        const lengthDays = Math.round((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
+        const prevEnd = new Date(startD);
+        prevEnd.setDate(prevEnd.getDate() - 1);
+        const prevStart = new Date(prevEnd);
+        prevStart.setDate(prevStart.getDate() - (lengthDays - 1));
+        const prevStartStr = dateToLocalString(prevStart);
+        const prevEndStr = dateToLocalString(prevEnd);
+        return entries.filter(e => e.date >= prevStartStr && e.date <= prevEndStr);
+      }
+      return null; // "Altid" har ingen meningsfuld "forrige periode"
+    }
+
+    // Viser procentvis udvikling i effektiv timeløn siden den tilsvarende
+    // forrige periode - tilpasser sig automatisk det valgte filter (denne
+    // uge vs. sidste uge, denne lønmåned vs. sidste lønmåned, osv.).
+    function renderPeriodComparison(filtered) {
+      const card = document.getElementById('periodComparisonCard');
+      if (!card) return;
+
+      const previousEntries = getPreviousPeriodEntries();
+      if (!previousEntries) {
+        card.classList.add('hidden');
+        return;
+      }
+
+      const currentWage = calculateEffectiveWage(filtered);
+      const previousWage = calculateEffectiveWage(previousEntries);
+      const percentChange = calculatePercentDifference(currentWage, previousWage);
+
+      // Giver kun mening at sammenligne, hvis der reelt er noget at
+      // sammenligne MED - ellers ville en "uendelig" stigning fra 0 blot
+      // virke forvirrende i stedet for oplysende.
+      if (percentChange === null) {
+        card.classList.add('hidden');
+        return;
+      }
+
+      const periodLabels = {
+        today: 'i går', week: 'sidste uge', month: 'sidste måned',
+        paymonth: 'sidste lønmåned', last30: 'de foregående 30 dage', custom: 'den foregående periode'
+      };
+      const label = periodLabels[currentStatsFilter] || 'sidste periode';
+
+      const isPositive = percentChange >= 0;
+
+      card.classList.remove('hidden');
+      const valueEl = document.getElementById('periodComparisonValue');
+      const iconEl = document.getElementById('periodComparisonIcon');
+      valueEl.textContent = (isPositive ? '+' : '') + formatNumber(percentChange) + '%';
+      valueEl.className = 'text-2xl font-black ' + (isPositive ? 'text-emerald-600' : 'text-red-600');
+      iconEl.setAttribute('data-lucide', isPositive ? 'trending-up' : 'trending-down');
+      iconEl.className = 'w-4 h-4 ' + (isPositive ? 'text-emerald-600' : 'text-red-600');
+      document.getElementById('periodComparisonLabel').textContent = 'i effektiv timeløn siden ' + label;
+      if (window.lucide) lucide.createIcons();
+    }
+
     function renderStats() {
       const filtered = getFilteredEntries();
 
@@ -4536,8 +4710,7 @@
       // Effektiv Timeløn (samlet gennemsnit): Timeløn tæller med her, men
       // Diæter holdes udenfor - ellers ville den kunstigt trække gennemsnittet
       // op, da den giver kr. uden at bruge nogen af de fælles timer.
-      const avgWageDkk = filtered.filter(e => !isDiaeterName(e.rateName)).reduce((sum, e) => sum + e.totalDkk, 0);
-      const avgHourlyWage = totalHours > 0 ? (avgWageDkk / totalHours) : 0;
+      const avgHourlyWage = calculateEffectiveWage(filtered);
 
       document.getElementById('statTotalEarnings').textContent = formatCurrency(totalEarnings);
       document.getElementById('statHourlyWage').textContent = formatCurrency(avgHourlyWage) + '/t';
@@ -4549,6 +4722,7 @@
       renderWeatherComparison(filtered);
       renderBestDays(filtered);
       renderWeeklyAverages(filtered);
+      renderPeriodComparison(filtered);
     }
 
     // Finder ISO-ugenummer (og -år) for en dato-streng "YYYY-MM-DD"
@@ -4650,12 +4824,10 @@
 
       function summarize(list) {
         const days = new Set(list.map(e => e.date));
-        const hours = list.reduce((s, e) => s + e.hours, 0);
-        const dkk = list.reduce((s, e) => s + e.totalDkk, 0);
         const units = list.filter(e => !isOpstartName(e.rateName)).reduce((s, e) => s + e.quantity, 0);
         return {
           days: days.size,
-          avgHourly: hours > 0 ? dkk / hours : 0,
+          avgHourly: calculateEffectiveWage(list),
           avgUnitsPerDay: days.size > 0 ? units / days.size : 0
         };
       }
@@ -4670,6 +4842,24 @@
       document.getElementById('weatherBadDays').textContent = bad.days + ' dage';
       document.getElementById('weatherBadRate').textContent = formatCurrency(bad.avgHourly) + '/t';
       document.getElementById('weatherBadUnits').textContent = formatNumber(bad.avgUnitsPerDay) + ' enheder/dag';
+
+      // En eksplicit, udregnet forskel er lettere at aflæse end bare at
+      // stille to tal ved siden af hinanden og selv skulle sammenligne dem.
+      const diffLine = document.getElementById('weatherDifferenceLine');
+      const diffText = document.getElementById('weatherDifferenceText');
+      const percentDiff = calculatePercentDifference(bad.avgHourly, good.avgHourly);
+      if (percentDiff !== null) {
+        diffLine.classList.remove('hidden');
+        if (percentDiff < 0) {
+          diffText.textContent = `🌧️ Dårligt vejr giver ${formatNumber(Math.abs(percentDiff))}% lavere effektiv timeløn end godt vejr`;
+        } else if (percentDiff > 0) {
+          diffText.textContent = `🌧️ Dårligt vejr giver faktisk ${formatNumber(percentDiff)}% højere effektiv timeløn end godt vejr`;
+        } else {
+          diffText.textContent = 'Ingen forskel i effektiv timeløn mellem godt og dårligt vejr';
+        }
+      } else {
+        diffLine.classList.add('hidden');
+      }
     }
 
     function renderTaskBreakdown(filtered) {
@@ -5502,14 +5692,8 @@
       }
 
       const { start, end } = getPayPeriodRange(new Date());
-      const toDateStr = d => {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-      };
-      const startStr = toDateStr(start);
-      const endStr = toDateStr(end);
+      const startStr = dateToLocalString(start);
+      const endStr = dateToLocalString(end);
 
       const totalEl = document.getElementById('masterOverviewTotalDkk');
       const listEl = document.getElementById('masterOverviewEmployeeList');
