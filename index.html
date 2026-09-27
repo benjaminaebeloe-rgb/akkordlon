@@ -4380,6 +4380,16 @@
         if (changed) {
           saveData();
           renderHistoryList();
+          // Vejrdata ankommer altid asynkront, i baggrunden, et lille
+          // stykke tid efter selve gemningen - står man allerede på
+          // Statistik-fanen i det øjeblik, skal Vejr-sammenligningen (og
+          // resten af tallene) opdateres med det samme, ellers ser kortet
+          // ud som om det er "gået i stå", selvom dataen rent faktisk er
+          // korrekt i baggrunden.
+          const statsTab = document.getElementById('tab-stats');
+          if (statsTab && !statsTab.classList.contains('hidden')) {
+            renderStats();
+          }
         }
       });
     }
