@@ -846,9 +846,14 @@
           <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din invitationskode</div>
           <div class="flex items-center justify-between gap-2">
             <span id="companyInviteCodeDisplay" class="text-2xl font-black tracking-[0.2em] text-emerald-400">------</span>
-            <button onclick="copyInviteCode()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
-              <i data-lucide="copy" class="w-3.5 h-3.5"></i> Kopiér
-            </button>
+            <div class="flex gap-1.5">
+              <button onclick="copyInviteCode()" class="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Kopiér
+              </button>
+              <button onclick="confirmRegenerateInviteCode()" title="Generér en ny kode og gør den gamle ugyldig" class="bg-white/10 hover:bg-white/20 px-2.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
           <p class="text-[11px] text-slate-400">Del denne kode med en medarbejder - de indtaster den under deres egen konto-menu (👤-ikonet) for at blive tilknyttet.</p>
         </div>
@@ -2190,11 +2195,13 @@
     let ratesUnsubscribe = null;
     let entriesUnsubscribe = null;
     let absencesUnsubscribe = null;
+    let membershipUnsubscribe = null;
 
     function detachRealtimeListeners() {
       if (ratesUnsubscribe) { ratesUnsubscribe(); ratesUnsubscribe = null; }
       if (entriesUnsubscribe) { entriesUnsubscribe(); entriesUnsubscribe = null; }
       if (absencesUnsubscribe) { absencesUnsubscribe(); absencesUnsubscribe = null; }
+      if (membershipUnsubscribe) { membershipUnsubscribe(); membershipUnsubscribe = null; }
     }
 
     // Abonnerer på løbende opdateringer af satser og registreringer, så
@@ -2452,6 +2459,7 @@
         const companyId = doc.exists ? doc.data().companyId : null;
 
         if (!companyId) {
+          if (membershipUnsubscribe) { membershipUnsubscribe(); membershipUnsubscribe = null; }
           myCompany = null;
           myMembershipCompanyName = null;
           myCompanyId = null;
@@ -2469,6 +2477,7 @@
           if (!companyDoc.exists) {
             // Virksomheden er blevet slettet - ryd op i egen tilknytning
             // (egne satser/registreringer er upåvirkede).
+            if (membershipUnsubscribe) { membershipUnsubscribe(); membershipUnsubscribe = null; }
             myCompany = null;
             myMembershipCompanyName = null;
             myCompanyId = null;
@@ -2489,6 +2498,7 @@
 
           myMembershipCompanyName = companyData.name;
           myCompanyId = companyId;
+          attachMembershipListener(companyId, isOwner);
 
           if (isAdmin) {
             myCompany = { id: companyId, ...companyData, isOwner, cachedForUid: currentUser.uid };
@@ -2506,12 +2516,61 @@
       }).catch(err => console.error('Kunne ikke tjekke virksomheds-tilknytning:', err));
     }
 
+    // Holder øje med egen medarbejder-post, mens appen er åben - så en
+    // forfremmelse/degradering/fjernelse fra en ANDEN administrator opdages
+    // med det samme, i stedet for først ved næste login. Firestore-reglerne
+    // beskytter selve dataen uanset hvad, men uden dette kunne UI'et blive
+    // ved med at vise fx administrator-adgang længe efter, den reelt er
+    // fjernet. Ejerens egen adgang afhænger ikke af denne post (den styres
+    // af companies/{id}.ownerId), så den behøver ikke overvåges her.
+    function attachMembershipListener(companyId, isOwner) {
+      if (membershipUnsubscribe) { membershipUnsubscribe(); membershipUnsubscribe = null; }
+      if (!currentUser || !db || isOwner) return;
+
+      membershipUnsubscribe = db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid)
+        .onSnapshot(snap => {
+          if (myCompanyId !== companyId) return; // man har skiftet virksomhed siden
+
+          if (!snap.exists) {
+            myCompany = null;
+            myMembershipCompanyName = null;
+            myCompanyId = null;
+            localStorage.removeItem('akkord_myCompany');
+            hideEmployeesTab();
+            renderAccountModalBody();
+            loadCases();
+            showToast('Du er ikke længere medlem af denne virksomhed', 'error');
+            return;
+          }
+
+          const isAdminNow = snap.data().role === 'admin';
+          const wasAdmin = !!myCompany;
+          if (wasAdmin && !isAdminNow) {
+            myCompany = null;
+            localStorage.removeItem('akkord_myCompany');
+            hideEmployeesTab();
+            renderAccountModalBody();
+            showToast('Din administrator-adgang er blevet fjernet', 'error');
+          } else if (!wasAdmin && isAdminNow) {
+            // Forfremmet mens appen var åben - genindlæs fuld info for at
+            // få virksomhedsdata med og vise Medarbejdere-fanen.
+            loadCompanyInfo();
+          }
+        }, err => console.error('Medlemskabs-lytter fejlede:', err));
+    }
+
     function generateInviteCode() {
-      // Undgår tegn der let forveksles (0/O, 1/I)
+      // Undgår tegn der let forveksles (0/O, 1/I). 8 tegn fra et alfabet på
+      // 32 giver 32^8 ≈ 1,1 billioner kombinationer. Bruger crypto.getRandomValues()
+      // i stedet for Math.random() - Math.random() er IKKE kryptografisk
+      // sikker og kan i teorien forudsiges, hvis nok output er observeret;
+      // Web Crypto API'ets tilfældighed kan det ikke.
       const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const randomBytes = new Uint32Array(8);
+      crypto.getRandomValues(randomBytes);
       let code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars[Math.floor(Math.random() * chars.length)];
+      for (let i = 0; i < 8; i++) {
+        code += chars[randomBytes[i] % chars.length];
       }
       return code;
     }
@@ -2612,12 +2671,22 @@
       const companyId = myCompanyId;
       const companyName = myMembershipCompanyName;
 
-      Promise.all([
-        db.collection('users').doc(currentUser.uid).update({
-          companyId: firebase.firestore.FieldValue.delete()
-        }),
-        db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).delete()
-      ]).then(() => {
+      // Frakobler medlemskabs-lytteren FØRST, så den ikke selv fanger denne
+      // frivillige handling og viser en forvirrende "du er ikke længere
+      // medlem"-besked oven i den forventede "du har forladt X"-besked.
+      if (membershipUnsubscribe) { membershipUnsubscribe(); membershipUnsubscribe = null; }
+
+      // Én atomisk batch i stedet for to uafhængige skrivninger (Promise.all)
+      // - ellers kunne den ene lykkes og den anden fejle for sig selv, og
+      // efterlade en tilstand, hvor man fx stadig har læse-adgang til
+      // virksomheden, selvom medarbejder-posten allerede er væk.
+      const batch = db.batch();
+      batch.update(db.collection('users').doc(currentUser.uid), {
+        companyId: firebase.firestore.FieldValue.delete()
+      });
+      batch.delete(db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid));
+
+      batch.commit().then(() => {
         myCompany = null;
         myMembershipCompanyName = null;
         myCompanyId = null;
@@ -2662,32 +2731,32 @@
         db.collection('users').doc(currentUser.uid).get().then(userDoc => {
           const oldCompanyId = userDoc.exists ? userDoc.data().companyId : null;
 
-          // Var man allerede tilknyttet en anden virksomhed, ryddes den gamle
-          // medarbejder-post op der, så man ikke bliver "hængende" i to
-          // virksomheder på samme tid.
-          const cleanupOld = (oldCompanyId && oldCompanyId !== companyId)
-            ? db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid).delete().catch(() => {})
-            : Promise.resolve();
+          // Selve skiftet er nu én atomisk batch: rydder evt. gammelt
+          // medlemskab op, sætter det nye companyId (med koden med til
+          // reglernes bekræftelse), og opretter medarbejder-posten - alt
+          // sammen eller intet af det. Uden dette kunne et skift efterlade
+          // et companyId uden en tilsvarende medarbejder-post, hvis noget
+          // gik galt midtvejs (fx mistet forbindelse eller lukket app).
+          const batch = db.batch();
+          if (oldCompanyId && oldCompanyId !== companyId) {
+            batch.delete(db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid));
+          }
+          batch.set(db.collection('users').doc(currentUser.uid), { companyId, joinCode: code }, { merge: true });
+          batch.set(db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid), {
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+            role: 'employee',
+            joinedAt: new Date().toISOString()
+          });
 
-          cleanupOld.then(() => {
-            // Selve koden sendes MED i skrivningen, så Firestore-reglerne kan
-            // bekræfte, at companyId rent faktisk matcher en gyldig,
-            // eksisterende invitationskode - i stedet for blot at stole på,
-            // at klienten allerede har slået koden op korrekt.
-            return db.collection('users').doc(currentUser.uid).set({ companyId, joinCode: code }, { merge: true });
-          }).then(() => {
-            return db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid).set({
-              name: currentUser.displayName || '',
-              email: currentUser.email || '',
-              role: 'employee',
-              joinedAt: new Date().toISOString()
-            });
-          }).then(() => {
+          batch.commit().then(() => {
             // Selve koden er kun nødvendig i det øjeblik companyId sættes -
-            // ryddes igen bagefter, så den ikke bare ligger og fylder.
+            // ryddes igen bagefter, så den ikke bare ligger og fylder. Dette
+            // er en ren oprydning uden for selve batchen - fejler den, er
+            // medlemskabet stadig fuldt gyldigt.
             return db.collection('users').doc(currentUser.uid).update({
               joinCode: firebase.firestore.FieldValue.delete()
-            }).catch(() => {}); // rent kosmetisk oprydning - fejler den, er det ikke kritisk
+            }).catch(() => {});
           }).then(() => {
             myMembershipCompanyName = companyName;
             input.value = '';
@@ -2713,6 +2782,41 @@
         showToast('Koden er kopieret');
       }).catch(() => {
         showToast('Kunne ikke kopiere - koden er ' + myCompany.inviteCode, 'error');
+      });
+    }
+
+    function confirmRegenerateInviteCode() {
+      if (!myCompany) return;
+      showConfirmModal(
+        'Generér ny invitationskode?',
+        `Den nuværende kode (${myCompany.inviteCode}) holder op med at virke med det samme. Alle, der endnu ikke har tilsluttet sig med den, skal have den nye kode i stedet.`,
+        regenerateInviteCode,
+        'Generér ny kode'
+      );
+    }
+
+    // Erstatter den gamle kode med en ny, og gør den gamle ugyldig med det
+    // samme - fx hvis koden er delt for bredt, eller man bare vil have
+    // kontrol over hvem der kan tilslutte sig fremover.
+    function regenerateInviteCode() {
+      if (!myCompany || !db) return;
+      const companyId = myCompany.id;
+      const oldCode = myCompany.inviteCode;
+      const newCode = generateInviteCode();
+
+      const batch = db.batch();
+      batch.update(db.collection('companies').doc(companyId), { inviteCode: newCode });
+      batch.set(db.collection('inviteCodes').doc(newCode), { companyId, companyName: myCompany.name });
+      batch.delete(db.collection('inviteCodes').doc(oldCode));
+
+      batch.commit().then(() => {
+        myCompany.inviteCode = newCode;
+        const display = document.getElementById('companyInviteCodeDisplay');
+        if (display) display.textContent = newCode;
+        showToast('Ny invitationskode genereret - den gamle virker ikke længere');
+      }).catch(err => {
+        console.error('Kunne ikke generere ny kode:', err);
+        showToast('Kunne ikke generere ny kode', 'error');
       });
     }
 
