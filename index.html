@@ -469,7 +469,7 @@
           <!-- Total Hours Field (fælles for hele registreringen) -->
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5" for="logHours">Timer i alt (hele dagen)</label>
-            <input type="text" inputmode="decimal" id="logHours" oninput="sanitizeDecimalInput(this); calculateLiveSummary();" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+            <input type="text" inputmode="decimal" id="logHours" oninput="calculateLiveSummary()" onblur="sanitizeDecimalInput(this); calculateLiveSummary();" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
             <div id="hoursWarning" class="hidden mt-2 text-[11px] text-red-700 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-1.5">
               <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
               <span>Timeløn-timerne overstiger dagens samlede timer - akkordens timer bliver sat til 0.</span>
@@ -1257,7 +1257,7 @@
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Sats (kr. pr. enhed)</label>
-            <input type="text" inputmode="decimal" id="ratePrice" oninput="sanitizeDecimalInput(this)" placeholder="f.eks. 45,00" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <input type="text" inputmode="decimal" id="ratePrice" onblur="sanitizeDecimalInput(this)" placeholder="f.eks. 45,00" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
           </div>
         </div>
 
@@ -1302,12 +1302,12 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mængde (<span id="editEntryUnitLabel">...</span>)</label>
-            <input type="text" inputmode="decimal" id="editEntryQuantity" oninput="sanitizeDecimalInput(this); updateEditEntryFields();" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <input type="text" inputmode="decimal" id="editEntryQuantity" oninput="updateEditEntryFields()" onblur="sanitizeDecimalInput(this); updateEditEntryFields();" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
             <input type="hidden" id="editEntryPricePerUnit">
           </div>
           <div id="editEntryHoursWrap">
             <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Timer</label>
-            <input type="text" inputmode="decimal" id="editEntryHours" oninput="sanitizeDecimalInput(this)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <input type="text" inputmode="decimal" id="editEntryHours" onblur="sanitizeDecimalInput(this)" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
           </div>
         </div>
 
@@ -3913,7 +3913,18 @@
     function getRateOptionsHtml() {
       const activeRates = rates.filter(r => r.active !== false);
       if (activeRates.length === 0) return '<option value="">Ingen satser oprettet - Tilføj under "Satser"</option>';
-      return activeRates.map(rate => `<option value="${rate.id}">${escapeHtml(rate.name)} (${rate.price.toFixed(2)} kr. / ${escapeHtml(rate.unit)})</option>`).join('');
+
+      // Tæller hvor mange registreringer der bruger hver sats, så de mest
+      // brugte satser vises øverst - sparer scrolling i den daglige brug,
+      // især hvis man har mange satser. Satser med lige mange (fx 0)
+      // beholder deres indbyrdes oprindelige rækkefølge.
+      const usageCounts = {};
+      entries.forEach(e => {
+        usageCounts[e.rateId] = (usageCounts[e.rateId] || 0) + 1;
+      });
+      const sortedRates = [...activeRates].sort((a, b) => (usageCounts[b.id] || 0) - (usageCounts[a.id] || 0));
+
+      return sortedRates.map(rate => `<option value="${rate.id}">${escapeHtml(rate.name)} (${rate.price.toFixed(2)} kr. / ${escapeHtml(rate.unit)})</option>`).join('');
     }
 
     function populateRateSelect() {
@@ -3941,7 +3952,7 @@
         </div>
         <div>
           <label class="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Mængde (<span class="unit-label">...</span>)</label>
-          <input type="text" inputmode="decimal" class="log-quantity w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" oninput="sanitizeDecimalInput(this); calculateLiveSummary();">
+          <input type="text" inputmode="decimal" class="log-quantity w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-brand-500 outline-none" oninput="calculateLiveSummary()" onblur="sanitizeDecimalInput(this); calculateLiveSummary();">
           <p class="unusual-quantity-warning hidden text-[10px] text-amber-600 font-semibold mt-1 flex items-center gap-1">
             <i data-lucide="alert-triangle" class="w-3 h-3 flex-shrink-0"></i> <span></span>
           </p>
@@ -4068,24 +4079,25 @@
       }
     }
 
-    // Konverterer komma til punktum, mens brugeren skriver, og fjerner alt
-    // andet end cifre og ét enkelt punktum. Danske taltastaturer på mobilen
-    // viser typisk komma som decimal-tegn, men rå tal-parsing i JavaScript
-    // (parseFloat m.fl.) forstår kun punktum - uden dette ville "12,5"
-    // stille blive til bare "12".
+    // Renser et decimal-inputfelt for komma/ugyldige tegn - køres når man
+    // FORLADER feltet (blur), ikke mens man skriver. At omskrive .value
+    // midt i indtastningen kan forstyrre markørens placering på mobilen og
+    // give indtryk af, at man ikke kan skrive mere end ét ciffer efter
+    // kommaet; ved kun at rense ved blur undgås det helt.
     function sanitizeDecimalInput(input) {
-      const cursorPos = input.selectionStart;
-      const original = input.value;
-      let cleaned = original.replace(',', '.').replace(/[^0-9.]/g, '');
+      let cleaned = input.value.replace(',', '.').replace(/[^0-9.]/g, '');
       const firstDot = cleaned.indexOf('.');
       if (firstDot !== -1) {
         cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
       }
-      if (cleaned !== original) {
-        input.value = cleaned;
-        const newPos = Math.max(0, (cursorPos || 0) - (original.length - cleaned.length));
-        input.setSelectionRange(newPos, newPos);
-      }
+      if (cleaned !== input.value) input.value = cleaned;
+    }
+
+    // Samme som parseFloat, men tolererer komma som decimal-tegn - så de
+    // løbende beregninger (mens man stadig skriver) også virker korrekt for
+    // "8,75", ikke kun efter feltet er blevet renset ved blur.
+    function parseDecimal(value) {
+      return parseFloat(String(value).replace(',', '.'));
     }
 
     function calculateLiveSummary() {
@@ -4096,7 +4108,7 @@
 
       document.querySelectorAll('.log-row').forEach(row => {
         const rateId = row.querySelector('.log-rate-select').value;
-        const quantity = parseFloat(row.querySelector('.log-quantity').value) || 0;
+        const quantity = parseDecimal(row.querySelector('.log-quantity').value) || 0;
         
         const rate = rates.find(r => r.id === rateId);
         if (rate && quantity > 0) {
@@ -4115,7 +4127,7 @@
 
       // "Timer i alt" er for HELE dagen - Timeløn-timerne trækkes fra,
       // så kun de resterende timer bruges til akkordens effektive timeløn.
-      const totalDayHours = parseFloat(document.getElementById('logHours').value) || 0;
+      const totalDayHours = parseDecimal(document.getElementById('logHours').value) || 0;
       const akkordHours = Math.max(0, totalDayHours - timelonHours);
       const hourlyRate = akkordHours > 0 ? (akkordDkk / akkordHours) : 0;
       document.getElementById('liveTotalDkk').textContent = formatCurrency(akkordDkk);
@@ -4430,7 +4442,7 @@
       const selectedCaseId = document.getElementById('logCase').value;
       const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
       const note = selectedCase ? `#${selectedCase.number} · ${selectedCase.name}` : '';
-      const totalHoursEntered = parseFloat(document.getElementById('logHours').value) || 0;
+      const totalHoursEntered = parseDecimal(document.getElementById('logHours').value) || 0;
       const rows = document.querySelectorAll('.log-row');
       
       let hasError = false;
@@ -4452,7 +4464,7 @@
       let missingQuantityError = false;
       rows.forEach(row => {
         const rateId = row.querySelector('.log-rate-select').value;
-        const quantity = parseFloat(row.querySelector('.log-quantity').value);
+        const quantity = parseDecimal(row.querySelector('.log-quantity').value);
         const rate = rates.find(r => r.id === rateId);
         if (!rate) {
           missingRateError = true;
@@ -4681,7 +4693,7 @@
       const editId = document.getElementById('rateEditId').value;
       const name = document.getElementById('rateName').value.trim();
       const unit = document.getElementById('rateUnit').value.trim();
-      const price = parseFloat(document.getElementById('ratePrice').value);
+      const price = parseDecimal(document.getElementById('ratePrice').value);
 
       if (!name) {
         showToast('Du mangler et navn - skriv fx "Eternit B6 Tagplader"', 'error');
@@ -5694,7 +5706,7 @@
       // den, brugeren så og godkendte i forhåndsvisningen.
       document.getElementById('editEntryPricePerUnit').value = rate.price;
 
-      const quantity = parseFloat(document.getElementById('editEntryQuantity').value) || 0;
+      const quantity = parseDecimal(document.getElementById('editEntryQuantity').value) || 0;
       const hoursWrap = document.getElementById('editEntryHoursWrap');
       const hoursInput = document.getElementById('editEntryHours');
       const previewEl = document.getElementById('editEntryPreviewDkk');
@@ -5743,7 +5755,7 @@
         showToast('Du mangler en dato - vælg hvilken dag registreringen gælder for', 'error');
         return;
       }
-      const quantity = parseFloat(document.getElementById('editEntryQuantity').value);
+      const quantity = parseDecimal(document.getElementById('editEntryQuantity').value);
       if (!quantity || quantity <= 0) {
         showToast('Du mangler et antal - skriv den mængde, der er lavet', 'error');
         return;
@@ -5786,7 +5798,7 @@
         hours = 0;
         hourlyRate = 0;
       } else {
-        hours = parseFloat(document.getElementById('editEntryHours').value) || 0;
+        hours = parseDecimal(document.getElementById('editEntryHours').value) || 0;
         hourlyRate = hours > 0 ? (totalDkk / hours) : 0;
       }
 
