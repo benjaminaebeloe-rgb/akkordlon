@@ -1089,6 +1089,9 @@
             <button onclick="exportPayPeriodExcel()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-600/20 whitespace-nowrap">
               <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
             </button>
+            <button id="payPeriodShareBtn" onclick="sharePayPeriodExcel()" class="hidden bg-slate-900 hover:bg-slate-800 text-white px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap" aria-label="Del lønperiode">
+              <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+            </button>
           </div>
 
           <div id="payPeriodPreview" class="hidden grid grid-cols-2 gap-2">
@@ -3689,12 +3692,13 @@
     function showToast(message, type = 'success') {
       const container = document.getElementById('toastContainer');
       const toast = document.createElement('div');
-      
-      const bgColor = type === 'success' ? 'bg-slate-900 border-emerald-500' : 'bg-slate-900 border-red-500';
-      const icon = type === 'success' ? 'check-circle' : 'alert-circle';
-      
+
+      const bgColor = type === 'record' ? 'bg-slate-900 border-amber-400' : type === 'success' ? 'bg-slate-900 border-emerald-500' : 'bg-slate-900 border-red-500';
+      const icon = type === 'record' ? 'trophy' : type === 'success' ? 'check-circle' : 'alert-circle';
+      const iconColor = type === 'record' ? 'text-amber-400' : type === 'success' ? 'text-emerald-400' : 'text-red-400';
+
       toast.className = `${bgColor} border-l-4 text-white p-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs font-semibold mb-2 transition-all transform duration-300 translate-y-[-10px] opacity-0`;
-      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 flex-shrink-0 ${type==='success'?'text-emerald-400':'text-red-400'}"></i><span></span>`;
+      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 flex-shrink-0 ${iconColor}"></i><span></span>`;
       toast.querySelector('span').textContent = message;
       
       container.appendChild(toast);
@@ -3704,8 +3708,11 @@
         toast.classList.remove('translate-y-[-10px]', 'opacity-0');
       }, 10);
 
-      // Fejl og lange beskeder bliver stående længere, så man kan nå at læse dem
-      const duration = Math.max(type === 'error' ? 5000 : 3000, message.length * 60);
+      // Fejl og lange beskeder bliver stående længere, så man kan nå at læse dem.
+      // En ny rekord er særligt vigtig at nå at se, så den får samme rummelige
+      // minimumstid som en fejlbesked.
+      const baseDuration = (type === 'error' || type === 'record') ? 5000 : 3000;
+      const duration = Math.max(baseDuration, message.length * 60);
       setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-[-10px]');
         setTimeout(() => toast.remove(), 300);
@@ -4426,6 +4433,45 @@
       });
     }
 
+    // Tjekker om den netop gemte dag slår en personlig rekord - enten i
+    // samlet kr. for dagen, eller i effektiv timeløn. Al anden statistik i
+    // appen ser bagud og viser bare rå tal; dette er det eneste sted, der
+    // aktivt fejrer et resultat. Kræver mindst én ANDEN dag at sammenligne
+    // med, så den allerførste registrering nogensinde ikke "slår en rekord"
+    // mod ingenting.
+    function checkForNewRecords(date) {
+      const dayGroups = {};
+      entries.forEach(e => {
+        if (!dayGroups[e.date]) dayGroups[e.date] = { dkk: 0, list: [] };
+        dayGroups[e.date].list.push(e);
+        if (!isDiaeterName(e.rateName)) dayGroups[e.date].dkk += e.totalDkk;
+      });
+
+      const otherDates = Object.keys(dayGroups).filter(d => d !== date);
+      const today = dayGroups[date];
+      if (otherDates.length === 0 || !today) return;
+
+      const todayRate = calculateEffectiveWage(today.list);
+      let bestOtherDkk = 0;
+      let bestOtherRate = 0;
+      otherDates.forEach(d => {
+        if (dayGroups[d].dkk > bestOtherDkk) bestOtherDkk = dayGroups[d].dkk;
+        const r = calculateEffectiveWage(dayGroups[d].list);
+        if (r > bestOtherRate) bestOtherRate = r;
+      });
+
+      const newDkkRecord = today.dkk > bestOtherDkk;
+      const newRateRecord = todayRate > bestOtherRate && todayRate > 0;
+
+      if (newDkkRecord && newRateRecord) {
+        showToast(`🏆 Ny rekord! Bedste dag nogensinde (${formatCurrency(today.dkk)}) og højeste timeløn nogensinde (${formatCurrency(todayRate)}/t)`, 'record');
+      } else if (newDkkRecord) {
+        showToast(`🏆 Ny rekord! Din bedste dag nogensinde: ${formatCurrency(today.dkk)}`, 'record');
+      } else if (newRateRecord) {
+        showToast(`🏆 Ny rekord! Højeste effektive timeløn nogensinde: ${formatCurrency(todayRate)}/t`, 'record');
+      }
+    }
+
     function handleSaveLog(e) {
       e.preventDefault();
 
@@ -4572,6 +4618,7 @@
         updateRepeatLastDayButton();
 
         showToast(newEntries.length === 1 ? 'Registrering gemt' : `${newEntries.length} registreringer gemt`);
+        checkForNewRecords(date);
 
         // Første gang der gemmes uden en vejr-lokation sat, prøver vi stille
         // og roligt at bruge enhedens GPS-placering i stedet for at kræve, at
@@ -6624,6 +6671,51 @@
       showToast(viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret` : 'Lønperiode eksporteret');
     }
 
+    // Samme Excel-fil som exportPayPeriodExcel(), men sendt direkte videre
+    // til telefonens eget deleark (SMS, mail, AirDrop, Gem i Filer m.m.) i
+    // stedet for at skulle downloades og findes frem bagefter - markant
+    // færre skridt, når man fx lige skal sende sin lønperiode til sig selv
+    // på mail eller videre til en bogholder.
+    function sharePayPeriodExcel() {
+      const monthInput = document.getElementById('exportPayMonth').value;
+      if (!monthInput) {
+        showToast('Vælg en lønmåned', 'error');
+        return;
+      }
+
+      const { year, monthIndex0, start, end, periodEntries } = getPayPeriodDataForMonthInput(monthInput);
+
+      if (periodEntries.length === 0) {
+        showToast('Ingen registreringer i denne lønperiode', 'error');
+        return;
+      }
+
+      const periodLabel = `${formatDateShort(start)} til ${formatDateShort(end)}`;
+      const wb = buildEntriesWorkbook(periodEntries, {
+        includeHourlyRateColumn: false,
+        periodLabel,
+        includeTotalRow: true
+      });
+      const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
+      const fileName = `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}${namePart}.xlsx`;
+
+      const wbBytes = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+      const file = new File([wbBytes], fileName, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+
+      navigator.share({
+        files: [file],
+        title: 'Lønperiode ' + getDanishMonthName(monthIndex0) + ' ' + year
+      }).catch(err => {
+        // Brugeren fortrød selve deleark-valget - ikke en fejl, der skal vises
+        if (err.name !== 'AbortError') {
+          console.error('Kunne ikke dele lønperioden:', err);
+          showToast('Kunne ikke åbne deleark - prøv Eksportér i stedet', 'error');
+        }
+      });
+    }
+
     // Udfylder årsvælgeren med de år, der faktisk findes registreringer i,
     // samt indeværende år (så den aldrig er tom).
     function populateExportYearSelect() {
@@ -6792,6 +6884,16 @@
 
     window.onload = function() {
       if (window.lucide) lucide.createIcons();
+
+      // Del-knappen til lønperioden vises kun, hvis telefonens/browserens
+      // egen "del"-funktion (det indbyggede deleark - SMS, mail, AirDrop,
+      // Gem i Filer osv.) rent faktisk understøtter at dele en fil. Det gør
+      // desktop-browsere typisk ikke, så der falder man automatisk tilbage
+      // til den almindelige download-knap i stedet.
+      const shareBtn = document.getElementById('payPeriodShareBtn');
+      if (shareBtn && navigator.canShare && navigator.canShare({ files: [new File([''], 'test.xlsx')] })) {
+        shareBtn.classList.remove('hidden');
+      }
 
       if (!firebaseReady) {
         // Ingen Firebase-konfiguration sat op endnu - kør appen som normalt (kun lokalt)
