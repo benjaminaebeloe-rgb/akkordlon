@@ -6699,20 +6699,39 @@
       const namePart = viewingEmployee ? '_' + viewingEmployee.name.replace(/[^a-zA-Z0-9æøåÆØÅ]/g, '') : '';
       const fileName = `Lønperiode_${getDanishMonthName(monthIndex0)}_${year}${namePart}.xlsx`;
 
+      // Falder automatisk tilbage til almindelig download, hvis telefonens
+      // deleark ikke kan bruges lige nu - fx fordi OS'et i praksis afviser
+      // selve Excel-filtypen, selvom knappen blev vist ved opstart.
+      const fallbackToDownload = () => {
+        XLSX.writeFile(wb, fileName);
+        showToast(viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret` : 'Lønperiode eksporteret');
+      };
+
+      if (!navigator.share || !navigator.canShare) {
+        fallbackToDownload();
+        return;
+      }
+
       const wbBytes = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
       const file = new File([wbBytes], fileName, {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
+
+      // Tjek med den RIGTIGE fil (samme filtype som rent faktisk deles) -
+      // ikke en tom test-fil - så testen afspejler, hvad der faktisk sker.
+      if (!navigator.canShare({ files: [file] })) {
+        fallbackToDownload();
+        return;
+      }
 
       navigator.share({
         files: [file],
         title: 'Lønperiode ' + getDanishMonthName(monthIndex0) + ' ' + year
       }).catch(err => {
         // Brugeren fortrød selve deleark-valget - ikke en fejl, der skal vises
-        if (err.name !== 'AbortError') {
-          console.error('Kunne ikke dele lønperioden:', err);
-          showToast('Kunne ikke åbne deleark - prøv Eksportér i stedet', 'error');
-        }
+        if (err.name === 'AbortError') return;
+        console.error('Kunne ikke dele lønperioden - falder tilbage til download:', err);
+        fallbackToDownload();
       });
     }
 
@@ -6885,13 +6904,15 @@
     window.onload = function() {
       if (window.lucide) lucide.createIcons();
 
-      // Del-knappen til lønperioden vises kun, hvis telefonens/browserens
-      // egen "del"-funktion (det indbyggede deleark - SMS, mail, AirDrop,
-      // Gem i Filer osv.) rent faktisk understøtter at dele en fil. Det gør
-      // desktop-browsere typisk ikke, så der falder man automatisk tilbage
-      // til den almindelige download-knap i stedet.
+      // Del-knappen til lønperioden vises, hvis telefonens/browserens egen
+      // "del"-funktion (det indbyggede deleark - SMS, mail, AirDrop, Gem i
+      // Filer osv.) findes overhovedet. Det gør desktop-browsere typisk
+      // ikke. Om den RIGTIGE Excel-fil kan deles afgøres først ved klik
+      // (sharePayPeriodExcel), som selv falder tilbage til almindelig
+      // download, hvis OS'et i praksis afviser filtypen - så knappen kan
+      // trygt vises lidt bredere her uden at risikere en fejlmeddelelse.
       const shareBtn = document.getElementById('payPeriodShareBtn');
-      if (shareBtn && navigator.canShare && navigator.canShare({ files: [new File([''], 'test.xlsx')] })) {
+      if (shareBtn && navigator.share) {
         shareBtn.classList.remove('hidden');
       }
 
