@@ -6701,14 +6701,17 @@
 
       // Falder automatisk tilbage til almindelig download, hvis telefonens
       // deleark ikke kan bruges lige nu - fx fordi OS'et i praksis afviser
-      // selve Excel-filtypen, selvom knappen blev vist ved opstart.
-      const fallbackToDownload = () => {
+      // selve Excel-filtypen, selvom knappen blev vist ved opstart. Teksten
+      // på toasten fortæller hvorfor, så det ikke bare ser ud som om "del"
+      // og "eksportér" er den samme knap ved en fejl.
+      const fallbackToDownload = (reason) => {
         XLSX.writeFile(wb, fileName);
-        showToast(viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret` : 'Lønperiode eksporteret');
+        const base = viewingEmployee ? `Lønperiode for ${viewingEmployee.name} eksporteret` : 'Lønperiode eksporteret';
+        showToast(reason ? `${base} (${reason})` : base);
       };
 
-      if (!navigator.share || !navigator.canShare) {
-        fallbackToDownload();
+      if (!navigator.share) {
+        fallbackToDownload('deling understøttes ikke her');
         return;
       }
 
@@ -6717,22 +6720,28 @@
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       });
 
-      // Tjek med den RIGTIGE fil (samme filtype som rent faktisk deles) -
-      // ikke en tom test-fil - så testen afspejler, hvad der faktisk sker.
-      if (!navigator.canShare({ files: [file] })) {
-        fallbackToDownload();
-        return;
+      // canShare() springes bevidst over her: på visse Chrome/WebView-
+      // versioner (bl.a. set på hjemmeskærm-installerede PWA'er) svarer den
+      // fejlagtigt "nej" til at kunne dele filer, selvom et faktisk
+      // share()-kald med samme fil virker fint. share() afviser i stedet
+      // selv (ved et løfte, ikke en kastet fejl) hvis det alligevel ikke kan
+      // lade sig gøre, og det fanger try/catch + .catch() nedenfor - så vi
+      // forsøger den rigtige deling i stedet for at stole på en test, der
+      // kan tage fejl.
+      try {
+        navigator.share({
+          files: [file],
+          title: 'Lønperiode ' + getDanishMonthName(monthIndex0) + ' ' + year
+        }).catch(err => {
+          // Brugeren fortrød selve deleark-valget - ikke en fejl, der skal vises
+          if (err.name === 'AbortError') return;
+          console.error('Kunne ikke dele lønperioden - falder tilbage til download:', err);
+          fallbackToDownload('deling fejlede');
+        });
+      } catch (err) {
+        console.error('navigator.share kastede en fejl - falder tilbage til download:', err);
+        fallbackToDownload('deling fejlede');
       }
-
-      navigator.share({
-        files: [file],
-        title: 'Lønperiode ' + getDanishMonthName(monthIndex0) + ' ' + year
-      }).catch(err => {
-        // Brugeren fortrød selve deleark-valget - ikke en fejl, der skal vises
-        if (err.name === 'AbortError') return;
-        console.error('Kunne ikke dele lønperioden - falder tilbage til download:', err);
-        fallbackToDownload();
-      });
     }
 
     // Udfylder årsvælgeren med de år, der faktisk findes registreringer i,
