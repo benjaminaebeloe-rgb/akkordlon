@@ -2819,21 +2819,33 @@
             batch.delete(db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid));
           }
           batch.set(db.collection('users').doc(currentUser.uid), { companyId, joinCode: code }, { merge: true });
-          batch.set(db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid), {
+          // joinCode sendes også med HER (ikke kun på brugerens egen profil
+          // ovenfor) - reglerne kan ikke se søster-skrivninger i samme
+          // batch, så medarbejder-postens egen oprettelse skal kunne
+          // godkendes direkte ud fra koden, uafhængigt af at companyId lige
+          // er blevet sat på brugerens profil i samme batch.
+          const employeeRef = db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid);
+          batch.set(employeeRef, {
             name: currentUser.displayName || '',
             email: currentUser.email || '',
             role: 'employee',
-            joinedAt: new Date().toISOString()
+            joinedAt: new Date().toISOString(),
+            joinCode: code
           });
 
           batch.commit().then(() => {
-            // Selve koden er kun nødvendig i det øjeblik companyId sættes -
-            // ryddes igen bagefter, så den ikke bare ligger og fylder. Dette
-            // er en ren oprydning uden for selve batchen - fejler den, er
-            // medlemskabet stadig fuldt gyldigt.
-            return db.collection('users').doc(currentUser.uid).update({
-              joinCode: firebase.firestore.FieldValue.delete()
-            }).catch(() => {});
+            // Selve koden er kun nødvendig i det øjeblik de to poster
+            // oprettes/opdateres - ryddes igen bagefter begge steder, så den
+            // ikke bare ligger og fylder. Dette er ren oprydning uden for
+            // selve batchen - fejler den, er medlemskabet stadig fuldt gyldigt.
+            return Promise.all([
+              db.collection('users').doc(currentUser.uid).update({
+                joinCode: firebase.firestore.FieldValue.delete()
+              }).catch(() => {}),
+              employeeRef.update({
+                joinCode: firebase.firestore.FieldValue.delete()
+              }).catch(() => {})
+            ]);
           }).then(() => {
             myMembershipCompanyName = companyName;
             input.value = '';
@@ -3750,7 +3762,7 @@
         const mine = wasteReports.filter(r => r.reportedBy === myUid);
         mineContainer.innerHTML = mine.length === 0
           ? '<p class="text-slate-400 text-center py-4 text-xs">Ingen indberetninger endnu - brug formularen herover.</p>'
-          : mine.map(r => renderWasteReportRow(r, { showDispatch: isSolo, showDelete: r.status === 'afventer' })).join('');
+          : mine.map(r => renderWasteReportRow(r, { showDispatch: isSolo, showDelete: true })).join('');
       }
 
       // Admin-oversigt: kun relevant i en virksomhed (solo-brugere har kun
