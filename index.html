@@ -6218,21 +6218,17 @@
       }).join('');
     }
 
-    // Gør note-tekster robuste at gruppere på: "456", " 456 " og "Sag 456"
-    // med forskellig store/små bogstaver bliver til samme gruppe, mens den
-    // først-sete skrivemåde bruges til at vise gruppen med.
-    function normalizeNoteKey(note) {
-      return note.trim().replace(/\s+/g, ' ').toLowerCase();
-    }
-
-    function groupEntriesByNote(entriesList) {
+    // Grupperer registreringer efter den sag, de er sat på (caseId), så
+    // hver sag kan vises som sin egen lille tabel i eksporten. Registreringer
+    // uden sag (fritstående) er ikke med i grupperingen.
+    function groupEntriesByCase(entriesList) {
       const groups = {};
       entriesList.forEach(e => {
-        const rawNote = (e.note || '').trim().replace(/\s+/g, ' ');
-        if (!rawNote) return;
-        const key = normalizeNoteKey(rawNote);
+        if (!e.caseId) return;
+        const key = e.caseId;
         if (!groups[key]) {
-          groups[key] = { displayNote: rawNote, rates: {}, hours: 0, totalDkk: 0 };
+          const label = e.caseNumber ? `#${e.caseNumber} · ${e.caseName || 'Unavngivet sag'}` : (e.caseName || 'Unavngivet sag');
+          groups[key] = { displayName: label, rates: {}, hours: 0, totalDkk: 0 };
         }
         if (!groups[key].rates[e.rateName]) {
           groups[key].rates[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
@@ -6246,8 +6242,27 @@
       return groups;
     }
 
+    // Beregner passende kolonnebredder ud fra det længste indhold i hver
+    // kolonne, så tekstfelter (fx sats-/opgavenavne) ikke bliver klippet af
+    // i Excel. Enkelt-celle-rækker (overskrifter/titler, der er slået
+    // sammen på tværs af flere kolonner) springes over, så en lang
+    // sagstitel ikke alene presser den første kolonne unødigt bred ud.
+    function autoSizeColumns(aoa, opts = {}) {
+      const minWidth = opts.minWidth || 8;
+      const maxWidth = opts.maxWidth || 60;
+      const widths = [];
+      aoa.forEach(row => {
+        if (!row || row.length < 2) return;
+        row.forEach((cell, i) => {
+          const text = (cell === null || cell === undefined) ? '' : String(cell);
+          if (!widths[i] || text.length > widths[i]) widths[i] = text.length;
+        });
+      });
+      return widths.map(w => ({ wch: Math.min(maxWidth, Math.max(minWidth, w + 2)) }));
+    }
+
     // Bygger en rigtig Excel-arbejdsbog (.xlsx) med tre faneblade: rådata,
-    // en opsummering pr. akkordsats, og en opsummering pr. note/sag.
+    // en opsummering pr. akkordsats, og en opsummering pr. sag.
     // Tal skrives som rigtige Excel-tal (ikke tekst), så Excel selv viser
     // dem med komma eller punktum efter brugerens egne indstillinger, og
     // SheetJS håndterer al escaping af specialtegn (citationstegn,
@@ -6287,6 +6302,7 @@
       }
 
       const dataSheet = XLSX.utils.aoa_to_sheet(aoa);
+      dataSheet['!cols'] = autoSizeColumns(aoa);
 
       // --- Faneblad 2: Pr. Sats ---
       const rateGroups = {};
@@ -6304,30 +6320,32 @@
         rateRows.push([name, g.quantity, g.unit, g.hours, Number(g.totalDkk.toFixed(2))]);
       });
       const rateSheet = XLSX.utils.aoa_to_sheet(rateRows);
+      rateSheet['!cols'] = autoSizeColumns(rateRows);
 
-      // --- Faneblad 3: Pr. Note (kun hvis der findes noter) ---
-      // Hver note/sag vises som sin egen overskrift med en lille tabel
-      // under sig, i stedet for at stå gentaget i en kolonne på hver række.
-      const noteGroups = groupEntriesByNote(entriesList);
-      let noteSheet = null;
-      if (Object.keys(noteGroups).length > 0) {
-        const noteRows = [];
-        const noteMerges = [];
-        Object.keys(noteGroups).forEach(key => {
-          const noteData = noteGroups[key];
-          const headingRowIndex = noteRows.length;
-          noteRows.push([noteData.displayNote]);
-          noteMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
-          noteRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
-          Object.keys(noteData.rates).forEach(rateName => {
-            const r = noteData.rates[rateName];
-            noteRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
+      // --- Faneblad 3: Pr. Sag (kun hvis registreringerne er sat på sager) ---
+      // Hver sag vises som sin egen overskrift med en lille tabel under sig,
+      // i stedet for at stå gentaget i en kolonne på hver række.
+      const caseGroups = groupEntriesByCase(entriesList);
+      let caseSheet = null;
+      if (Object.keys(caseGroups).length > 0) {
+        const caseRows = [];
+        const caseMerges = [];
+        Object.keys(caseGroups).forEach(key => {
+          const caseData = caseGroups[key];
+          const headingRowIndex = caseRows.length;
+          caseRows.push([caseData.displayName]);
+          caseMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
+          caseRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
+          Object.keys(caseData.rates).forEach(rateName => {
+            const r = caseData.rates[rateName];
+            caseRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
           });
-          noteRows.push(['I alt', '', '', noteData.hours, Number(noteData.totalDkk.toFixed(2))]);
-          noteRows.push([]);
+          caseRows.push(['I alt', '', '', caseData.hours, Number(caseData.totalDkk.toFixed(2))]);
+          caseRows.push([]);
         });
-        noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
-        noteSheet['!merges'] = noteMerges;
+        caseSheet = XLSX.utils.aoa_to_sheet(caseRows);
+        caseSheet['!merges'] = caseMerges;
+        caseSheet['!cols'] = autoSizeColumns(caseRows);
       }
 
       // --- Faneblad 0 (forrest): Årsopgørelse - måned for måned ---
@@ -6356,13 +6374,14 @@
 
         yearSummarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
         yearSummarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+        yearSummarySheet['!cols'] = autoSizeColumns(summaryRows);
       }
 
       const wb = XLSX.utils.book_new();
       if (yearSummarySheet) XLSX.utils.book_append_sheet(wb, yearSummarySheet, 'Årsopgørelse');
       XLSX.utils.book_append_sheet(wb, dataSheet, 'Data');
       XLSX.utils.book_append_sheet(wb, rateSheet, 'Pr. Sats');
-      if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
+      if (caseSheet) XLSX.utils.book_append_sheet(wb, caseSheet, 'Pr. Sag');
 
       return wb;
     }
