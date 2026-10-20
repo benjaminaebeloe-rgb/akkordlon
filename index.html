@@ -285,6 +285,13 @@
       <button onclick="switchTab('cases')" id="sidenav-cases" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
         <i data-lucide="briefcase" class="w-4 h-4"></i> Sager
       </button>
+      <button onclick="switchTab('waste')" id="sidenav-waste" class="hidden sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <span class="relative flex-shrink-0">
+          <i data-lucide="recycle" class="w-4 h-4"></i>
+          <span class="waste-badge-dot hidden absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+        </span>
+        Affald
+      </button>
 
       <div class="border-t border-slate-100 my-2"></div>
 
@@ -614,6 +621,81 @@
         <div id="completedCasesSection" class="hidden">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Afsluttede sager</h3>
           <div id="completedCasesList" class="space-y-2.5">
+            <!-- Rendered dynamically via JS -->
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: AFFALD                                -->
+      <!-- ========================================== -->
+      <section id="tab-waste" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
+
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Affald</h2>
+          <p class="text-xs text-slate-500">Indberet asbestposer til afsending - indberetningen går direkte til administratorerne</p>
+        </div>
+
+        <!-- Ny indberetning -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5" for="wasteAddress">Adresse</label>
+            <input type="text" id="wasteAddress" placeholder="Fx Vejgade 12, 6000 Kolding" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label class="text-xs font-semibold uppercase tracking-wider text-slate-500" for="wasteCaseSelect">Sag (valgfri)</label>
+              <button type="button" onclick="promptCreateCase('wasteCaseSelect')" class="text-[11px] text-brand-600 font-semibold hover:text-brand-700">+ Ny sag</button>
+            </div>
+            <select id="wasteCaseSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
+              <option value="">Ingen sag</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5" for="wasteBagCount">Antal asbestposer</label>
+            <input type="text" inputmode="numeric" id="wasteBagCount" onblur="sanitizeIntegerInput(this)" placeholder="Fx 12" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+
+          <button onclick="handleSubmitWasteReport()" class="w-full bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-brand-600/20">Send indberetning</button>
+        </div>
+
+        <!-- Vises efter afsendelse, hvis administratoren har angivet et SMS-nummer.
+             Et almindeligt link (ikke automatisk afsendelse): medarbejderens egen SMS-app
+             åbnes med modtager og tekst udfyldt, og de trykker selv send. -->
+        <div id="wasteSmsPrompt" class="hidden bg-emerald-50 border border-emerald-200 rounded-2xl p-4 space-y-2.5">
+          <div class="flex items-center gap-2 text-sm font-bold text-emerald-800">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Indberetning sendt
+          </div>
+          <p class="text-xs text-emerald-800">Vil du også sende den som SMS til administrator? Din SMS-app åbner med alt udfyldt - du skal blot trykke send.</p>
+          <div class="flex gap-2">
+            <a id="wasteSmsLink" href="#" class="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-bold">Send SMS</a>
+            <button type="button" onclick="hideWasteSmsPrompt()" class="px-4 py-2.5 rounded-xl text-xs font-bold text-emerald-800 border border-emerald-300 hover:bg-emerald-100">Luk</button>
+          </div>
+        </div>
+
+        <!-- Besked til almindelige medarbejdere: de kan kun sende, ikke se igen -->
+        <div id="wasteEmployeeNote" class="hidden bg-slate-100 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5"></i>
+          <span>Når du har sendt en indberetning, går den direkte til administratorerne. Du kan ikke se eller rette den bagefter.</span>
+        </div>
+
+        <!-- SMS-nummer til indberetninger (kun administratorer) -->
+        <div id="wasteSmsSettings" class="hidden bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2.5">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider" for="wasteSmsNumber">SMS-nummer til indberetninger</label>
+          <div class="flex gap-2">
+            <input type="tel" inputmode="tel" id="wasteSmsNumber" placeholder="Fx 12 34 56 78" class="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+            <button onclick="saveWasteSmsNumber()" class="bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap shadow-md shadow-brand-600/20">Gem</button>
+          </div>
+          <p class="text-[11px] text-slate-500">Efter en indberetning kan medarbejderen med ét tryk åbne en SMS til dette nummer med sag, adresse og antal poser. SMS'en sendes fra medarbejderens egen telefon. Lad feltet stå tomt for at slå det fra.</p>
+        </div>
+
+        <!-- Affaldsoversigt (kun synlig for administratorer) -->
+        <div id="wasteAdminSection" class="hidden">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Indberetninger</h3>
+          <div id="allWasteReportsList" class="space-y-2.5">
             <!-- Rendered dynamically via JS -->
           </div>
         </div>
@@ -1154,6 +1236,14 @@
       <button onclick="switchTab('cases')" id="nav-cases" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="briefcase" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Sager</span>
+      </button>
+
+      <button onclick="switchTab('waste')" id="nav-waste" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <span class="relative">
+          <i data-lucide="recycle" class="w-5 h-5"></i>
+          <span class="waste-badge-dot hidden absolute -top-0.5 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+        </span>
+        <span class="text-[10px] font-semibold mt-1">Affald</span>
       </button>
 
       <button onclick="switchTab('settings')" id="nav-settings" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
@@ -1837,6 +1927,32 @@
         expected: null
       });
 
+      // SMS til administrator: nummer-normalisering og tekst/link
+      const phoneCases = [
+        ['12 34 56 78', '+4512345678'],
+        ['+45 12-34-56-78', '+4512345678'],
+        ['0045 12345678', '+4512345678'],
+        ['+46 70 123 45 67', '+46701234567'],
+        ['1234', null],
+        ['abc', null],
+        ['', null]
+      ];
+      phoneCases.forEach(([input, expected]) => {
+        const actual = normalizePhoneNumber(input);
+        results.push({ name: `Telefonnummer "${input}" -> ${expected}`, pass: actual === expected, actual, expected });
+      });
+
+      const smsBody = buildWasteSmsBody({ address: 'Vejgade 12', bagCount: 3, caseNumber: 7, caseName: 'Gården', reportedByName: 'Anders' });
+      const expectedBody = 'Affald - asbest\nSag: #7 Gården\nAdresse: Vejgade 12\nAntal poser: 3\nFra: Anders';
+      results.push({ name: 'SMS-tekst indeholder sag, adresse og antal poser', pass: smsBody === expectedBody, actual: smsBody, expected: expectedBody });
+
+      const noCaseBody = buildWasteSmsBody({ address: 'X', bagCount: 1, reportedByName: '' });
+      results.push({ name: 'SMS-tekst uden sag: "Ingen sag" og "ukendt" afsender', pass: noCaseBody.includes('Sag: Ingen sag') && noCaseBody.includes('Fra: ukendt'), actual: noCaseBody, expected: 'Sag: Ingen sag ... Fra: ukendt' });
+
+      const smsLink = buildSmsLink('+4512345678', 'A æ\nB&C');
+      const expectedLink = 'sms:+4512345678?&body=A%20%C3%A6%0AB%26C';
+      results.push({ name: 'SMS-link: nummer + korrekt URL-kodet tekst (æ, linjeskift, &)', pass: smsLink === expectedLink, actual: smsLink, expected: expectedLink });
+
       return results;
     }
 
@@ -1888,6 +2004,7 @@
       }
       detachRealtimeListeners();
       detachCasesListeners();
+      detachWasteReportsListener();
       closeCaseCommentsModal();
 
       // Nulstilles med det samme (i stedet for kun at vente på den
@@ -1913,6 +2030,7 @@
       absences = [];
       myCompany = null;
       myCompanyId = null;
+      loadWasteReports(); // skjuler Affald-fanen og rydder listen
       localStorage.removeItem('akkord_entries');
       localStorage.removeItem('akkord_rates');
       localStorage.removeItem('akkord_absences');
@@ -2470,6 +2588,7 @@
           hideEmployeesTab();
           renderAccountModalBody();
           loadCases();
+          loadWasteReports();
           return;
         }
 
@@ -2491,6 +2610,7 @@
             }).catch(() => {});
             renderAccountModalBody();
             loadCases();
+            loadWasteReports();
             return;
           }
 
@@ -2515,6 +2635,7 @@
 
           renderAccountModalBody();
           loadCases();
+          loadWasteReports();
         }).catch(err => console.error('Kunne ikke tjekke virksomhedsrolle:', err));
       }).catch(err => console.error('Kunne ikke tjekke virksomheds-tilknytning:', err));
     }
@@ -2542,6 +2663,7 @@
             hideEmployeesTab();
             renderAccountModalBody();
             loadCases();
+            loadWasteReports();
             showToast('Du er ikke længere medlem af denne virksomhed', 'error');
             return;
           }
@@ -2553,6 +2675,7 @@
             localStorage.removeItem('akkord_myCompany');
             hideEmployeesTab();
             renderAccountModalBody();
+            loadWasteReports(); // stopper lytteren - kun admin må læse indberetninger
             showToast('Din administrator-adgang er blevet fjernet', 'error');
           } else if (!wasAdmin && isAdminNow) {
             // Forfremmet mens appen var åben - genindlæs fuld info for at
@@ -2697,6 +2820,7 @@
         hideEmployeesTab();
         renderAccountModalBody();
         loadCases(); // skifter automatisk til personlige sager igen
+        loadWasteReports();
         switchTab('register');
         showToast('Du har forladt "' + companyName + '"');
       }).catch(err => {
@@ -2745,21 +2869,33 @@
             batch.delete(db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid));
           }
           batch.set(db.collection('users').doc(currentUser.uid), { companyId, joinCode: code }, { merge: true });
-          batch.set(db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid), {
+          // joinCode sendes også med HER (ikke kun på brugerens egen profil
+          // ovenfor) - reglerne kan ikke se søster-skrivninger i samme
+          // batch, så medarbejder-postens egen oprettelse skal kunne
+          // godkendes direkte ud fra koden, uafhængigt af at companyId lige
+          // er blevet sat på brugerens profil i samme batch.
+          const employeeRef = db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid);
+          batch.set(employeeRef, {
             name: currentUser.displayName || '',
             email: currentUser.email || '',
             role: 'employee',
-            joinedAt: new Date().toISOString()
+            joinedAt: new Date().toISOString(),
+            joinCode: code
           });
 
           batch.commit().then(() => {
-            // Selve koden er kun nødvendig i det øjeblik companyId sættes -
-            // ryddes igen bagefter, så den ikke bare ligger og fylder. Dette
-            // er en ren oprydning uden for selve batchen - fejler den, er
-            // medlemskabet stadig fuldt gyldigt.
-            return db.collection('users').doc(currentUser.uid).update({
-              joinCode: firebase.firestore.FieldValue.delete()
-            }).catch(() => {});
+            // Selve koden er kun nødvendig i det øjeblik de to poster
+            // oprettes/opdateres - ryddes igen bagefter begge steder, så den
+            // ikke bare ligger og fylder. Dette er ren oprydning uden for
+            // selve batchen - fejler den, er medlemskabet stadig fuldt gyldigt.
+            return Promise.all([
+              db.collection('users').doc(currentUser.uid).update({
+                joinCode: firebase.firestore.FieldValue.delete()
+              }).catch(() => {}),
+              employeeRef.update({
+                joinCode: firebase.firestore.FieldValue.delete()
+              }).catch(() => {})
+            ]);
           }).then(() => {
             myMembershipCompanyName = companyName;
             input.value = '';
@@ -2949,11 +3085,11 @@
       checkDuplicateAndCreateCase(name, () => { input.value = ''; });
     }
 
-    function promptCreateCase() {
+    function promptCreateCase(targetSelectId) {
       showInputModal('Ny sag', { placeholder: 'Fx vejnavn eller kundenavn', confirmLabel: 'Opret sag' }, (name) => {
         checkDuplicateAndCreateCase(name, (newCase) => {
-          // Vælg den nye sag med det samme i registreringsformularen
-          const select = document.getElementById('logCase');
+          // Vælg den nye sag med det samme i den formular, den blev oprettet fra
+          const select = document.getElementById(targetSelectId || 'logCase');
           if (select) select.value = newCase.id;
         });
       });
@@ -3043,6 +3179,7 @@
         openCases = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.number - b.number);
         renderOpenCasesList();
         populateCaseSelect(document.getElementById('logCase'));
+        populateCaseSelect(document.getElementById('wasteCaseSelect'));
       }, err => console.error('Live-opdatering af sager fejlede:', err));
 
       const completedSection = document.getElementById('completedCasesSection');
@@ -3509,6 +3646,336 @@
       });
     }
 
+    // ==========================================
+    // AFFALD (asbestposer m.m.) - kun for virksomheder
+    // ==========================================
+    // Funktionen findes kun, når man er medlem af en virksomhed (Affald-
+    // fanen skjules ellers - se updateWasteTabVisibility). Enhver
+    // medarbejder kan SENDE en indberetning, men kan ikke se den igen
+    // bagefter: kun virksomhedens administratorer kan se alle
+    // indberetninger samlet, melde dem anmeldt til afsending og slette dem.
+    let wasteReports = [];
+    let wasteReportsUnsubscribe = null;
+
+    // Gør et indtastet telefonnummer til +CCNNNNNNNN, eller null hvis det
+    // ikke ligner et nummer. 8 cifre antages at være et dansk nummer (+45).
+    function normalizePhoneNumber(raw) {
+      let n = String(raw || '').replace(/[\s\-().]/g, '');
+      if (n.startsWith('00')) n = '+' + n.slice(2);
+      if (/^\d{8}$/.test(n)) n = '+45' + n;
+      return /^\+\d{8,15}$/.test(n) ? n : null;
+    }
+
+    // Teksten i SMS'en til administratoren: sag, adresse og antal poser.
+    function buildWasteSmsBody(report) {
+      const caseLine = report.caseNumber
+        ? `#${report.caseNumber} ${report.caseName || ''}`.trim()
+        : 'Ingen sag';
+      return [
+        'Affald - asbest',
+        `Sag: ${caseLine}`,
+        `Adresse: ${report.address}`,
+        `Antal poser: ${report.bagCount}`,
+        `Fra: ${report.reportedByName || 'ukendt'}`
+      ].join('\n');
+    }
+
+    // "?&body=" virker både på iOS og Android.
+    function buildSmsLink(number, body) {
+      return `sms:${number}?&body=${encodeURIComponent(body)}`;
+    }
+
+    // Administrator i en virksomhed (ejer eller admin-rolle). myCompany er
+    // kun sat for administratorer, myCompanyId for alle medlemmer.
+    function isWasteAdmin() {
+      return !!(myCompanyId && myCompany);
+    }
+
+    function getWasteReportsRef() {
+      if (!db || !currentUser || !myCompanyId) return null;
+      return db.collection('companies').doc(myCompanyId).collection('wasteReports');
+    }
+
+    function detachWasteReportsListener() {
+      if (wasteReportsUnsubscribe) { wasteReportsUnsubscribe(); wasteReportsUnsubscribe = null; }
+    }
+
+    // Viser/skjuler Affald-fanen (bund + sidebar) afhængigt af om man er i en
+    // virksomhed, og tilpasser bundnavigationens kolonner, så der ikke
+    // efterlades et tomt hul. Hvis man står på Affald-fanen, når man mister
+    // virksomheden (forlader den, fjernes, logger ud), flyttes man væk.
+    function updateWasteTabVisibility() {
+      const show = !!myCompanyId;
+      const navBtn = document.getElementById('nav-waste');
+      const sideBtn = document.getElementById('sidenav-waste');
+      const grid = document.getElementById('navGrid');
+      if (navBtn) navBtn.classList.toggle('hidden', !show);
+      if (sideBtn) sideBtn.classList.toggle('hidden', !show);
+      if (grid) {
+        grid.classList.toggle('grid-cols-6', show);
+        grid.classList.toggle('grid-cols-5', !show);
+      }
+      if (!show) {
+        const wasteTab = document.getElementById('tab-waste');
+        if (wasteTab && !wasteTab.classList.contains('hidden')) switchTab('overview');
+      }
+    }
+
+    function loadWasteReports() {
+      detachWasteReportsListener();
+      hideWasteSmsPrompt();
+      updateWasteTabVisibility();
+      populateCaseSelect(document.getElementById('wasteCaseSelect'));
+
+      // Kun administratorer må læse indberetningerne - almindelige
+      // medarbejdere abonnerer slet ikke (reglerne ville afvise det).
+      const ref = isWasteAdmin() ? getWasteReportsRef() : null;
+      if (!ref) {
+        wasteReports = [];
+        renderWasteReportsList();
+        return;
+      }
+
+      wasteReportsUnsubscribe = ref.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+        wasteReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderWasteReportsList();
+      }, err => {
+        // Vises TYDELIGT i selve listen (ikke kun i konsollen) - en
+        // mislykket hentning så ellers helt tom ud, hvilket er umuligt at
+        // skelne fra "her er bare ingen data endnu".
+        console.error('Live-opdatering af affaldsindberetninger fejlede:', err);
+        showToast('Kunne ikke hente affaldsindberetninger', 'error');
+        renderWasteReportsList(true);
+      });
+    }
+
+    // Administratoren gemmer SMS-nummeret på selve virksomheden (companies/{id}),
+    // som alle medlemmer kan læse - så medarbejdere kender det uden at kunne
+    // se indberetningerne. Eksisterende regler tillader allerede at en
+    // administrator opdaterer virksomheden.
+    function saveWasteSmsNumber() {
+      if (!isWasteAdmin() || !db) return;
+      const input = document.getElementById('wasteSmsNumber');
+      const raw = input.value.trim();
+      let normalized = null;
+      if (raw) {
+        normalized = normalizePhoneNumber(raw);
+        if (!normalized) {
+          showToast('Ugyldigt telefonnummer', 'error');
+          return;
+        }
+      }
+      db.collection('companies').doc(myCompanyId).update({
+        wasteSmsNumber: normalized || firebase.firestore.FieldValue.delete()
+      }).then(() => {
+        if (normalized) myCompany.wasteSmsNumber = normalized; else delete myCompany.wasteSmsNumber;
+        try { localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany)); } catch (e) { /* ignorer */ }
+        input.value = normalized || '';
+        showToast(normalized ? 'SMS-nummer gemt' : 'SMS-nummer fjernet');
+      }).catch(err => {
+        console.error('Kunne ikke gemme SMS-nummer:', err);
+        showToast('Kunne ikke gemme SMS-nummer', 'error');
+      });
+    }
+
+    // Henter altid det aktuelle nummer fra virksomheden lige efter en
+    // indberetning (så en nylig ændring af administratoren er med).
+    function fetchWasteSmsNumber() {
+      return db.collection('companies').doc(myCompanyId).get()
+        .then(d => (d.exists && d.data().wasteSmsNumber) || null)
+        .catch(() => null);
+    }
+
+    function showWasteSmsPrompt(number, report) {
+      const prompt = document.getElementById('wasteSmsPrompt');
+      const link = document.getElementById('wasteSmsLink');
+      if (!prompt || !link) return;
+      link.setAttribute('href', buildSmsLink(number, buildWasteSmsBody(report)));
+      prompt.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function hideWasteSmsPrompt() {
+      const prompt = document.getElementById('wasteSmsPrompt');
+      if (prompt) prompt.classList.add('hidden');
+    }
+
+    function handleSubmitWasteReport() {
+      if (!currentUser) {
+        showToast('Log ind med Google for at indberette affald', 'error');
+        return;
+      }
+      const ref = getWasteReportsRef();
+      if (!ref) {
+        showToast('Affald kan kun indberettes som medlem af en virksomhed', 'error');
+        return;
+      }
+      const addressInput = document.getElementById('wasteAddress');
+      const caseSelect = document.getElementById('wasteCaseSelect');
+      const bagInput = document.getElementById('wasteBagCount');
+
+      const address = addressInput.value.trim();
+      sanitizeIntegerInput(bagInput);
+      const bagCount = parseInt(bagInput.value, 10);
+
+      if (!address) {
+        showToast('Skriv en adresse først', 'error');
+        return;
+      }
+      if (!bagCount || bagCount < 1) {
+        showToast('Angiv antallet af asbestposer', 'error');
+        return;
+      }
+
+      const selectedCaseId = caseSelect ? caseSelect.value : '';
+      const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
+
+      hideWasteSmsPrompt();
+      const reportData = {
+        address,
+        bagCount,
+        caseId: selectedCase ? selectedCase.id : null,
+        caseName: selectedCase ? selectedCase.name : null,
+        caseNumber: selectedCase ? selectedCase.number : null,
+        status: 'afventer',
+        reportedBy: currentUser.uid,
+        reportedByName: currentUser.displayName || currentUser.email || 'Ukendt',
+        createdAt: new Date().toISOString(),
+        dispatchedAt: null,
+        dispatchedBy: null,
+        dispatchedByName: null
+      };
+
+      ref.add(reportData).then(() => {
+        showToast('Indberetning sendt til administrator');
+        addressInput.value = '';
+        bagInput.value = '';
+        if (caseSelect) caseSelect.value = '';
+
+        // Administratorer behøver ikke SMS'e til sig selv - kun medarbejdere
+        // får tilbuddet, og kun hvis et SMS-nummer er sat.
+        if (!isWasteAdmin()) {
+          fetchWasteSmsNumber().then(number => {
+            if (number) showWasteSmsPrompt(number, reportData);
+          });
+        }
+      }).catch(err => {
+        console.error('Kunne ikke indberette affald:', err);
+        showToast('Kunne ikke sende indberetningen', 'error');
+      });
+    }
+
+    // Kun administratorer kan melde en indberetning anmeldt til afsending.
+    function markWasteReportDispatched(reportId) {
+      if (!isWasteAdmin()) return;
+      const ref = getWasteReportsRef();
+      if (!ref || !currentUser) return;
+      ref.doc(reportId).update({
+        status: 'anmeldt',
+        dispatchedAt: new Date().toISOString(),
+        dispatchedBy: currentUser.uid,
+        dispatchedByName: currentUser.displayName || currentUser.email || 'Ukendt'
+      }).then(() => {
+        showToast('Affald markeret som anmeldt til afsending');
+      }).catch(err => {
+        console.error('Kunne ikke opdatere affaldsstatus:', err);
+        showToast('Kunne ikke opdatere status', 'error');
+      });
+    }
+
+    function confirmDeleteWasteReport(reportId, address) {
+      showConfirmModal('Slet indberetning', `Slet affaldsindberetningen for "${address}"?`, () => deleteWasteReport(reportId));
+    }
+
+    function deleteWasteReport(reportId) {
+      if (!isWasteAdmin()) return;
+      const ref = getWasteReportsRef();
+      if (!ref) return;
+      ref.doc(reportId).delete().then(() => {
+        showToast('Indberetning slettet');
+      }).catch(err => {
+        console.error('Kunne ikke slette indberetning:', err);
+        showToast('Kunne ikke slette indberetning', 'error');
+      });
+    }
+
+    // Kun brugt i administratorens oversigt: viser altid slet-knappen, og
+    // "meld anmeldt"-knappen så længe indberetningen stadig afventer.
+    function renderWasteReportRow(r) {
+      const isDispatched = r.status === 'anmeldt';
+      const caseLabel = r.caseNumber ? `#${r.caseNumber} · ${escapeHtml(r.caseName || '')}` : 'Ingen sag';
+      const statusBadge = isDispatched
+        ? '<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 whitespace-nowrap flex-shrink-0">Anmeldt til afsending</span>'
+        : '<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 whitespace-nowrap flex-shrink-0">Afventer</span>';
+      const safeAddress = escapeHtml(r.address).replace(/'/g, "\\'");
+
+      return `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2.5">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="font-bold text-slate-900 text-sm truncate">${escapeHtml(r.address)}</div>
+              <div class="text-[10px] text-slate-500 truncate">${caseLabel}</div>
+            </div>
+            ${statusBadge}
+          </div>
+          <div class="flex items-center justify-between gap-2 text-xs text-slate-600">
+            <span class="font-semibold">${r.bagCount} ${r.bagCount === 1 ? 'asbestpose' : 'asbestposer'}</span>
+            <span class="text-[10px] text-slate-400 truncate">${escapeHtml(r.reportedByName || '')} · ${formatCommentTime(r.createdAt)}</span>
+          </div>
+          ${isDispatched ? '' : `<button onclick="markWasteReportDispatched('${r.id}')" class="w-full py-2 rounded-xl text-xs font-bold border text-emerald-700 border-emerald-200 hover:bg-emerald-50 transition-colors">Meld anmeldt til afsending</button>`}
+          <button onclick="confirmDeleteWasteReport('${r.id}', '${safeAddress}')" class="w-full py-1.5 rounded-xl text-[10px] font-bold text-slate-400 hover:text-red-600 transition-colors">Slet indberetning</button>
+        </div>
+      `;
+    }
+
+    // hadError (valgfri): hentningen fejlede (fx forældede regler eller
+    // mistet forbindelse) - vis en TYDELIG, blivende fejlbesked i listen.
+    function renderWasteReportsList(hadError) {
+      const admin = isWasteAdmin();
+
+      // Almindelige medarbejdere ser kun formularen (plus en forklaring på,
+      // at deres indberetning går direkte til administratorerne) - ingen liste.
+      const employeeNote = document.getElementById('wasteEmployeeNote');
+      if (employeeNote) employeeNote.classList.toggle('hidden', admin);
+
+      const allSection = document.getElementById('wasteAdminSection');
+      const allContainer = document.getElementById('allWasteReportsList');
+      if (allSection) allSection.classList.toggle('hidden', !admin);
+
+      // SMS-indstilling (kun administratorer). Udfyldes kun hvis feltet er
+      // tomt og ikke i fokus, så en live-opdatering aldrig overskriver det,
+      // man er ved at skrive.
+      const smsSettings = document.getElementById('wasteSmsSettings');
+      if (smsSettings) smsSettings.classList.toggle('hidden', !admin);
+      const smsInput = document.getElementById('wasteSmsNumber');
+      if (admin && smsInput && !smsInput.value && document.activeElement !== smsInput) {
+        smsInput.value = (myCompany && myCompany.wasteSmsNumber) || '';
+      }
+
+      if (admin && allContainer) {
+        if (hadError) {
+          allContainer.innerHTML = '<p class="text-red-600 bg-red-50 border border-red-200 rounded-xl text-center py-3 px-3 text-xs font-semibold">Kunne ikke hente affaldsindberetninger. Tjek din forbindelse, og log evt. ud og ind igen.</p>';
+        } else {
+          allContainer.innerHTML = wasteReports.length === 0
+            ? '<p class="text-slate-400 text-center py-4 text-xs">Ingen indberetninger endnu.</p>'
+            : wasteReports.map(renderWasteReportRow).join('');
+        }
+      }
+
+      updateWasteBadge();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    // Lille rød prik på Affald-fanen (bund + sidebar), så en administrator
+    // kan se med det samme, at der venter ubehandlede indberetninger - en
+    // letvægts "notifikationsoversigt" uden en fuld push-løsning.
+    function updateWasteBadge() {
+      const pending = isWasteAdmin() ? wasteReports.filter(r => r.status === 'afventer').length : 0;
+      document.querySelectorAll('.waste-badge-dot').forEach(el => {
+        el.classList.toggle('hidden', pending === 0);
+      });
+    }
+
     // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
     // Kobler egne live-lyttere fra, mens man kigger, for at undgå at de
     // overskriver den viste medarbejders data.
@@ -3647,6 +4114,8 @@
         loadEmployeesList();
       } else if (tabId === 'cases') {
         loadCases();
+      } else if (tabId === 'waste') {
+        loadWasteReports();
       } else if (tabId === 'data') {
         loadDataComparisonPage();
       }
@@ -4105,6 +4574,14 @@
     // "8,75", ikke kun efter feltet er blevet renset ved blur.
     function parseDecimal(value) {
       return parseFloat(String(value).replace(',', '.'));
+    }
+
+    // Samme idé som sanitizeDecimalInput() herover, men til rene
+    // heltalsfelter (fx antal poser) - intet komma/punktum tilladt
+    // overhovedet, kun cifre. Køres også kun ved blur, af samme grund.
+    function sanitizeIntegerInput(input) {
+      const cleaned = input.value.replace(/[^0-9]/g, '');
+      if (cleaned !== input.value) input.value = cleaned;
     }
 
     function calculateLiveSummary() {
@@ -6218,21 +6695,17 @@
       }).join('');
     }
 
-    // Gør note-tekster robuste at gruppere på: "456", " 456 " og "Sag 456"
-    // med forskellig store/små bogstaver bliver til samme gruppe, mens den
-    // først-sete skrivemåde bruges til at vise gruppen med.
-    function normalizeNoteKey(note) {
-      return note.trim().replace(/\s+/g, ' ').toLowerCase();
-    }
-
-    function groupEntriesByNote(entriesList) {
+    // Grupperer registreringer efter den sag, de er sat på (caseId), så
+    // hver sag kan vises som sin egen lille tabel i eksporten. Registreringer
+    // uden sag (fritstående) er ikke med i grupperingen.
+    function groupEntriesByCase(entriesList) {
       const groups = {};
       entriesList.forEach(e => {
-        const rawNote = (e.note || '').trim().replace(/\s+/g, ' ');
-        if (!rawNote) return;
-        const key = normalizeNoteKey(rawNote);
+        if (!e.caseId) return;
+        const key = e.caseId;
         if (!groups[key]) {
-          groups[key] = { displayNote: rawNote, rates: {}, hours: 0, totalDkk: 0 };
+          const label = e.caseNumber ? `#${e.caseNumber} · ${e.caseName || 'Unavngivet sag'}` : (e.caseName || 'Unavngivet sag');
+          groups[key] = { displayName: label, rates: {}, hours: 0, totalDkk: 0 };
         }
         if (!groups[key].rates[e.rateName]) {
           groups[key].rates[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
@@ -6246,8 +6719,27 @@
       return groups;
     }
 
+    // Beregner passende kolonnebredder ud fra det længste indhold i hver
+    // kolonne, så tekstfelter (fx sats-/opgavenavne) ikke bliver klippet af
+    // i Excel. Enkelt-celle-rækker (overskrifter/titler, der er slået
+    // sammen på tværs af flere kolonner) springes over, så en lang
+    // sagstitel ikke alene presser den første kolonne unødigt bred ud.
+    function autoSizeColumns(aoa, opts = {}) {
+      const minWidth = opts.minWidth || 8;
+      const maxWidth = opts.maxWidth || 60;
+      const widths = [];
+      aoa.forEach(row => {
+        if (!row || row.length < 2) return;
+        row.forEach((cell, i) => {
+          const text = (cell === null || cell === undefined) ? '' : String(cell);
+          if (!widths[i] || text.length > widths[i]) widths[i] = text.length;
+        });
+      });
+      return widths.map(w => ({ wch: Math.min(maxWidth, Math.max(minWidth, w + 2)) }));
+    }
+
     // Bygger en rigtig Excel-arbejdsbog (.xlsx) med tre faneblade: rådata,
-    // en opsummering pr. akkordsats, og en opsummering pr. note/sag.
+    // en opsummering pr. akkordsats, og en opsummering pr. sag.
     // Tal skrives som rigtige Excel-tal (ikke tekst), så Excel selv viser
     // dem med komma eller punktum efter brugerens egne indstillinger, og
     // SheetJS håndterer al escaping af specialtegn (citationstegn,
@@ -6287,6 +6779,7 @@
       }
 
       const dataSheet = XLSX.utils.aoa_to_sheet(aoa);
+      dataSheet['!cols'] = autoSizeColumns(aoa);
 
       // --- Faneblad 2: Pr. Sats ---
       const rateGroups = {};
@@ -6304,30 +6797,32 @@
         rateRows.push([name, g.quantity, g.unit, g.hours, Number(g.totalDkk.toFixed(2))]);
       });
       const rateSheet = XLSX.utils.aoa_to_sheet(rateRows);
+      rateSheet['!cols'] = autoSizeColumns(rateRows);
 
-      // --- Faneblad 3: Pr. Note (kun hvis der findes noter) ---
-      // Hver note/sag vises som sin egen overskrift med en lille tabel
-      // under sig, i stedet for at stå gentaget i en kolonne på hver række.
-      const noteGroups = groupEntriesByNote(entriesList);
-      let noteSheet = null;
-      if (Object.keys(noteGroups).length > 0) {
-        const noteRows = [];
-        const noteMerges = [];
-        Object.keys(noteGroups).forEach(key => {
-          const noteData = noteGroups[key];
-          const headingRowIndex = noteRows.length;
-          noteRows.push([noteData.displayNote]);
-          noteMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
-          noteRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
-          Object.keys(noteData.rates).forEach(rateName => {
-            const r = noteData.rates[rateName];
-            noteRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
+      // --- Faneblad 3: Pr. Sag (kun hvis registreringerne er sat på sager) ---
+      // Hver sag vises som sin egen overskrift med en lille tabel under sig,
+      // i stedet for at stå gentaget i en kolonne på hver række.
+      const caseGroups = groupEntriesByCase(entriesList);
+      let caseSheet = null;
+      if (Object.keys(caseGroups).length > 0) {
+        const caseRows = [];
+        const caseMerges = [];
+        Object.keys(caseGroups).forEach(key => {
+          const caseData = caseGroups[key];
+          const headingRowIndex = caseRows.length;
+          caseRows.push([caseData.displayName]);
+          caseMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
+          caseRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
+          Object.keys(caseData.rates).forEach(rateName => {
+            const r = caseData.rates[rateName];
+            caseRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
           });
-          noteRows.push(['I alt', '', '', noteData.hours, Number(noteData.totalDkk.toFixed(2))]);
-          noteRows.push([]);
+          caseRows.push(['I alt', '', '', caseData.hours, Number(caseData.totalDkk.toFixed(2))]);
+          caseRows.push([]);
         });
-        noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
-        noteSheet['!merges'] = noteMerges;
+        caseSheet = XLSX.utils.aoa_to_sheet(caseRows);
+        caseSheet['!merges'] = caseMerges;
+        caseSheet['!cols'] = autoSizeColumns(caseRows);
       }
 
       // --- Faneblad 0 (forrest): Årsopgørelse - måned for måned ---
@@ -6356,13 +6851,14 @@
 
         yearSummarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
         yearSummarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
+        yearSummarySheet['!cols'] = autoSizeColumns(summaryRows);
       }
 
       const wb = XLSX.utils.book_new();
       if (yearSummarySheet) XLSX.utils.book_append_sheet(wb, yearSummarySheet, 'Årsopgørelse');
       XLSX.utils.book_append_sheet(wb, dataSheet, 'Data');
       XLSX.utils.book_append_sheet(wb, rateSheet, 'Pr. Sats');
-      if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
+      if (caseSheet) XLSX.utils.book_append_sheet(wb, caseSheet, 'Pr. Sag');
 
       return wb;
     }
@@ -6941,6 +7437,10 @@
           syncEnabled = false;
           detachRealtimeListeners();
           detachCasesListeners();
+          detachWasteReportsListener();
+          myCompany = null;
+          myCompanyId = null;
+          loadWasteReports();
           closeCaseCommentsModal();
           // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
           // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
