@@ -285,13 +285,6 @@
       <button onclick="switchTab('cases')" id="sidenav-cases" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
         <i data-lucide="briefcase" class="w-4 h-4"></i> Sager
       </button>
-      <button onclick="switchTab('waste')" id="sidenav-waste" class="sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-        <span class="relative flex-shrink-0">
-          <i data-lucide="recycle" class="w-4 h-4"></i>
-          <span class="waste-badge-dot hidden absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-        </span>
-        Affald
-      </button>
 
       <div class="border-t border-slate-100 my-2"></div>
 
@@ -621,59 +614,6 @@
         <div id="completedCasesSection" class="hidden">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Afsluttede sager</h3>
           <div id="completedCasesList" class="space-y-2.5">
-            <!-- Rendered dynamically via JS -->
-          </div>
-        </div>
-
-      </section>
-
-      <!-- ========================================== -->
-      <!-- TAB: AFFALD                                -->
-      <!-- ========================================== -->
-      <section id="tab-waste" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
-
-        <div>
-          <h2 class="text-lg font-bold text-slate-900">Affald</h2>
-          <p class="text-xs text-slate-500">Indberet asbestposer til afsending - administratorer ser og kvitterer indberetningen</p>
-        </div>
-
-        <!-- Ny indberetning -->
-        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5" for="wasteAddress">Adresse</label>
-            <input type="text" id="wasteAddress" placeholder="Fx Vejgade 12, 6000 Kolding" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
-          </div>
-
-          <div>
-            <div class="flex justify-between items-center mb-1.5">
-              <label class="text-xs font-semibold uppercase tracking-wider text-slate-500" for="wasteCaseSelect">Sag (valgfri)</label>
-              <button type="button" onclick="promptCreateCase('wasteCaseSelect')" class="text-[11px] text-brand-600 font-semibold hover:text-brand-700">+ Ny sag</button>
-            </div>
-            <select id="wasteCaseSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium focus:ring-2 focus:ring-brand-500 focus:bg-white transition-all outline-none">
-              <option value="">Ingen sag</option>
-            </select>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5" for="wasteBagCount">Antal asbestposer</label>
-            <input type="text" inputmode="numeric" id="wasteBagCount" onblur="sanitizeIntegerInput(this)" placeholder="Fx 12" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
-          </div>
-
-          <button onclick="handleSubmitWasteReport()" class="w-full bg-brand-600 hover:bg-brand-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-brand-600/20">Send indberetning</button>
-        </div>
-
-        <!-- Mine indberetninger -->
-        <div>
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Mine indberetninger</h3>
-          <div id="myWasteReportsList" class="space-y-2.5">
-            <!-- Rendered dynamically via JS -->
-          </div>
-        </div>
-
-        <!-- Affaldsoversigt (kun synlig for administratorer i en virksomhed) -->
-        <div id="wasteAdminSection" class="hidden">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Affaldsoversigt (alle)</h3>
-          <div id="allWasteReportsList" class="space-y-2.5">
             <!-- Rendered dynamically via JS -->
           </div>
         </div>
@@ -1194,7 +1134,7 @@
 
   <!-- Bottom Navigation Bar (Mobile Native Style - skjult på desktop, hvor sidebaren styrer navigation) -->
   <nav class="lg:hidden bg-white border-t border-slate-200/80 fixed bottom-0 left-0 right-0 z-40 shadow-lg">
-    <div id="navGrid" class="max-w-md lg:max-w-5xl mx-auto grid grid-cols-6 h-16">
+    <div id="navGrid" class="max-w-md lg:max-w-5xl mx-auto grid grid-cols-5 h-16">
 
       <button onclick="switchTab('overview')" id="nav-overview" class="nav-item active flex flex-col items-center justify-center text-brand-600 transition-colors">
         <i data-lucide="home" class="w-5 h-5"></i>
@@ -1214,14 +1154,6 @@
       <button onclick="switchTab('cases')" id="nav-cases" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="briefcase" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Sager</span>
-      </button>
-
-      <button onclick="switchTab('waste')" id="nav-waste" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-        <span class="relative">
-          <i data-lucide="recycle" class="w-5 h-5"></i>
-          <span class="waste-badge-dot hidden absolute -top-0.5 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-        </span>
-        <span class="text-[10px] font-semibold mt-1">Affald</span>
       </button>
 
       <button onclick="switchTab('settings')" id="nav-settings" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
@@ -1956,7 +1888,6 @@
       }
       detachRealtimeListeners();
       detachCasesListeners();
-      detachWasteReportsListener();
       closeCaseCommentsModal();
 
       // Nulstilles med det samme (i stedet for kun at vente på den
@@ -2539,7 +2470,6 @@
           hideEmployeesTab();
           renderAccountModalBody();
           loadCases();
-          loadWasteReports();
           return;
         }
 
@@ -2561,7 +2491,6 @@
             }).catch(() => {});
             renderAccountModalBody();
             loadCases();
-            loadWasteReports();
             return;
           }
 
@@ -2586,7 +2515,6 @@
 
           renderAccountModalBody();
           loadCases();
-          loadWasteReports();
         }).catch(err => console.error('Kunne ikke tjekke virksomhedsrolle:', err));
       }).catch(err => console.error('Kunne ikke tjekke virksomheds-tilknytning:', err));
     }
@@ -2614,7 +2542,6 @@
             hideEmployeesTab();
             renderAccountModalBody();
             loadCases();
-            loadWasteReports();
             showToast('Du er ikke længere medlem af denne virksomhed', 'error');
             return;
           }
@@ -2770,7 +2697,6 @@
         hideEmployeesTab();
         renderAccountModalBody();
         loadCases(); // skifter automatisk til personlige sager igen
-        loadWasteReports();
         switchTab('register');
         showToast('Du har forladt "' + companyName + '"');
       }).catch(err => {
@@ -2819,33 +2745,21 @@
             batch.delete(db.collection('companies').doc(oldCompanyId).collection('employees').doc(currentUser.uid));
           }
           batch.set(db.collection('users').doc(currentUser.uid), { companyId, joinCode: code }, { merge: true });
-          // joinCode sendes også med HER (ikke kun på brugerens egen profil
-          // ovenfor) - reglerne kan ikke se søster-skrivninger i samme
-          // batch, så medarbejder-postens egen oprettelse skal kunne
-          // godkendes direkte ud fra koden, uafhængigt af at companyId lige
-          // er blevet sat på brugerens profil i samme batch.
-          const employeeRef = db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid);
-          batch.set(employeeRef, {
+          batch.set(db.collection('companies').doc(companyId).collection('employees').doc(currentUser.uid), {
             name: currentUser.displayName || '',
             email: currentUser.email || '',
             role: 'employee',
-            joinedAt: new Date().toISOString(),
-            joinCode: code
+            joinedAt: new Date().toISOString()
           });
 
           batch.commit().then(() => {
-            // Selve koden er kun nødvendig i det øjeblik de to poster
-            // oprettes/opdateres - ryddes igen bagefter begge steder, så den
-            // ikke bare ligger og fylder. Dette er ren oprydning uden for
-            // selve batchen - fejler den, er medlemskabet stadig fuldt gyldigt.
-            return Promise.all([
-              db.collection('users').doc(currentUser.uid).update({
-                joinCode: firebase.firestore.FieldValue.delete()
-              }).catch(() => {}),
-              employeeRef.update({
-                joinCode: firebase.firestore.FieldValue.delete()
-              }).catch(() => {})
-            ]);
+            // Selve koden er kun nødvendig i det øjeblik companyId sættes -
+            // ryddes igen bagefter, så den ikke bare ligger og fylder. Dette
+            // er en ren oprydning uden for selve batchen - fejler den, er
+            // medlemskabet stadig fuldt gyldigt.
+            return db.collection('users').doc(currentUser.uid).update({
+              joinCode: firebase.firestore.FieldValue.delete()
+            }).catch(() => {});
           }).then(() => {
             myMembershipCompanyName = companyName;
             input.value = '';
@@ -3035,11 +2949,11 @@
       checkDuplicateAndCreateCase(name, () => { input.value = ''; });
     }
 
-    function promptCreateCase(targetSelectId) {
+    function promptCreateCase() {
       showInputModal('Ny sag', { placeholder: 'Fx vejnavn eller kundenavn', confirmLabel: 'Opret sag' }, (name) => {
         checkDuplicateAndCreateCase(name, (newCase) => {
-          // Vælg den nye sag med det samme i den formular, den blev oprettet fra
-          const select = document.getElementById(targetSelectId || 'logCase');
+          // Vælg den nye sag med det samme i registreringsformularen
+          const select = document.getElementById('logCase');
           if (select) select.value = newCase.id;
         });
       });
@@ -3129,7 +3043,6 @@
         openCases = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.number - b.number);
         renderOpenCasesList();
         populateCaseSelect(document.getElementById('logCase'));
-        populateCaseSelect(document.getElementById('wasteCaseSelect'));
       }, err => console.error('Live-opdatering af sager fejlede:', err));
 
       const completedSection = document.getElementById('completedCasesSection');
@@ -3596,208 +3509,6 @@
       });
     }
 
-    // ==========================================
-    // AFFALD (asbestposer m.m.)
-    // ==========================================
-    // Indberetninger gemmes samme sted som sager: delt af hele virksomheden
-    // hvis man er tilknyttet én, eller under ens egen profil hvis man
-    // arbejder solo - men fungerer og ser ens ud i begge tilfælde. I en
-    // virksomhed ser administratorer alle indberetninger samlet og melder
-    // dem anmeldt til afsending; solo klarer man selv hele vejen.
-    let wasteReports = [];
-    let wasteReportsUnsubscribe = null;
-
-    function getWasteReportsRef() {
-      if (!db || !currentUser) return null;
-      return myCompanyId
-        ? db.collection('companies').doc(myCompanyId).collection('wasteReports')
-        : db.collection('users').doc(currentUser.uid).collection('wasteReports');
-    }
-
-    function detachWasteReportsListener() {
-      if (wasteReportsUnsubscribe) { wasteReportsUnsubscribe(); wasteReportsUnsubscribe = null; }
-    }
-
-    function loadWasteReports() {
-      detachWasteReportsListener();
-      populateCaseSelect(document.getElementById('wasteCaseSelect'));
-
-      const ref = getWasteReportsRef();
-      if (!ref) {
-        wasteReports = [];
-        renderWasteReportsList();
-        return;
-      }
-
-      wasteReportsUnsubscribe = ref.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
-        wasteReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderWasteReportsList();
-      }, err => console.error('Live-opdatering af affaldsindberetninger fejlede:', err));
-    }
-
-    function handleSubmitWasteReport() {
-      if (!currentUser) {
-        showToast('Log ind med Google for at indberette affald', 'error');
-        return;
-      }
-      const addressInput = document.getElementById('wasteAddress');
-      const caseSelect = document.getElementById('wasteCaseSelect');
-      const bagInput = document.getElementById('wasteBagCount');
-
-      const address = addressInput.value.trim();
-      sanitizeIntegerInput(bagInput);
-      const bagCount = parseInt(bagInput.value, 10);
-
-      if (!address) {
-        showToast('Skriv en adresse først', 'error');
-        return;
-      }
-      if (!bagCount || bagCount < 1) {
-        showToast('Angiv antallet af asbestposer', 'error');
-        return;
-      }
-
-      const ref = getWasteReportsRef();
-      if (!ref) {
-        showToast('Kunne ikke sende indberetningen', 'error');
-        return;
-      }
-
-      const selectedCaseId = caseSelect ? caseSelect.value : '';
-      const selectedCase = selectedCaseId ? openCases.find(c => c.id === selectedCaseId) : null;
-
-      ref.add({
-        address,
-        bagCount,
-        caseId: selectedCase ? selectedCase.id : null,
-        caseName: selectedCase ? selectedCase.name : null,
-        caseNumber: selectedCase ? selectedCase.number : null,
-        status: 'afventer',
-        reportedBy: currentUser.uid,
-        reportedByName: currentUser.displayName || currentUser.email || 'Ukendt',
-        createdAt: new Date().toISOString(),
-        dispatchedAt: null,
-        dispatchedBy: null,
-        dispatchedByName: null
-      }).then(() => {
-        showToast('Affald indberettet');
-        addressInput.value = '';
-        bagInput.value = '';
-        if (caseSelect) caseSelect.value = '';
-      }).catch(err => {
-        console.error('Kunne ikke indberette affald:', err);
-        showToast('Kunne ikke sende indberetningen', 'error');
-      });
-    }
-
-    // Kun administratorer (eller solo-brugeren selv - se renderWasteReportsList)
-    // kan melde en indberetning anmeldt til afsending.
-    function markWasteReportDispatched(reportId) {
-      const ref = getWasteReportsRef();
-      if (!ref || !currentUser) return;
-      ref.doc(reportId).update({
-        status: 'anmeldt',
-        dispatchedAt: new Date().toISOString(),
-        dispatchedBy: currentUser.uid,
-        dispatchedByName: currentUser.displayName || currentUser.email || 'Ukendt'
-      }).then(() => {
-        showToast('Affald markeret som anmeldt til afsending');
-      }).catch(err => {
-        console.error('Kunne ikke opdatere affaldsstatus:', err);
-        showToast('Kunne ikke opdatere status', 'error');
-      });
-    }
-
-    function confirmDeleteWasteReport(reportId, address) {
-      showConfirmModal('Slet indberetning', `Slet affaldsindberetningen for "${address}"?`, () => deleteWasteReport(reportId));
-    }
-
-    function deleteWasteReport(reportId) {
-      const ref = getWasteReportsRef();
-      if (!ref) return;
-      ref.doc(reportId).delete().then(() => {
-        showToast('Indberetning slettet');
-      }).catch(err => {
-        console.error('Kunne ikke slette indberetning:', err);
-        showToast('Kunne ikke slette indberetning', 'error');
-      });
-    }
-
-    function renderWasteReportRow(r, opts) {
-      const showDispatch = !!(opts && opts.showDispatch) && r.status === 'afventer';
-      const showDelete = !!(opts && opts.showDelete);
-      const isDispatched = r.status === 'anmeldt';
-      const caseLabel = r.caseNumber ? `#${r.caseNumber} · ${escapeHtml(r.caseName || '')}` : 'Ingen sag';
-      const statusBadge = isDispatched
-        ? '<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 whitespace-nowrap flex-shrink-0">Anmeldt til afsending</span>'
-        : '<span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 whitespace-nowrap flex-shrink-0">Afventer</span>';
-      const safeAddress = escapeHtml(r.address).replace(/'/g, "\\'");
-
-      return `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-2.5">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <div class="font-bold text-slate-900 text-sm truncate">${escapeHtml(r.address)}</div>
-              <div class="text-[10px] text-slate-500 truncate">${caseLabel}</div>
-            </div>
-            ${statusBadge}
-          </div>
-          <div class="flex items-center justify-between gap-2 text-xs text-slate-600">
-            <span class="font-semibold">${r.bagCount} ${r.bagCount === 1 ? 'asbestpose' : 'asbestposer'}</span>
-            <span class="text-[10px] text-slate-400 truncate">${escapeHtml(r.reportedByName || '')} · ${formatCommentTime(r.createdAt)}</span>
-          </div>
-          ${showDispatch ? `<button onclick="markWasteReportDispatched('${r.id}')" class="w-full py-2 rounded-xl text-xs font-bold border text-emerald-700 border-emerald-200 hover:bg-emerald-50 transition-colors">Meld anmeldt til afsending</button>` : ''}
-          ${showDelete ? `<button onclick="confirmDeleteWasteReport('${r.id}', '${safeAddress}')" class="w-full py-1.5 rounded-xl text-[10px] font-bold text-slate-400 hover:text-red-600 transition-colors">Slet indberetning</button>` : ''}
-        </div>
-      `;
-    }
-
-    function renderWasteReportsList() {
-      const isSolo = !myCompanyId;
-      const admin = isCaseAdmin();
-      const myUid = currentUser ? currentUser.uid : null;
-
-      const mineContainer = document.getElementById('myWasteReportsList');
-      if (mineContainer) {
-        const mine = wasteReports.filter(r => r.reportedBy === myUid);
-        mineContainer.innerHTML = mine.length === 0
-          ? '<p class="text-slate-400 text-center py-4 text-xs">Ingen indberetninger endnu - brug formularen herover.</p>'
-          : mine.map(r => renderWasteReportRow(r, { showDispatch: isSolo, showDelete: true })).join('');
-      }
-
-      // Admin-oversigt: kun relevant i en virksomhed (solo-brugere har kun
-      // ét sted at se deres indberetninger - listen herover).
-      const allSection = document.getElementById('wasteAdminSection');
-      const allContainer = document.getElementById('allWasteReportsList');
-      if (allSection) {
-        if (!isSolo && admin) {
-          allSection.classList.remove('hidden');
-          if (allContainer) {
-            allContainer.innerHTML = wasteReports.length === 0
-              ? '<p class="text-slate-400 text-center py-4 text-xs">Ingen indberetninger endnu.</p>'
-              : wasteReports.map(r => renderWasteReportRow(r, { showDispatch: true, showDelete: true })).join('');
-          }
-        } else {
-          allSection.classList.add('hidden');
-        }
-      }
-
-      updateWasteBadge();
-      if (window.lucide) lucide.createIcons();
-    }
-
-    // Lille rød prik på Affald-fanen (bund + sidebar), så en administrator
-    // kan se med det samme, at der venter ubehandlede indberetninger - en
-    // letvægts "notifikationsoversigt" uden en fuld push-løsning.
-    function updateWasteBadge() {
-      const isSolo = !myCompanyId;
-      const admin = isCaseAdmin();
-      const pending = (!isSolo && admin) ? wasteReports.filter(r => r.status === 'afventer').length : 0;
-      document.querySelectorAll('.waste-badge-dot').forEach(el => {
-        el.classList.toggle('hidden', pending === 0);
-      });
-    }
-
     // Skifter midlertidigt til at vise en medarbejders data (skrivebeskyttet).
     // Kobler egne live-lyttere fra, mens man kigger, for at undgå at de
     // overskriver den viste medarbejders data.
@@ -3936,8 +3647,6 @@
         loadEmployeesList();
       } else if (tabId === 'cases') {
         loadCases();
-      } else if (tabId === 'waste') {
-        loadWasteReports();
       } else if (tabId === 'data') {
         loadDataComparisonPage();
       }
@@ -4396,14 +4105,6 @@
     // "8,75", ikke kun efter feltet er blevet renset ved blur.
     function parseDecimal(value) {
       return parseFloat(String(value).replace(',', '.'));
-    }
-
-    // Samme idé som sanitizeDecimalInput() herover, men til rene
-    // heltalsfelter (fx antal poser) - intet komma/punktum tilladt
-    // overhovedet, kun cifre. Køres også kun ved blur, af samme grund.
-    function sanitizeIntegerInput(input) {
-      const cleaned = input.value.replace(/[^0-9]/g, '');
-      if (cleaned !== input.value) input.value = cleaned;
     }
 
     function calculateLiveSummary() {
@@ -6517,17 +6218,21 @@
       }).join('');
     }
 
-    // Grupperer registreringer efter den sag, de er sat på (caseId), så
-    // hver sag kan vises som sin egen lille tabel i eksporten. Registreringer
-    // uden sag (fritstående) er ikke med i grupperingen.
-    function groupEntriesByCase(entriesList) {
+    // Gør note-tekster robuste at gruppere på: "456", " 456 " og "Sag 456"
+    // med forskellig store/små bogstaver bliver til samme gruppe, mens den
+    // først-sete skrivemåde bruges til at vise gruppen med.
+    function normalizeNoteKey(note) {
+      return note.trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    function groupEntriesByNote(entriesList) {
       const groups = {};
       entriesList.forEach(e => {
-        if (!e.caseId) return;
-        const key = e.caseId;
+        const rawNote = (e.note || '').trim().replace(/\s+/g, ' ');
+        if (!rawNote) return;
+        const key = normalizeNoteKey(rawNote);
         if (!groups[key]) {
-          const label = e.caseNumber ? `#${e.caseNumber} · ${e.caseName || 'Unavngivet sag'}` : (e.caseName || 'Unavngivet sag');
-          groups[key] = { displayName: label, rates: {}, hours: 0, totalDkk: 0 };
+          groups[key] = { displayNote: rawNote, rates: {}, hours: 0, totalDkk: 0 };
         }
         if (!groups[key].rates[e.rateName]) {
           groups[key].rates[e.rateName] = { quantity: 0, unit: e.unit, hours: 0, totalDkk: 0 };
@@ -6541,27 +6246,8 @@
       return groups;
     }
 
-    // Beregner passende kolonnebredder ud fra det længste indhold i hver
-    // kolonne, så tekstfelter (fx sats-/opgavenavne) ikke bliver klippet af
-    // i Excel. Enkelt-celle-rækker (overskrifter/titler, der er slået
-    // sammen på tværs af flere kolonner) springes over, så en lang
-    // sagstitel ikke alene presser den første kolonne unødigt bred ud.
-    function autoSizeColumns(aoa, opts = {}) {
-      const minWidth = opts.minWidth || 8;
-      const maxWidth = opts.maxWidth || 60;
-      const widths = [];
-      aoa.forEach(row => {
-        if (!row || row.length < 2) return;
-        row.forEach((cell, i) => {
-          const text = (cell === null || cell === undefined) ? '' : String(cell);
-          if (!widths[i] || text.length > widths[i]) widths[i] = text.length;
-        });
-      });
-      return widths.map(w => ({ wch: Math.min(maxWidth, Math.max(minWidth, w + 2)) }));
-    }
-
     // Bygger en rigtig Excel-arbejdsbog (.xlsx) med tre faneblade: rådata,
-    // en opsummering pr. akkordsats, og en opsummering pr. sag.
+    // en opsummering pr. akkordsats, og en opsummering pr. note/sag.
     // Tal skrives som rigtige Excel-tal (ikke tekst), så Excel selv viser
     // dem med komma eller punktum efter brugerens egne indstillinger, og
     // SheetJS håndterer al escaping af specialtegn (citationstegn,
@@ -6601,7 +6287,6 @@
       }
 
       const dataSheet = XLSX.utils.aoa_to_sheet(aoa);
-      dataSheet['!cols'] = autoSizeColumns(aoa);
 
       // --- Faneblad 2: Pr. Sats ---
       const rateGroups = {};
@@ -6619,32 +6304,30 @@
         rateRows.push([name, g.quantity, g.unit, g.hours, Number(g.totalDkk.toFixed(2))]);
       });
       const rateSheet = XLSX.utils.aoa_to_sheet(rateRows);
-      rateSheet['!cols'] = autoSizeColumns(rateRows);
 
-      // --- Faneblad 3: Pr. Sag (kun hvis registreringerne er sat på sager) ---
-      // Hver sag vises som sin egen overskrift med en lille tabel under sig,
-      // i stedet for at stå gentaget i en kolonne på hver række.
-      const caseGroups = groupEntriesByCase(entriesList);
-      let caseSheet = null;
-      if (Object.keys(caseGroups).length > 0) {
-        const caseRows = [];
-        const caseMerges = [];
-        Object.keys(caseGroups).forEach(key => {
-          const caseData = caseGroups[key];
-          const headingRowIndex = caseRows.length;
-          caseRows.push([caseData.displayName]);
-          caseMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
-          caseRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
-          Object.keys(caseData.rates).forEach(rateName => {
-            const r = caseData.rates[rateName];
-            caseRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
+      // --- Faneblad 3: Pr. Note (kun hvis der findes noter) ---
+      // Hver note/sag vises som sin egen overskrift med en lille tabel
+      // under sig, i stedet for at stå gentaget i en kolonne på hver række.
+      const noteGroups = groupEntriesByNote(entriesList);
+      let noteSheet = null;
+      if (Object.keys(noteGroups).length > 0) {
+        const noteRows = [];
+        const noteMerges = [];
+        Object.keys(noteGroups).forEach(key => {
+          const noteData = noteGroups[key];
+          const headingRowIndex = noteRows.length;
+          noteRows.push([noteData.displayNote]);
+          noteMerges.push({ s: { r: headingRowIndex, c: 0 }, e: { r: headingRowIndex, c: 4 } });
+          noteRows.push(['Sats', 'Mængde', 'Enhed', 'Timer', 'Total DKK']);
+          Object.keys(noteData.rates).forEach(rateName => {
+            const r = noteData.rates[rateName];
+            noteRows.push([rateName, r.quantity, r.unit, r.hours, Number(r.totalDkk.toFixed(2))]);
           });
-          caseRows.push(['I alt', '', '', caseData.hours, Number(caseData.totalDkk.toFixed(2))]);
-          caseRows.push([]);
+          noteRows.push(['I alt', '', '', noteData.hours, Number(noteData.totalDkk.toFixed(2))]);
+          noteRows.push([]);
         });
-        caseSheet = XLSX.utils.aoa_to_sheet(caseRows);
-        caseSheet['!merges'] = caseMerges;
-        caseSheet['!cols'] = autoSizeColumns(caseRows);
+        noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
+        noteSheet['!merges'] = noteMerges;
       }
 
       // --- Faneblad 0 (forrest): Årsopgørelse - måned for måned ---
@@ -6673,14 +6356,13 @@
 
         yearSummarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
         yearSummarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }];
-        yearSummarySheet['!cols'] = autoSizeColumns(summaryRows);
       }
 
       const wb = XLSX.utils.book_new();
       if (yearSummarySheet) XLSX.utils.book_append_sheet(wb, yearSummarySheet, 'Årsopgørelse');
       XLSX.utils.book_append_sheet(wb, dataSheet, 'Data');
       XLSX.utils.book_append_sheet(wb, rateSheet, 'Pr. Sats');
-      if (caseSheet) XLSX.utils.book_append_sheet(wb, caseSheet, 'Pr. Sag');
+      if (noteSheet) XLSX.utils.book_append_sheet(wb, noteSheet, 'Pr. Note');
 
       return wb;
     }
@@ -7259,7 +6941,6 @@
           syncEnabled = false;
           detachRealtimeListeners();
           detachCasesListeners();
-          detachWasteReportsListener();
           closeCaseCommentsModal();
           // Defensivt sikkerhedsnet: sørg for at man aldrig sidder fast i
           // skrivebeskyttet "kigger på medarbejder"-visning efter log-ud,
