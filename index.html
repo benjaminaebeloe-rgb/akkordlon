@@ -210,6 +210,8 @@
     @media (prefers-reduced-motion: reduce) {
       .animate-in.slide-in-from-bottom { animation: none; }
     }
+    /* Bundnavigation med 7 knapper (administrator): lidt mindre labels, så de ikke støder sammen */
+    #navGrid.nav-compact .nav-item > span.font-semibold { font-size: 9px; letter-spacing: -0.01em; }
   </style>
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
@@ -291,6 +293,9 @@
           <span class="waste-badge-dot hidden absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
         </span>
         Affald
+      </button>
+      <button onclick="switchTab('company')" id="sidenav-company" class="hidden sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="building-2" class="w-4 h-4"></i> Virksomhed
       </button>
 
       <div class="border-t border-slate-100 my-2"></div>
@@ -395,35 +400,96 @@
 
         </div>
 
-        <!-- Mester-oversigt: kun for administratorer i en virksomhed, uafhængigt
-             af om de selv har logget noget personligt arbejde endnu. Samler
-             holdets akkord og åbne sager - en helt anden vinkel end "min løn". -->
-        <div id="masterOverviewSection" class="hidden space-y-4 pt-4 mt-2 border-t-2 border-dashed border-slate-200">
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: VIRKSOMHED (kun administratorer)       -->
+      <!-- Selvstændig side: hvad afventer, hvad skal kontrolleres, -->
+      <!-- hvilke sager er i gang. Erstatter den gamle mester-sektion -->
+      <!-- nederst på Oversigt (som nu kun er personlig løn).        -->
+      <!-- ========================================== -->
+      <section id="tab-company" class="tab-content space-y-4 hidden lg:max-w-3xl lg:mx-auto">
+
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 class="text-lg font-bold text-slate-900">Virksomhedsoversigt</h2>
+            <p id="companyOverviewName" class="text-xs text-slate-500 truncate"></p>
+          </div>
+          <button onclick="loadCompanyOverview(true)" class="w-9 h-9 rounded-xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 flex-shrink-0" aria-label="Opdatér oversigten">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Lønperiode: kan skiftes uden at forlade oversigten -->
+        <div class="bg-slate-900 rounded-2xl p-3 text-white shadow-md flex items-center justify-between gap-2">
+          <button onclick="shiftCompanyPeriod(-1)" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center flex-shrink-0" aria-label="Forrige lønperiode">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+          </button>
+          <div class="text-center min-w-0">
+            <div id="companyPeriodTag" class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Aktuel lønperiode</div>
+            <div id="companyPeriodLabel" class="text-sm font-bold">-</div>
+          </div>
+          <button id="companyPeriodNextBtn" onclick="shiftCompanyPeriod(1)" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center flex-shrink-0 disabled:opacity-30" aria-label="Næste lønperiode">
+            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Nøgletal -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
+            <i data-lucide="recycle" class="w-4 h-4 text-amber-600"></i>
+            <div id="companyStatWaste" class="text-xl font-black text-amber-600 mt-1.5">-</div>
+            <div class="text-[10px] text-slate-500 font-semibold">Affald afventer</div>
+          </div>
+          <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
+            <i data-lucide="wallet" class="w-4 h-4 text-emerald-600"></i>
+            <div id="companyStatPay" class="text-xl font-black text-emerald-600 mt-1.5 truncate">-</div>
+            <div class="text-[10px] text-slate-500 font-semibold">Løn i perioden</div>
+          </div>
+          <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
+            <i data-lucide="briefcase" class="w-4 h-4 text-brand-600"></i>
+            <div id="companyStatCases" class="text-xl font-black text-brand-600 mt-1.5">-</div>
+            <div class="text-[10px] text-slate-500 font-semibold">Åbne sager</div>
+          </div>
+        </div>
+
+        <!-- Affald - kræver handling -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <i data-lucide="recycle" class="w-3.5 h-3.5"></i> Affald - kræver handling
+            </h3>
+            <span id="companyWasteBadge" class="hidden text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 whitespace-nowrap"></span>
+          </div>
+          <div id="companyWasteList" class="space-y-2.5"></div>
+          <button onclick="switchTab('waste')" class="w-full py-2 rounded-xl text-xs font-bold text-brand-600 hover:bg-slate-50 transition-colors">Se alle affaldsindberetninger →</button>
+        </div>
+
+        <!-- Medarbejdernes løn -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <i data-lucide="users" class="w-3.5 h-3.5"></i> Medarbejdernes løn
+            </h3>
+            <button onclick="exportCompanyPayroll()" class="text-[11px] font-bold text-brand-600 flex items-center gap-1 hover:text-brand-700">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Eksportér
+            </button>
+          </div>
+          <div class="flex gap-2">
+            <button id="companySort-total" onclick="setCompanyPayrollSort('total')" class="px-3 py-1 rounded-lg text-[11px] font-bold border">Højest løn</button>
+            <button id="companySort-name" onclick="setCompanyPayrollSort('name')" class="px-3 py-1 rounded-lg text-[11px] font-bold border">Navn</button>
+          </div>
+          <div id="companyPayrollTable"></div>
+          <p class="text-[10px] text-slate-400">Tryk på en medarbejder for at se de enkelte registreringer. Ændringer kan ikke foretages her.</p>
+        </div>
+
+        <!-- Aktive sager -->
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Mester-oversigt (hele holdet)
+            <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Aktive sager
           </h3>
-
-          <div class="bg-slate-900 rounded-2xl p-4 text-white shadow-md">
-            <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Holdets samlede akkord (denne lønperiode)</div>
-            <div id="masterOverviewTotalDkk" class="text-2xl font-black text-emerald-400 mt-1">0,00 kr.</div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Produktion pr. Medarbejder</h3>
-            <div id="masterOverviewEmployeeList" class="space-y-1.5">
-              <!-- Rendered dynamically via JS -->
-            </div>
-          </div>
-
-          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80">
-            <div class="flex items-center justify-between mb-2">
-              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Åbne Sager</h3>
-              <button onclick="switchTab('cases')" class="text-[10px] font-bold text-brand-600">Se alle →</button>
-            </div>
-            <div id="masterOverviewCasesList" class="space-y-1.5">
-              <!-- Rendered dynamically via JS -->
-            </div>
-          </div>
+          <div id="companyCasesList" class="space-y-2"></div>
+          <button onclick="switchTab('cases')" class="w-full py-2 rounded-xl text-xs font-bold text-brand-600 hover:bg-slate-50 transition-colors">Se alle sager →</button>
         </div>
 
       </section>
@@ -695,6 +761,11 @@
         <!-- Affaldsoversigt (kun synlig for administratorer) -->
         <div id="wasteAdminSection" class="hidden">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Indberetninger</h3>
+          <div class="flex gap-2 mb-2.5">
+            <button id="wasteFilter-afventer" onclick="setWasteFilter('afventer')" class="px-3 py-1 rounded-lg text-[11px] font-bold border">Afventer</button>
+            <button id="wasteFilter-anmeldt" onclick="setWasteFilter('anmeldt')" class="px-3 py-1 rounded-lg text-[11px] font-bold border">Anmeldt</button>
+            <button id="wasteFilter-alle" onclick="setWasteFilter('alle')" class="px-3 py-1 rounded-lg text-[11px] font-bold border">Alle</button>
+          </div>
           <div id="allWasteReportsList" class="space-y-2.5">
             <!-- Rendered dynamically via JS -->
           </div>
@@ -1244,6 +1315,11 @@
           <span class="waste-badge-dot hidden absolute -top-0.5 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
         </span>
         <span class="text-[10px] font-semibold mt-1">Affald</span>
+      </button>
+
+      <button onclick="switchTab('company')" id="nav-company" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="building-2" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Virksomhed</span>
       </button>
 
       <button onclick="switchTab('settings')" id="nav-settings" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
@@ -2561,12 +2637,14 @@
       if (row) row.classList.remove('hidden');
       const sideRow = document.getElementById('sidenavEmployeesRow');
       if (sideRow) sideRow.classList.remove('hidden');
+      updateWasteTabVisibility();
     }
     function hideEmployeesTab() {
       const row = document.getElementById('settingsEmployeesRow');
       if (row) row.classList.add('hidden');
       const sideRow = document.getElementById('sidenavEmployeesRow');
       if (sideRow) sideRow.classList.add('hidden');
+      updateWasteTabVisibility();
     }
 
     // Tjekker hvilken virksomhed brugeren er tilknyttet (companyId), og om
@@ -3262,7 +3340,7 @@
       }).join('');
 
       if (window.lucide) lucide.createIcons();
-      renderMasterOverviewCases();
+      refreshCompanyOverviewCases();
     }
 
     function renderCompletedCasesList(list) {
@@ -3656,6 +3734,8 @@
     // indberetninger samlet, melde dem anmeldt til afsending og slette dem.
     let wasteReports = [];
     let wasteReportsUnsubscribe = null;
+    let wasteReportsState = 'loading'; // 'loading' | 'ok' | 'error' - så "ingen afventer" aldrig vises før data er hentet
+    let wasteFilter = 'alle'; // 'alle' | 'afventer' | 'anmeldt
 
     // Gør et indtastet telefonnummer til +CCNNNNNNNN, eller null hvis det
     // ikke ligner et nummer. 8 cifre antages at være et dansk nummer (+45).
@@ -3711,18 +3791,30 @@
       const grid = document.getElementById('navGrid');
       if (navBtn) navBtn.classList.toggle('hidden', !show);
       if (sideBtn) sideBtn.classList.toggle('hidden', !show);
+      // Virksomhed-fanen er kun for administratorer (ejer eller admin-rolle).
+      const isAdminNow = !!(myCompanyId && myCompany);
+      const companyNavBtn = document.getElementById('nav-company');
+      const companySideBtn = document.getElementById('sidenav-company');
+      if (companyNavBtn) companyNavBtn.classList.toggle('hidden', !isAdminNow);
+      if (companySideBtn) companySideBtn.classList.toggle('hidden', !isAdminNow);
       if (grid) {
-        grid.classList.toggle('grid-cols-6', show);
-        grid.classList.toggle('grid-cols-5', !show);
+        const cols = (show ? 6 : 5) + (isAdminNow ? 1 : 0);
+        ['grid-cols-5', 'grid-cols-6', 'grid-cols-7'].forEach(c => grid.classList.toggle(c, c === 'grid-cols-' + cols));
+        grid.classList.toggle('nav-compact', isAdminNow);
       }
       if (!show) {
         const wasteTab = document.getElementById('tab-waste');
         if (wasteTab && !wasteTab.classList.contains('hidden')) switchTab('overview');
       }
+      if (!isAdminNow) {
+        const companyTab = document.getElementById('tab-company');
+        if (companyTab && !companyTab.classList.contains('hidden')) switchTab('overview');
+      }
     }
 
     function loadWasteReports() {
       detachWasteReportsListener();
+      wasteReportsState = 'loading';
       hideWasteSmsPrompt();
       updateWasteTabVisibility();
       populateCaseSelect(document.getElementById('wasteCaseSelect'));
@@ -3738,6 +3830,7 @@
 
       wasteReportsUnsubscribe = ref.orderBy('createdAt', 'desc').onSnapshot(snapshot => {
         wasteReports = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        wasteReportsState = 'ok';
         renderWasteReportsList();
       }, err => {
         // Vises TYDELIGT i selve listen (ikke kun i konsollen) - en
@@ -3745,6 +3838,7 @@
         // skelne fra "her er bare ingen data endnu".
         console.error('Live-opdatering af affaldsindberetninger fejlede:', err);
         showToast('Kunne ikke hente affaldsindberetninger', 'error');
+        wasteReportsState = 'error';
         renderWasteReportsList(true);
       });
     }
@@ -3956,14 +4050,50 @@
         if (hadError) {
           allContainer.innerHTML = '<p class="text-red-600 bg-red-50 border border-red-200 rounded-xl text-center py-3 px-3 text-xs font-semibold">Kunne ikke hente affaldsindberetninger. Tjek din forbindelse, og log evt. ud og ind igen.</p>';
         } else {
-          allContainer.innerHTML = wasteReports.length === 0
-            ? '<p class="text-slate-400 text-center py-4 text-xs">Ingen indberetninger endnu.</p>'
-            : wasteReports.map(renderWasteReportRow).join('');
+          // Afventende indberetninger ligger altid øverst, så gamle (anmeldte)
+          // aldrig forsvinder, men heller ikke skygger for det, der skal gøres.
+          const visible = wasteReports
+            .filter(r => wasteFilter === 'alle' || r.status === wasteFilter)
+            .sort((a, b) => (a.status === 'afventer' ? 0 : 1) - (b.status === 'afventer' ? 0 : 1));
+          const emptyText = wasteReports.length === 0
+            ? 'Ingen indberetninger endnu.'
+            : (wasteFilter === 'afventer' ? 'Intet afventer - alt er anmeldt.' : 'Ingen indberetninger i dette filter.');
+          allContainer.innerHTML = visible.length === 0
+            ? `<p class="text-slate-400 text-center py-4 text-xs">${emptyText}</p>`
+            : visible.map(renderWasteReportRow).join('');
+          updateWasteFilterChips();
         }
       }
 
       updateWasteBadge();
+      refreshCompanyOverviewWaste();
       if (window.lucide) lucide.createIcons();
+    }
+
+    function setWasteFilter(filter) {
+      wasteFilter = filter;
+      renderWasteReportsList(wasteReportsState === 'error');
+    }
+
+    function updateWasteFilterChips() {
+      const counts = {
+        alle: wasteReports.length,
+        afventer: wasteReports.filter(r => r.status === 'afventer').length,
+        anmeldt: wasteReports.filter(r => r.status === 'anmeldt').length
+      };
+      const labels = { afventer: 'Afventer', anmeldt: 'Anmeldt', alle: 'Alle' };
+      Object.keys(labels).forEach(key => {
+        const btn = document.getElementById('wasteFilter-' + key);
+        if (!btn) return;
+        btn.textContent = `${labels[key]} (${counts[key]})`;
+        const active = wasteFilter === key;
+        btn.classList.toggle('bg-brand-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('border-brand-600', active);
+        btn.classList.toggle('bg-white', !active);
+        btn.classList.toggle('text-slate-600', !active);
+        btn.classList.toggle('border-slate-200', !active);
+      });
     }
 
     // Lille rød prik på Affald-fanen (bund + sidebar), så en administrator
@@ -4116,6 +4246,8 @@
         loadCases();
       } else if (tabId === 'waste') {
         loadWasteReports();
+      } else if (tabId === 'company') {
+        loadCompanyOverview();
       } else if (tabId === 'data') {
         loadDataComparisonPage();
       }
@@ -6417,7 +6549,6 @@
         emptyState.classList.remove('hidden');
         filledState.classList.add('hidden');
         if (window.lucide) lucide.createIcons();
-        loadMasterOverview(); // Mester-oversigten er uafhængig af egne registreringer
         return;
       }
       emptyState.classList.add('hidden');
@@ -6476,7 +6607,6 @@
       }
 
       if (window.lucide) lucide.createIcons();
-      loadMasterOverview();
       renderMissingDaysWarning();
     }
 
@@ -6513,83 +6643,426 @@
       if (dateInput) dateInput.value = dateStr;
     }
 
-    // Mester-oversigt: kun relevant for administratorer i en virksomhed.
-    // Samler holdets akkord på tværs af medarbejdere og viser åbne sager -
-    // en helt anden vinkel end den personlige "min løn"-oversigt ovenfor.
-    function loadMasterOverview() {
-      const section = document.getElementById('masterOverviewSection');
-      if (!section) return;
+    // ==========================================
+    // VIRKSOMHEDSOVERSIGT (kun administratorer)
+    // Selvstændig side der samler det, en mester skal handle på: affald der
+    // afventer, medarbejdernes løn for lønperioden og sager i gang. Bruger
+    // de eksisterende live-lyttere (sager, affald) og samme læserettigheder
+    // som resten af appen - der er ingen nye skrivninger og ingen nye regler.
+    // ==========================================
+    let companyPeriodOffset = 0;      // 0 = indeværende lønperiode, -1 = forrige osv.
+    let companyOverview = null;       // { rows, start, end, loadedAt } - null mens der hentes
+    let companyOverviewError = false;
+    let companyOverviewToken = 0;     // forhindrer at et gammelt svar overskriver et nyere
+    let companyPeople = [];           // [{ uid, name }]
+    let companyCaseStats = {};        // caseId -> { people, hours, dkk }
+    let companyCaseStatsPending = {}; // caseId -> true mens der hentes
+    let companyPayrollSort = 'total'; // 'total' | 'name'
 
-      if (!myCompanyId || !myCompany) {
-        section.classList.add('hidden');
-        return;
-      }
-      section.classList.remove('hidden');
+    function isCompanyTabVisible() {
+      const tab = document.getElementById('tab-company');
+      return !!tab && !tab.classList.contains('hidden');
+    }
 
-      // Sørg for at åbne sager holdes opdateret via den eksisterende
-      // live-lytter, i stedet for at hente dem særskilt her.
-      if (!casesUnsubscribe) {
-        loadCases();
-      } else {
-        renderMasterOverviewCases();
-      }
+    function getCompanyPeriod() {
+      const current = getPayPeriodRange(new Date()).start;
+      const ref = new Date(current.getFullYear(), current.getMonth() + companyPeriodOffset, 21);
+      const { start, end } = getPayPeriodRange(ref);
+      return { start, end, startStr: dateToLocalString(start), endStr: dateToLocalString(end) };
+    }
 
-      const { start, end } = getPayPeriodRange(new Date());
-      const startStr = dateToLocalString(start);
-      const endStr = dateToLocalString(end);
+    function shiftCompanyPeriod(delta) {
+      companyPeriodOffset = Math.min(0, companyPeriodOffset + delta);
+      loadCompanyOverview();
+    }
 
-      const totalEl = document.getElementById('masterOverviewTotalDkk');
-      const listEl = document.getElementById('masterOverviewEmployeeList');
-      if (listEl) listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Henter...</p>';
+    function setCompanyPayrollSort(mode) {
+      companyPayrollSort = mode;
+      renderCompanyPayroll();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function formatKrWhole(val) {
+      return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(Math.round(val || 0)) + ' kr.';
+    }
+
+    function loadCompanyOverview(forceCases) {
+      if (!isWasteAdmin() || !db) return;
+
+      // Sager og affald holdes opdateret af de eksisterende live-lyttere.
+      if (!casesUnsubscribe) loadCases();
+
+      const token = ++companyOverviewToken;
+      const { start, end, startStr, endStr } = getCompanyPeriod();
+      companyOverview = null;
+      companyOverviewError = false;
+      if (forceCases) companyCaseStats = {};
+      renderCompanyOverview();
 
       db.collection('companies').doc(myCompanyId).collection('employees').get().then(snapshot => {
         const people = snapshot.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email || 'Ukendt' }));
+        companyPeople = people;
 
         return Promise.all(people.map(p =>
           db.collection('users').doc(p.uid).collection('entries')
             .where('date', '>=', startStr).where('date', '<=', endStr)
-            .get().then(entrySnap => {
-              const dkk = entrySnap.docs.reduce((sum, d) => sum + (d.data().totalDkk || 0), 0);
-              return { person: p, dkk };
+            .get().then(snap => {
+              const row = { uid: p.uid, name: p.name, akkord: 0, timelon: 0, diaeter: 0, total: 0, hours: 0, failed: false };
+              snap.docs.forEach(doc => {
+                const e = doc.data();
+                const dkk = e.totalDkk || 0;
+                if (isDiaeterName(e.rateName)) row.diaeter += dkk;
+                else if (isTimelonName(e.rateName)) row.timelon += dkk;
+                else row.akkord += dkk;
+                row.total += dkk;
+                row.hours += e.hours || 0;
+              });
+              return row;
+            })
+            // Én medarbejder der ikke kan hentes (fx forladt virksomheden) må
+            // ikke tage hele oversigten med sig.
+            .catch(err => {
+              console.error('Kunne ikke hente data for ' + p.name + ':', err);
+              return { uid: p.uid, name: p.name, akkord: 0, timelon: 0, diaeter: 0, total: 0, hours: 0, failed: true };
             })
         ));
-      }).then(results => {
-        const totalDkk = results.reduce((sum, r) => sum + r.dkk, 0);
-        if (totalEl) totalEl.textContent = formatCurrency(totalDkk);
-
-        if (listEl) {
-          const sorted = results.filter(r => r.dkk > 0).sort((a, b) => b.dkk - a.dkk);
-          if (sorted.length === 0) {
-            listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Ingen registreringer i denne lønperiode endnu.</p>';
-          } else {
-            listEl.innerHTML = sorted.map(r => `
-              <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2 text-xs">
-                <span class="font-semibold text-slate-800">${escapeHtml(r.person.name)}</span>
-                <span class="font-bold text-slate-900">${formatCurrency(r.dkk)}</span>
-              </div>
-            `).join('');
-          }
-        }
-        if (window.lucide) lucide.createIcons();
+      }).then(rows => {
+        if (token !== companyOverviewToken) return;
+        companyOverview = { rows, start, end, loadedAt: new Date() };
+        renderCompanyOverview();
+        ensureCompanyCaseStats();
       }).catch(err => {
-        console.error('Kunne ikke hente mester-oversigt:', err);
-        if (totalEl) totalEl.textContent = 'Kunne ikke hente';
-        if (listEl) listEl.innerHTML = '<p class="text-xs text-red-500 text-center py-2">Kunne ikke hente holdets data - tjek din internetforbindelse.</p>';
+        if (token !== companyOverviewToken) return;
+        console.error('Kunne ikke hente virksomhedsoversigt:', err);
+        companyOverviewError = true;
+        renderCompanyOverview();
       });
     }
 
-    function renderMasterOverviewCases() {
-      const listEl = document.getElementById('masterOverviewCasesList');
+    // De 5 nyeste åbne sager vises på oversigten (resten ligger under "Sager").
+    function getCompanyVisibleCases() {
+      return openCases.slice().sort((a, b) => b.number - a.number).slice(0, 5);
+    }
+
+    // Henter timer, antal medarbejdere og registreret beløb for de viste
+    // sager i ÉN forespørgsel pr. medarbejder (ikke én pr. sag).
+    function ensureCompanyCaseStats() {
+      if (!isWasteAdmin() || !db || companyPeople.length === 0) return;
+      const need = getCompanyVisibleCases().filter(c => !companyCaseStats[c.id] && !companyCaseStatsPending[c.id]);
+      if (need.length === 0) return;
+      const ids = need.map(c => c.id);
+      ids.forEach(id => { companyCaseStatsPending[id] = true; });
+      const people = companyPeople.slice();
+
+      Promise.all(people.map(p =>
+        db.collection('users').doc(p.uid).collection('entries').where('caseId', 'in', ids).get()
+          .then(snap => ({ uid: p.uid, list: snap.docs.map(d => d.data()) }))
+          .catch(() => ({ uid: p.uid, list: [] }))
+      )).then(results => {
+        const stats = {};
+        ids.forEach(id => { stats[id] = { people: new Set(), hours: 0, dkk: 0 }; });
+        results.forEach(r => r.list.forEach(e => {
+          const st = stats[e.caseId];
+          if (!st) return;
+          st.people.add(r.uid);
+          st.hours += e.hours || 0;
+          st.dkk += e.totalDkk || 0;
+        }));
+        ids.forEach(id => {
+          companyCaseStats[id] = { people: stats[id].people.size, hours: stats[id].hours, dkk: stats[id].dkk };
+          delete companyCaseStatsPending[id];
+        });
+        renderCompanyCases();
+        if (window.lucide) lucide.createIcons();
+      });
+    }
+
+    // Kaldes fra de eksisterende live-lyttere.
+    function refreshCompanyOverviewCases() {
+      if (!isWasteAdmin() || !isCompanyTabVisible()) return;
+      renderCompanyStats();
+      renderCompanyCases();
+      ensureCompanyCaseStats();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function refreshCompanyOverviewWaste() {
+      if (!isWasteAdmin() || !isCompanyTabVisible()) return;
+      renderCompanyStats();
+      renderCompanyWaste();
+      renderCompanyCases(); // sagerne viser tilknyttet affald
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderCompanyOverview() {
+      const nameEl = document.getElementById('companyOverviewName');
+      if (nameEl) {
+        const time = companyOverview
+          ? ' · opdateret ' + companyOverview.loadedAt.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' })
+          : '';
+        nameEl.textContent = ((myCompany && myCompany.name) || '') + time;
+      }
+
+      const { start, end } = getCompanyPeriod();
+      const labelEl = document.getElementById('companyPeriodLabel');
+      if (labelEl) {
+        labelEl.textContent = `${start.getDate()}. ${getDanishMonthName(start.getMonth())} - ${end.getDate()}. ${getDanishMonthName(end.getMonth())} ${end.getFullYear()}`;
+      }
+      const tagEl = document.getElementById('companyPeriodTag');
+      if (tagEl) tagEl.textContent = companyPeriodOffset === 0 ? 'Aktuel lønperiode' : 'Tidligere lønperiode';
+      const nextBtn = document.getElementById('companyPeriodNextBtn');
+      if (nextBtn) nextBtn.disabled = companyPeriodOffset >= 0;
+
+      renderCompanyStats();
+      renderCompanyWaste();
+      renderCompanyPayroll();
+      renderCompanyCases();
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function renderCompanyStats() {
+      const wasteEl = document.getElementById('companyStatWaste');
+      const payEl = document.getElementById('companyStatPay');
+      const casesEl = document.getElementById('companyStatCases');
+
+      if (wasteEl) {
+        wasteEl.textContent = wasteReportsState === 'ok'
+          ? String(wasteReports.filter(r => r.status === 'afventer').length)
+          : '-';
+      }
+      if (payEl) {
+        payEl.textContent = companyOverview
+          ? formatKrWhole(companyOverview.rows.reduce((sum, r) => sum + r.total, 0))
+          : '-';
+      }
+      if (casesEl) casesEl.textContent = String(openCases.length);
+    }
+
+    function renderCompanyWaste() {
+      const listEl = document.getElementById('companyWasteList');
+      const badgeEl = document.getElementById('companyWasteBadge');
       if (!listEl) return;
-      if (openCases.length === 0) {
-        listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Ingen åbne sager.</p>';
+
+      if (wasteReportsState === 'loading') {
+        if (badgeEl) badgeEl.classList.add('hidden');
+        listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Henter...</p>';
         return;
       }
-      listEl.innerHTML = openCases.slice(0, 5).map(c => `
-        <div class="bg-slate-50 rounded-lg px-3 py-2 text-xs font-semibold text-slate-800">
-          #${c.number} · ${escapeHtml(c.name)}
+      if (wasteReportsState === 'error') {
+        if (badgeEl) badgeEl.classList.add('hidden');
+        listEl.innerHTML = '<p class="text-red-600 bg-red-50 border border-red-200 rounded-xl text-center py-3 px-3 text-xs font-semibold">Kunne ikke hente affaldsindberetninger. Tjek din forbindelse, og log evt. ud og ind igen.</p>';
+        return;
+      }
+
+      // Ældste først: det der har ventet længst, skal håndteres først.
+      const pending = wasteReports
+        .filter(r => r.status === 'afventer')
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+      if (badgeEl) {
+        badgeEl.classList.toggle('hidden', pending.length === 0);
+        badgeEl.textContent = pending.length + ' afventer';
+      }
+
+      if (pending.length === 0) {
+        listEl.innerHTML = '<p class="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl text-center py-3">Intet afventer - alt affald er anmeldt.</p>';
+        return;
+      }
+
+      const shown = pending.slice(0, 3);
+      listEl.innerHTML = shown.map(r => {
+        const caseLabel = r.caseNumber ? `#${r.caseNumber} · ${escapeHtml(r.caseName || '')}` : 'Ingen sag';
+        return `
+          <div class="bg-slate-50 rounded-xl p-3 space-y-2">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-sm font-bold text-slate-900 truncate">${escapeHtml(r.address)}</div>
+                <div class="text-[10px] text-slate-500 truncate">${caseLabel} · ${escapeHtml(r.reportedByName || '')} · ${formatCommentTime(r.createdAt)}</div>
+              </div>
+              <span class="text-xs font-bold text-slate-900 whitespace-nowrap">${r.bagCount} ${r.bagCount === 1 ? 'pose' : 'poser'}</span>
+            </div>
+            <button onclick="markWasteReportDispatched('${r.id}')" class="w-full py-2 rounded-xl text-xs font-bold border text-emerald-700 border-emerald-200 hover:bg-emerald-50 transition-colors">Meld anmeldt til afsending</button>
+          </div>
+        `;
+      }).join('') + (pending.length > shown.length
+        ? `<p class="text-[11px] text-slate-500 text-center">+ ${pending.length - shown.length} flere afventer</p>`
+        : '');
+    }
+
+    function renderCompanyPayroll() {
+      const el = document.getElementById('companyPayrollTable');
+      if (!el) return;
+
+      // Sorteringsknapper
+      ['total', 'name'].forEach(mode => {
+        const btn = document.getElementById('companySort-' + mode);
+        if (!btn) return;
+        const active = companyPayrollSort === mode;
+        btn.classList.toggle('bg-brand-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('border-brand-600', active);
+        btn.classList.toggle('bg-white', !active);
+        btn.classList.toggle('text-slate-600', !active);
+        btn.classList.toggle('border-slate-200', !active);
+      });
+
+      if (companyOverviewError) {
+        el.innerHTML = '<p class="text-red-600 bg-red-50 border border-red-200 rounded-xl text-center py-3 px-3 text-xs font-semibold">Kunne ikke hente holdets data - tjek din internetforbindelse og tryk på opdatér.</p>';
+        return;
+      }
+      if (!companyOverview) {
+        el.innerHTML = '<p class="text-xs text-slate-400 text-center py-3">Henter...</p>';
+        return;
+      }
+      const rows = companyOverview.rows.slice();
+      if (rows.length === 0) {
+        el.innerHTML = '<p class="text-xs text-slate-400 text-center py-3">Ingen medarbejdere i virksomheden endnu.</p>';
+        return;
+      }
+
+      rows.sort((a, b) => companyPayrollSort === 'name'
+        ? a.name.localeCompare(b.name, 'da')
+        : b.total - a.total || a.name.localeCompare(b.name, 'da'));
+
+      const num = v => v > 0 ? formatNumber(v) : '-';
+      const failedCount = rows.filter(r => r.failed).length;
+      const totals = rows.reduce((t, r) => ({
+        akkord: t.akkord + r.akkord, timelon: t.timelon + r.timelon,
+        diaeter: t.diaeter + r.diaeter, hours: t.hours + r.hours, total: t.total + r.total
+      }), { akkord: 0, timelon: 0, diaeter: 0, hours: 0, total: 0 });
+
+      el.innerHTML = `
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs min-w-[500px]">
+            <thead>
+              <tr class="text-[10px] uppercase tracking-wider text-slate-400 text-right">
+                <th class="text-left font-semibold pb-2">Medarbejder</th>
+                <th class="font-semibold pb-2 pl-2">Akkord</th>
+                <th class="font-semibold pb-2 pl-2">Timeløn</th>
+                <th class="font-semibold pb-2 pl-2">Diæter</th>
+                <th class="font-semibold pb-2 pl-2">Timer</th>
+                <th class="font-semibold pb-2 pl-2">I alt</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => {
+                const safeName = escapeHtml(r.name).replace(/'/g, "\\'");
+                return `
+                  <tr class="border-t border-slate-100 text-right cursor-pointer hover:bg-slate-50" onclick="viewEmployeeData('${r.uid}', '${safeName}')">
+                    <td class="text-left py-2.5 font-bold text-slate-800">${escapeHtml(r.name)}${r.failed ? '<div class="text-[10px] font-semibold text-red-500">Kunne ikke hentes</div>' : ''}</td>
+                    <td class="py-2.5 pl-2 text-slate-700">${r.failed ? '-' : num(r.akkord)}</td>
+                    <td class="py-2.5 pl-2 text-slate-700">${r.failed ? '-' : num(r.timelon)}</td>
+                    <td class="py-2.5 pl-2 text-slate-700">${r.failed ? '-' : num(r.diaeter)}</td>
+                    <td class="py-2.5 pl-2 text-slate-700">${r.failed ? '-' : num(r.hours)}</td>
+                    <td class="py-2.5 pl-2 font-extrabold text-slate-900">${r.failed ? '-' : formatKrWhole(r.total)}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+            <tfoot>
+              <tr class="border-t-2 border-slate-200 text-right font-extrabold text-slate-900">
+                <td class="text-left py-2.5">Samlet</td>
+                <td class="py-2.5 pl-2">${formatNumber(totals.akkord)}</td>
+                <td class="py-2.5 pl-2">${formatNumber(totals.timelon)}</td>
+                <td class="py-2.5 pl-2">${formatNumber(totals.diaeter)}</td>
+                <td class="py-2.5 pl-2">${formatNumber(totals.hours)}</td>
+                <td class="py-2.5 pl-2 text-emerald-600">${formatKrWhole(totals.total)}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
-      `).join('');
+        ${failedCount > 0 ? '<p class="text-[11px] text-red-600 mt-2">Tallene er ikke fuldstændige: ' + failedCount + (failedCount === 1 ? ' medarbejders' : ' medarbejderes') + ' data kunne ikke hentes.</p>' : ''}
+      `;
+    }
+
+    function renderCompanyCases() {
+      const el = document.getElementById('companyCasesList');
+      if (!el) return;
+      const cases = getCompanyVisibleCases();
+      if (cases.length === 0) {
+        el.innerHTML = '<p class="text-xs text-slate-400 text-center py-2">Ingen åbne sager.</p>';
+        return;
+      }
+
+      el.innerHTML = cases.map(c => {
+        const safeName = escapeHtml(c.name).replace(/'/g, "\\'");
+        const st = companyCaseStats[c.id];
+        let detail;
+        let amount;
+        if (!st) {
+          detail = 'Henter...';
+          amount = '-';
+        } else if (st.dkk === 0 && st.hours === 0) {
+          detail = 'Ingen registreringer endnu';
+          amount = '-';
+        } else {
+          detail = `${st.people} ${st.people === 1 ? 'medarbejder' : 'medarbejdere'} · ${formatNumber(st.hours)} timer`;
+          amount = formatKrWhole(st.dkk);
+        }
+
+        const linked = wasteReports.filter(r => r.caseId === c.id);
+        const linkedBags = linked.reduce((sum, r) => sum + (r.bagCount || 0), 0);
+        const linkedPending = linked.filter(r => r.status === 'afventer').length;
+        const wasteTag = linked.length === 0 ? '' : `
+          <div class="mt-1.5 text-[10px] font-semibold ${linkedPending > 0 ? 'text-amber-700' : 'text-emerald-700'}">
+            Affald: ${linkedBags} ${linkedBags === 1 ? 'pose' : 'poser'}${linkedPending > 0 ? ' · ' + linkedPending + ' afventer' : ' · alt anmeldt'}
+          </div>`;
+
+        return `
+          <button onclick="viewCaseDetails('${c.id}', '${safeName}', ${c.number})" class="w-full text-left bg-slate-50 rounded-xl px-3 py-2.5 hover:opacity-80 transition-opacity">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="text-sm font-bold text-slate-900 truncate">#${c.number} · ${escapeHtml(c.name)}</div>
+                <div class="text-[10px] text-slate-500">${detail}</div>
+              </div>
+              <span class="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md whitespace-nowrap flex-shrink-0">I gang</span>
+            </div>
+            <div class="flex items-center justify-between mt-1.5 text-[11px]">
+              <span class="text-slate-500">Registreret akkord</span>
+              <span class="font-bold text-slate-900">${amount}</span>
+            </div>
+            ${wasteTag}
+          </button>
+        `;
+      }).join('');
+    }
+
+    // Excel med lønperiodens tal pr. medarbejder (samme tal som tabellen).
+    function exportCompanyPayroll() {
+      if (!companyOverview) {
+        showToast('Vent til oversigten er hentet', 'error');
+        return;
+      }
+      const { rows, start, end } = companyOverview;
+      const r2 = n => Math.round((n || 0) * 100) / 100;
+      const sorted = rows.slice().sort((a, b) => a.name.localeCompare(b.name, 'da'));
+
+      const aoa = [
+        [`Lønoversigt ${(myCompany && myCompany.name) || ''}`.trim()],
+        [`Lønperiode: ${formatDateShort(start)} til ${formatDateShort(end)}`],
+        [],
+        ['Medarbejder', 'Akkord DKK', 'Timeløn DKK', 'Diæter DKK', 'Timer', 'I alt DKK']
+      ];
+      sorted.forEach(r => {
+        if (r.failed) aoa.push([r.name + ' (kunne ikke hentes)', '', '', '', '', '']);
+        else aoa.push([r.name, r2(r.akkord), r2(r.timelon), r2(r.diaeter), r2(r.hours), r2(r.total)]);
+      });
+      const ok = sorted.filter(r => !r.failed);
+      aoa.push([]);
+      aoa.push(['Samlet',
+        r2(ok.reduce((s, r) => s + r.akkord, 0)),
+        r2(ok.reduce((s, r) => s + r.timelon, 0)),
+        r2(ok.reduce((s, r) => s + r.diaeter, 0)),
+        r2(ok.reduce((s, r) => s + r.hours, 0)),
+        r2(ok.reduce((s, r) => s + r.total, 0))
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 14 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Lønoversigt');
+      XLSX.writeFile(wb, `Virksomhed_Lønperiode_${dateToLocalString(start)}_${dateToLocalString(end)}.xlsx`);
+      showToast('Lønoversigt eksporteret');
     }
 
     // "Sidst synkroniseret" i et letlæseligt format ("I dag 18:42", "I går
