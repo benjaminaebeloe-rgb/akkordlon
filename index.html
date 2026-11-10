@@ -212,6 +212,9 @@
     }
     /* Bundnavigation med 7 knapper (administrator): lidt mindre labels, så de ikke støder sammen */
     #navGrid.nav-compact .nav-item > span.font-semibold { font-size: 9px; letter-spacing: -0.01em; }
+    /* Flere end 6 faner (virksomhed): navigationen kan rulles sidelæns i stedet for at presse knapperne sammen */
+    #navGrid.nav-scroll { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(62px, 1fr); overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    #navGrid.nav-scroll::-webkit-scrollbar { display: none; }
   </style>
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
@@ -297,6 +300,9 @@
       <button onclick="switchTab('company')" id="sidenav-company" class="hidden sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
         <i data-lucide="building-2" class="w-4 h-4"></i> Virksomhed
       </button>
+      <button onclick="switchTab('credits')" id="sidenav-credits" class="hidden sidenav-item flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        <i data-lucide="piggy-bank" class="w-4 h-4"></i> Til gode
+      </button>
 
       <div class="border-t border-slate-100 my-2"></div>
 
@@ -353,10 +359,23 @@
         <!-- Udfyldt tilstand: vises når der findes mindst én registrering -->
         <div id="overviewFilledState" class="space-y-4">
 
-        <!-- Lønperiode-total -->
-        <div class="bg-slate-900 rounded-2xl p-5 text-white shadow-md">
-          <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din løn (indeværende lønperiode)</div>
-          <div id="overviewPeriodEarned" class="text-3xl font-black text-emerald-400 mt-1">0,00 kr.</div>
+        <!-- Lønperiode-total + lille "Efter skat"-boks ved siden af -->
+        <div class="flex gap-2.5">
+          <div class="flex-1 min-w-0 bg-slate-900 rounded-2xl p-4 sm:p-5 text-white shadow-md">
+            <div class="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Din løn (indeværende lønperiode)</div>
+            <div id="overviewPeriodEarned" class="text-xl sm:text-3xl font-black text-emerald-400 mt-1 break-words">0,00 kr.</div>
+          </div>
+          <button type="button" onclick="toggleNetBreakdown()" aria-label="Vis udregning af løn efter skat" class="basis-[36%] flex-shrink-0 min-w-0 text-left bg-slate-800 rounded-2xl p-3 sm:p-4 text-white shadow-md flex flex-col justify-between">
+            <div class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Efter skat</div>
+            <div id="overviewPeriodNet" class="text-base sm:text-2xl font-black text-sky-300 mt-1 break-words">0,00 kr.</div>
+            <div class="text-[9px] text-slate-400 flex items-center gap-0.5 mt-1">ca. · se udregning <i data-lucide="chevron-down" class="w-3 h-3"></i></div>
+          </button>
+        </div>
+
+        <div id="overviewNetBreakdown" class="hidden bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-2">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500">Sådan er "efter skat" regnet</h3>
+          <div id="overviewNetRows" class="space-y-1.5 text-xs"></div>
+          <p class="text-[10px] text-slate-400 pt-1">Forenklet overslag med 40 % trækprocent og dit månedsfradrag fra skattekortet. Eget pension og ATP trækkes før AM-bidrag. Diæter lægges til skattefrit, når betingelserne for skattefri rejsegodtgørelse er opfyldt. Kommuneskat, øvrige skatteforhold, feriepenge og andre løntræk indgår ikke, så beløbet kan afvige fra din lønseddel.</p>
         </div>
 
         <!-- Dagens status: indtjening, vejr, fravær -->
@@ -415,7 +434,7 @@
             <h2 class="text-lg font-bold text-slate-900">Virksomhedsoversigt</h2>
             <p id="companyOverviewName" class="text-xs text-slate-500 truncate"></p>
           </div>
-          <button onclick="loadCompanyOverview(true)" class="w-9 h-9 rounded-xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 flex-shrink-0" aria-label="Opdatér oversigten">
+          <button onclick="loadCompanyOverview()" class="w-9 h-9 rounded-xl bg-white border border-slate-200/80 shadow-sm flex items-center justify-center text-slate-500 hover:text-brand-600 flex-shrink-0" aria-label="Opdatér oversigten">
             <i data-lucide="refresh-cw" class="w-4 h-4"></i>
           </button>
         </div>
@@ -444,7 +463,7 @@
           <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
             <i data-lucide="wallet" class="w-4 h-4 text-emerald-600"></i>
             <div id="companyStatPay" class="text-xl font-black text-emerald-600 mt-1.5 truncate">-</div>
-            <div class="text-[10px] text-slate-500 font-semibold">Løn i perioden</div>
+            <div id="companyStatPayLabel" class="text-[10px] text-slate-500 font-semibold">Løn i perioden</div>
           </div>
           <div class="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
             <i data-lucide="briefcase" class="w-4 h-4 text-brand-600"></i>
@@ -492,6 +511,19 @@
           <button onclick="switchTab('cases')" class="w-full py-2 rounded-xl text-xs font-bold text-brand-600 hover:bg-slate-50 transition-colors">Se alle sager →</button>
         </div>
 
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB: TIL GODE (kun i en virksomhed)         -->
+      <!-- Medarbejder: ser egne poster og saldo.       -->
+      <!-- Administrator: alle medarbejdere + tilføj/træk fra. -->
+      <!-- ========================================== -->
+      <section id="tab-credits" class="tab-content space-y-4 hidden lg:max-w-xl lg:mx-auto">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Til gode</h2>
+          <p class="text-xs text-slate-500">Beløb, der er til gode i virksomheden.</p>
+        </div>
+        <div id="creditsBody" class="space-y-4"></div>
       </section>
 
       <!-- ========================================== -->
@@ -1032,6 +1064,31 @@
           <p class="text-xs text-slate-500">Satser, medarbejdere, eksport og din konto</p>
         </div>
 
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm space-y-3">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0">
+              <i data-lucide="wallet" class="w-4 h-4 text-sky-700"></i>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-slate-900">Løn efter skat</h3>
+              <p class="text-[11px] text-slate-500 mt-0.5">Indtast månedsfradraget fra dit skattekort. Det bruges i boksen “Efter skat” på oversigten.</p>
+            </div>
+          </div>
+          <div>
+            <label for="netPayDeductionInput" class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Månedsfradrag</label>
+            <div class="flex gap-2">
+              <div class="relative flex-1 min-w-0">
+                <input id="netPayDeductionInput" type="number" min="0" max="1000000" step="1" inputmode="decimal" placeholder="Fx 7.500" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 pr-12 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand-500">
+                <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-semibold">kr.</span>
+              </div>
+              <button type="button" onclick="saveNetPaySettings()" class="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-brand-600/20">Gem</button>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-1.5">Brug beløbet under “Månedsfradrag” på dit skattekort. Det trækkes fra grundlaget for de 40 % A-skat – ikke fra AM-bidraget.</p>
+          </div>
+          <div class="border-t border-slate-100 pt-2 text-[10px] text-slate-500">Beregningen bruger 8 % AM-bidrag, 40 % trækprocent og 2 % eget pensionsbidrag. ATP trækkes efter 2026 A-sats for månedslønnede.</div>
+          <p id="netPaySettingsStatus" class="text-[10px] text-slate-400" aria-live="polite"></p>
+        </div>
+
         <div class="space-y-2.5">
           <button onclick="switchTab('rates')" class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center justify-between hover:border-brand-300 transition-colors">
             <span class="flex items-center gap-3">
@@ -1105,6 +1162,7 @@
             <li>De akkordsatser, du selv opretter</li>
             <li>De registreringer (arbejde, timer, løn), du selv indtaster</li>
             <li>Fraværsdage, du selv markerer</li>
+            <li>Dit månedsfradrag fra skattekortet til den vejledende nettolønsberegning</li>
             <li>Er du med i en virksomhed: virksomhedens navn og hvem der er medlem af den</li>
           </ul>
         </div>
@@ -1125,6 +1183,7 @@
             <li>Kun du selv kan se dine egne registreringer, satser og fravær som udgangspunkt</li>
             <li>Er du medlem af en virksomhed, kan virksomhedens administratorer se dine registreringer, satser og fravær - det er nødvendigt for, at de kan udbetale din løn korrekt</li>
             <li>Almindelige medarbejdere (uden administrator-rolle) kan aldrig se andre medarbejderes løn eller registreringer</li>
+            <li>Dit personlige skattekort-fradrag er kun synligt for dig - virksomhedens administratorer kan ikke læse det</li>
             <li>Ingen uden for din egen virksomhed har adgang til dine data</li>
           </ul>
         </div>
@@ -1322,6 +1381,11 @@
         <span class="text-[10px] font-semibold mt-1">Virksomhed</span>
       </button>
 
+      <button onclick="switchTab('credits')" id="nav-credits" class="hidden nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
+        <i data-lucide="piggy-bank" class="w-5 h-5"></i>
+        <span class="text-[10px] font-semibold mt-1">Til gode</span>
+      </button>
+
       <button onclick="switchTab('settings')" id="nav-settings" class="nav-item flex flex-col items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
         <i data-lucide="settings" class="w-5 h-5"></i>
         <span class="text-[10px] font-semibold mt-1">Indstillinger</span>
@@ -1502,6 +1566,62 @@
   </div>
 
   <!-- Custom Confirmation Dialog Modal -->
+  <!-- Modal: Til gode - tilføj / træk fra (kun administrator) -->
+  <div id="creditsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-4 shadow-xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-start border-b border-slate-100 pb-3">
+        <div class="min-w-0">
+          <h3 id="creditsModalTitle" class="font-bold text-slate-900 text-base">Tilføj beløb</h3>
+          <p id="creditsModalPerson" class="text-xs text-slate-500 truncate"></p>
+        </div>
+        <button onclick="closeCreditsModal()" class="text-slate-400 hover:text-slate-600 p-1" aria-label="Luk">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="creditsForm" onsubmit="handleSaveCredit(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Hvad er det for?</label>
+          <input type="text" id="creditsDesc" maxlength="150" placeholder="f.eks. Overarbejde marts" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Beløb (kr.)</label>
+            <input type="text" inputmode="decimal" id="creditsAmount" onblur="sanitizeDecimalInput(this)" placeholder="f.eks. 1500,00" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Dato</label>
+            <input type="date" id="creditsDate" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500">
+          </div>
+        </div>
+        <div id="creditsFileBlock" class="hidden">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Bilag (valgfrit)</label>
+          <input type="file" id="creditsFile" accept="image/*,application/pdf" onchange="handleCreditsFileChange(this)" class="block w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700">
+          <p id="creditsFileInfo" class="text-[11px] text-slate-500 mt-1.5"></p>
+          <p class="text-[10px] text-slate-400 mt-1">Billede eller PDF. Billeder gøres automatisk mindre; PDF maks. ca. 700 KB.</p>
+        </div>
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeCreditsModal()" class="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl text-xs">Annuller</button>
+          <button type="submit" id="creditsSubmitBtn" class="flex-1 py-3 text-white font-bold rounded-xl text-xs shadow-md disabled:opacity-60">Tilføj</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Til gode - se bilag -->
+  <div id="creditsFileModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-3 shadow-xl max-h-[92vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Bilag</h3>
+        <button onclick="closeCreditsFile()" class="text-slate-400 hover:text-slate-600 p-1" aria-label="Luk">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="creditsFileContent"></div>
+      <a id="creditsFileDownload" href="#" download class="hidden block text-center py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-brand-600 hover:bg-slate-50">Hent filen</a>
+    </div>
+  </div>
+
   <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
     <div class="bg-white w-full max-w-md sm:max-w-xs rounded-t-2xl sm:rounded-2xl p-5 text-center space-y-4 shadow-xl animate-in slide-in-from-bottom duration-200">
       <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
@@ -1611,6 +1731,43 @@
 
     const DEFAULT_ENTRIES = [];
 
+    // Personligt skattekort-fradrag til den vejledende nettolønsberegning.
+    // Indstillingen gemmes separat pr. bruger og ligger i en privat Firestore-
+    // underkollektion, så virksomhedens administratorer ikke kan læse den.
+    const DEFAULT_NET_PAY_SETTINGS = Object.freeze({ monthlyDeduction: 0 });
+
+    function getNetPaySettingsStorageKey(uid) {
+      return uid ? `akkord_net_pay_settings_${uid}` : 'akkord_net_pay_settings_guest';
+    }
+
+    function normalizeNetPaySettings(value) {
+      const raw = value && value.monthlyDeduction != null ? Number(value.monthlyDeduction) : 0;
+      return {
+        monthlyDeduction: Number.isFinite(raw) ? Math.min(1000000, Math.max(0, raw)) : 0
+      };
+    }
+
+    function loadNetPaySettingsFromLocal(uid) {
+      try {
+        const raw = localStorage.getItem(getNetPaySettingsStorageKey(uid));
+        return raw ? normalizeNetPaySettings(JSON.parse(raw)) : { ...DEFAULT_NET_PAY_SETTINGS };
+      } catch (err) {
+        console.warn('Kunne ikke hente fradragsindstillingen lokalt:', err);
+        return { ...DEFAULT_NET_PAY_SETTINGS };
+      }
+    }
+
+    function saveNetPaySettingsToLocal(uid) {
+      try {
+        localStorage.setItem(getNetPaySettingsStorageKey(uid), JSON.stringify(netPaySettings));
+        return true;
+      } catch (err) {
+        console.error('Kunne ikke gemme fradragsindstillingen lokalt:', err);
+        return false;
+      }
+    }
+
+    let netPaySettings = loadNetPaySettingsFromLocal(null);
     let rates = JSON.parse(localStorage.getItem('akkord_rates')) || DEFAULT_RATES;
     let entries = JSON.parse(localStorage.getItem('akkord_entries')) || DEFAULT_ENTRIES;
     let absences = JSON.parse(localStorage.getItem('akkord_absences')) || []; // [{ date, type, note }]
@@ -2093,6 +2250,8 @@
       syncEnabled = false;
       lastSyncError = false;
       currentSessionId++;
+      netPaySettings = loadNetPaySettingsFromLocal(null);
+      renderNetPaySettingsUI();
       updateAccountIndicator();
 
       // Rydder al PERSONLIG data fra enheden - ikke bare fra hukommelsen.
@@ -2485,6 +2644,9 @@
       currentUser = user;
       syncEnabled = true;
       currentSessionId++;
+      netPaySettings = loadNetPaySettingsFromLocal(user.uid);
+      renderNetPaySettingsUI();
+      loadNetPaySettingsFromCloud(user.uid);
       updateAccountIndicator();
       applyCachedCompanyInfo(user.uid);
 
@@ -2814,9 +2976,12 @@
       }).then(() => {
         myCompany = { id: companyRef.id, ownerId: currentUser.uid, name, inviteCode, isOwner: true, cachedForUid: currentUser.uid };
         myMembershipCompanyName = name;
+        myCompanyId = companyRef.id; // uden dette vises Virksomhed/Affald/Sager ikke før næste genindlæsning
         localStorage.setItem('akkord_myCompany', JSON.stringify(myCompany));
         showEmployeesTab();
         renderAccountModalBody();
+        loadCases();
+        loadWasteReports();
         showToast('Virksomheden "' + name + '" er oprettet');
       }).catch(err => {
         console.error('Kunne ikke oprette virksomhed:', err);
@@ -3797,10 +3962,18 @@
       const companySideBtn = document.getElementById('sidenav-company');
       if (companyNavBtn) companyNavBtn.classList.toggle('hidden', !isAdminNow);
       if (companySideBtn) companySideBtn.classList.toggle('hidden', !isAdminNow);
+      // Til gode: for alle medlemmer af en virksomhed (medarbejder ser egne, admin ser alle).
+      const creditsNavBtn = document.getElementById('nav-credits');
+      const creditsSideBtn = document.getElementById('sidenav-credits');
+      if (creditsNavBtn) creditsNavBtn.classList.toggle('hidden', !show);
+      if (creditsSideBtn) creditsSideBtn.classList.toggle('hidden', !show);
       if (grid) {
-        const cols = (show ? 6 : 5) + (isAdminNow ? 1 : 0);
-        ['grid-cols-5', 'grid-cols-6', 'grid-cols-7'].forEach(c => grid.classList.toggle(c, c === 'grid-cols-' + cols));
-        grid.classList.toggle('nav-compact', isAdminNow);
+        const count = 5 + (show ? 1 : 0) + (isAdminNow ? 1 : 0) + (show ? 1 : 0);
+        const scroll = count > 6;
+        ['grid-cols-5', 'grid-cols-6'].forEach(c => grid.classList.toggle(c, !scroll && c === 'grid-cols-' + count));
+        grid.classList.remove('grid-cols-7');
+        grid.classList.toggle('nav-scroll', scroll);
+        grid.classList.toggle('nav-compact', scroll);
       }
       if (!show) {
         const wasteTab = document.getElementById('tab-waste');
@@ -3809,6 +3982,18 @@
       if (!isAdminNow) {
         const companyTab = document.getElementById('tab-company');
         if (companyTab && !companyTab.classList.contains('hidden')) switchTab('overview');
+      }
+      if (!show) {
+        resetCreditsState();
+        creditsCompanyId = null;
+        const creditsTab = document.getElementById('tab-credits');
+        if (creditsTab && !creditsTab.classList.contains('hidden')) switchTab('overview');
+      } else if (creditsCompanyId && creditsCompanyId === myCompanyId) {
+        // Rolleskift (fx forfremmet/degraderet): opbyg visningen forfra ud fra den nye rolle.
+        const creditsTab = document.getElementById('tab-credits');
+        if (creditsTab && !creditsTab.classList.contains('hidden')) {
+          if (creditsViewAdmin !== null && creditsViewAdmin !== isAdminNow) { resetCreditsState(); loadCredits(); }
+        }
       }
     }
 
@@ -4177,6 +4362,7 @@
       updateRepeatLastDayButton();
       updateAccountIndicator();
       updateHourlyRateEmphasis();
+      renderNetPaySettingsUI();
       if (window.lucide) lucide.createIcons();
 
       // Hvis appen er åbnet via en genvej (langt tryk på app-ikonet), hop
@@ -4225,6 +4411,12 @@
       if (activeNav) {
         activeNav.classList.remove('text-slate-400');
         activeNav.classList.add('text-brand-600');
+        // Rullende bundnavigation: hold den aktive fane synlig.
+        const navGridEl = document.getElementById('navGrid');
+        if (navGridEl && navGridEl.classList.contains('nav-scroll')) {
+          const left = activeNav.getBoundingClientRect().left - navGridEl.getBoundingClientRect().left + navGridEl.scrollLeft;
+          navGridEl.scrollTo({ left: left - (navGridEl.clientWidth - activeNav.offsetWidth) / 2, behavior: 'smooth' });
+        }
       }
       if (activeSidebarNav) {
         activeSidebarNav.classList.remove('text-slate-600');
@@ -4248,6 +4440,8 @@
         loadWasteReports();
       } else if (tabId === 'company') {
         loadCompanyOverview();
+      } else if (tabId === 'credits') {
+        loadCredits();
       } else if (tabId === 'data') {
         loadDataComparisonPage();
       }
@@ -6539,6 +6733,185 @@
     // findes altid i DOM'en, så det er harmløst blot at opdatere dem.
     // Udfylder den nye "Oversigt"-fane: lønperiodens total, dagens status
     // (indtjening, vejr, fravær), og de seneste registreringer.
+    // ==========================================
+    // LØN EFTER SKAT (vejledende)
+    // Bruger den ønskede forenklede model:
+    //  1) Eget pensionsbidrag og ATP trækkes fra først.
+    //  2) AM-bidrag på 8 % beregnes af resten.
+    //  3) Månedsfradraget fra skattekortet trækkes fra A-skattegrundlaget.
+    //  4) Der beregnes 40 % A-skat af det resterende grundlag.
+    //  5) Skattefri diæter lægges til efter alle træk.
+    // 40 % er brugerens antagne trækprocent - ikke en universel dansk skattesats.
+    // ==========================================
+    const NET_PAY_CONFIG = {
+      amRate: 0.08,
+      pensionRate: 0.02,
+      taxRate: 0.40,
+      // 2026, ATP A-sats, månedslønnede - medarbejderens egen andel.
+      atpTiers: [
+        { minHours: 117, amount: 99 },
+        { minHours: 78, amount: 66 },
+        { minHours: 39, amount: 33 }
+      ]
+    };
+
+    function calcNetPay(taxableGross, diaeter, hours, monthlyDeduction) {
+      const c = NET_PAY_CONFIG;
+      const gross = Math.max(0, Number(taxableGross) || 0);
+      const taxFreeAllowances = Math.max(0, Number(diaeter) || 0);
+      const periodHours = Math.max(0, Number(hours) || 0);
+      const deduction = Math.max(0, Number(monthlyDeduction) || 0);
+
+      const pension = gross * c.pensionRate;
+      const tier = c.atpTiers.find(t => periodHours >= t.minHours);
+      const atp = tier && gross > 0 ? tier.amount : 0;
+
+      // Skattestyrelsens rækkefølge: ATP og eget pensionsbidrag er trukket,
+      // før AM-bidraget beregnes.
+      const amBase = Math.max(0, gross - pension - atp);
+      const am = amBase * c.amRate;
+      const taxBaseBeforeDeduction = Math.max(0, amBase - am);
+      const deductionApplied = Math.min(deduction, taxBaseBeforeDeduction);
+      const taxBase = Math.max(0, taxBaseBeforeDeduction - deductionApplied);
+      const tax = taxBase * c.taxRate;
+      const net = gross - pension - atp - am - tax + taxFreeAllowances;
+
+      return {
+        taxableGross: gross,
+        pension,
+        atp,
+        amBase,
+        am,
+        taxBaseBeforeDeduction,
+        deduction,
+        deductionApplied,
+        taxBase,
+        tax,
+        diaeter: taxFreeAllowances,
+        hours: periodHours,
+        net
+      };
+    }
+
+    function renderNetPaySettingsUI() {
+      const input = document.getElementById('netPayDeductionInput');
+      const status = document.getElementById('netPaySettingsStatus');
+      if (input) input.value = String(Math.round(netPaySettings.monthlyDeduction || 0));
+      if (status) {
+        status.textContent = currentUser
+          ? 'Personligt gemt på din konto og synkroniseres mellem dine enheder.'
+          : 'Gemt lokalt på denne enhed, indtil du logger ind.';
+      }
+    }
+
+    function syncNetPaySettingsToCloud(uid) {
+      const targetUid = uid || (currentUser && currentUser.uid);
+      if (!targetUid || !syncEnabled || !currentUser || currentUser.uid !== targetUid || !db) return;
+
+      const dispatchedSessionId = currentSessionId;
+      db.collection('users').doc(targetUid).collection('privateSettings').doc('netPay').set({
+        monthlyDeduction: netPaySettings.monthlyDeduction,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }).then(() => {
+        if (dispatchedSessionId !== currentSessionId || !currentUser || currentUser.uid !== targetUid) return;
+        const status = document.getElementById('netPaySettingsStatus');
+        if (status) status.textContent = 'Gemt og synkroniseret til din konto.';
+      }).catch(err => {
+        if (dispatchedSessionId !== currentSessionId || !currentUser || currentUser.uid !== targetUid) return;
+        console.error('Kunne ikke synkronisere fradragsindstillingen:', err);
+        const status = document.getElementById('netPaySettingsStatus');
+        if (status) status.textContent = 'Gemt på denne enhed, men kunne ikke synkroniseres til skyen.';
+        showToast('Fradraget blev gemt lokalt, men kunne ikke synkroniseres', 'error');
+      });
+    }
+
+    function loadNetPaySettingsFromCloud(uid) {
+      if (!uid || !db || !currentUser || currentUser.uid !== uid) return;
+      const dispatchedSessionId = currentSessionId;
+      db.collection('users').doc(uid).collection('privateSettings').doc('netPay').get().then(doc => {
+        if (dispatchedSessionId !== currentSessionId || !currentUser || currentUser.uid !== uid) return;
+        if (doc.exists) {
+          netPaySettings = normalizeNetPaySettings(doc.data());
+          saveNetPaySettingsToLocal(uid);
+        } else {
+          // Første gang: behold brugerens lokale indstilling (eller 0 kr.)
+          // og opret den private cloud-kopi til fremtidige enheder.
+          saveNetPaySettingsToLocal(uid);
+          syncNetPaySettingsToCloud(uid);
+        }
+        renderNetPaySettingsUI();
+        renderOverview();
+      }).catch(err => {
+        // Lokal indstilling bruges stadig, hvis skyen ikke kan læses (fx offline).
+        console.warn('Kunne ikke hente fradragsindstillingen fra skyen:', err);
+        renderNetPaySettingsUI();
+      });
+    }
+
+    function saveNetPaySettings() {
+      const input = document.getElementById('netPayDeductionInput');
+      if (!input) return;
+      const value = input.value.trim() === '' ? 0 : Number(input.value);
+      if (!Number.isFinite(value) || value < 0 || value > 1000000) {
+        showToast('Indtast et gyldigt månedsfradrag mellem 0 og 1.000.000 kr.', 'error');
+        input.focus();
+        return;
+      }
+
+      netPaySettings = normalizeNetPaySettings({ monthlyDeduction: value });
+      const saved = saveNetPaySettingsToLocal(currentUser ? currentUser.uid : null);
+      if (!saved) {
+        showToast('Fradraget kunne ikke gemmes på denne enhed', 'error');
+        return;
+      }
+
+      renderNetPaySettingsUI();
+      renderOverview();
+      if (currentUser && syncEnabled) syncNetPaySettingsToCloud(currentUser.uid);
+      showToast('Månedsfradrag gemt');
+    }
+
+    function toggleNetBreakdown() {
+      const el = document.getElementById('overviewNetBreakdown');
+      if (el) el.classList.toggle('hidden');
+    }
+
+    function renderOverviewNet(periodEntries) {
+      const netEl = document.getElementById('overviewPeriodNet');
+      const rowsEl = document.getElementById('overviewNetRows');
+      if (!netEl || !rowsEl) return;
+
+      // Arbejdsgiveren kan ikke se medarbejderens private skattekort-fradrag.
+      // Vis derfor ikke et misvisende nettobeløb i skrivebeskyttet medarbejdervisning.
+      if (viewingEmployee) {
+        netEl.textContent = '—';
+        rowsEl.innerHTML = '<p class="text-slate-500">Medarbejderens personlige fradrag er privat og indgår derfor ikke i denne visning.</p>';
+        return;
+      }
+
+      let diaeter = 0;
+      let total = 0;
+      let hours = 0;
+      periodEntries.forEach(e => {
+        total += e.totalDkk || 0;
+        hours += e.hours || 0;
+        if (isDiaeterName(e.rateName)) diaeter += e.totalDkk || 0;
+      });
+      const r = calcNetPay(total - diaeter, diaeter, hours, netPaySettings.monthlyDeduction);
+      netEl.textContent = formatCurrency(r.net);
+
+      const row = (label, value, cls) => `<div class="flex items-center justify-between gap-3"><span class="text-slate-500">${label}</span><span class="font-bold ${cls || 'text-slate-800'} whitespace-nowrap">${value}</span></div>`;
+      rowsEl.innerHTML =
+        row('Bruttoløn (uden diæter)', formatCurrency(r.taxableGross)) +
+        row('Pension, eget bidrag (2 %)', '-' + formatCurrency(r.pension), 'text-red-600') +
+        row('ATP, eget bidrag', '-' + formatCurrency(r.atp), 'text-red-600') +
+        row('AM-bidrag (8 %)', '-' + formatCurrency(r.am), 'text-red-600') +
+        row('Månedsfradrag fra skattekort', '-' + formatCurrency(r.deductionApplied), 'text-sky-600') +
+        row('A-skat (40 %)', '-' + formatCurrency(r.tax), 'text-red-600') +
+        row('Diæter (skattefri)', '+' + formatCurrency(r.diaeter), 'text-emerald-600') +
+        `<div class="border-t border-slate-200 pt-1.5 mt-1">${row('Til udbetaling, ca.', formatCurrency(r.net), 'text-sky-600 text-sm font-extrabold')}</div>`;
+    }
+
     function renderOverview() {
       const periodEarnedEl = document.getElementById('overviewPeriodEarned');
       if (!periodEarnedEl) return;
@@ -6555,13 +6928,13 @@
       filledState.classList.remove('hidden');
 
       const { start, end } = getPayPeriodRange(new Date());
-      const periodTotal = entries
-        .filter(e => {
-          const d = new Date(e.date + 'T12:00:00');
-          return d >= start && d <= end;
-        })
-        .reduce((sum, e) => sum + e.totalDkk, 0);
+      const periodEntries = entries.filter(e => {
+        const d = new Date(e.date + 'T12:00:00');
+        return d >= start && d <= end;
+      });
+      const periodTotal = periodEntries.reduce((sum, e) => sum + e.totalDkk, 0);
       periodEarnedEl.textContent = formatCurrency(periodTotal);
+      renderOverviewNet(periodEntries);
 
       const todayStr = getFormattedDate(0);
       const todayEntries = entries.filter(e => e.date === todayStr);
@@ -6655,7 +7028,8 @@
     let companyOverviewError = false;
     let companyOverviewToken = 0;     // forhindrer at et gammelt svar overskriver et nyere
     let companyPeople = [];           // [{ uid, name }]
-    let companyCaseStats = {};        // caseId -> { people, hours, dkk }
+    let companyCaseStats = {};        // caseId -> { people, hours, akkord, timelon }
+    let companyCaseStatsGen = 0;      // kasserer svar, der er overhalet af en nyere indlæsning
     let companyCaseStatsPending = {}; // caseId -> true mens der hentes
     let companyPayrollSort = 'total'; // 'total' | 'name'
 
@@ -6686,7 +7060,7 @@
       return new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(Math.round(val || 0)) + ' kr.';
     }
 
-    function loadCompanyOverview(forceCases) {
+    function loadCompanyOverview() {
       if (!isWasteAdmin() || !db) return;
 
       // Sager og affald holdes opdateret af de eksisterende live-lyttere.
@@ -6696,7 +7070,11 @@
       const { start, end, startStr, endStr } = getCompanyPeriod();
       companyOverview = null;
       companyOverviewError = false;
-      if (forceCases) companyCaseStats = {};
+      // Sagstallene hentes friskt hver gang siden åbnes, opdateres eller
+      // lønperioden skiftes - ellers ville nye registreringer ikke slå igennem.
+      companyCaseStats = {};
+      companyCaseStatsPending = {};
+      companyCaseStatsGen++;
       renderCompanyOverview();
 
       db.collection('companies').doc(myCompanyId).collection('employees').get().then(snapshot => {
@@ -6753,23 +7131,29 @@
       const ids = need.map(c => c.id);
       ids.forEach(id => { companyCaseStatsPending[id] = true; });
       const people = companyPeople.slice();
+      const gen = companyCaseStatsGen;
 
       Promise.all(people.map(p =>
         db.collection('users').doc(p.uid).collection('entries').where('caseId', 'in', ids).get()
           .then(snap => ({ uid: p.uid, list: snap.docs.map(d => d.data()) }))
           .catch(() => ({ uid: p.uid, list: [] }))
       )).then(results => {
+        if (gen !== companyCaseStatsGen) return; // overhalet af en nyere indlæsning
         const stats = {};
-        ids.forEach(id => { stats[id] = { people: new Set(), hours: 0, dkk: 0 }; });
+        ids.forEach(id => { stats[id] = { people: new Set(), hours: 0, akkord: 0, timelon: 0 }; });
         results.forEach(r => r.list.forEach(e => {
           const st = stats[e.caseId];
           if (!st) return;
           st.people.add(r.uid);
           st.hours += e.hours || 0;
-          st.dkk += e.totalDkk || 0;
+          // Diæter er ikke sagsarbejde. Timeløn holdes adskilt fra akkord,
+          // så "registreret akkord" ikke bliver et blandet tal.
+          if (isDiaeterName(e.rateName)) return;
+          if (isTimelonName(e.rateName)) st.timelon += e.totalDkk || 0;
+          else st.akkord += e.totalDkk || 0;
         }));
         ids.forEach(id => {
-          companyCaseStats[id] = { people: stats[id].people.size, hours: stats[id].hours, dkk: stats[id].dkk };
+          companyCaseStats[id] = { people: stats[id].people.size, hours: stats[id].hours, akkord: stats[id].akkord, timelon: stats[id].timelon };
           delete companyCaseStatsPending[id];
         });
         renderCompanyCases();
@@ -6831,9 +7215,14 @@
           : '-';
       }
       if (payEl) {
+        const missing = companyOverview ? companyOverview.rows.filter(r => r.failed).length : 0;
         payEl.textContent = companyOverview
-          ? formatKrWhole(companyOverview.rows.reduce((sum, r) => sum + r.total, 0))
+          ? formatKrWhole(companyOverview.rows.reduce((sum, r) => sum + r.total, 0)) + (missing > 0 ? '*' : '')
           : '-';
+        payEl.classList.toggle('text-emerald-600', missing === 0);
+        payEl.classList.toggle('text-red-600', missing > 0);
+        const payLabel = document.getElementById('companyStatPayLabel');
+        if (payLabel) payLabel.textContent = missing > 0 ? `Ufuldstændig: ${missing} mangler` : 'Løn i perioden';
       }
       if (casesEl) casesEl.textContent = String(openCases.length);
     }
@@ -6931,8 +7320,34 @@
         diaeter: t.diaeter + r.diaeter, hours: t.hours + r.hours, total: t.total + r.total
       }), { akkord: 0, timelon: 0, diaeter: 0, hours: 0, total: 0 });
 
+      const mobileRows = rows.map(r => {
+        const safeName = escapeHtml(r.name).replace(/'/g, "\\'");
+        const parts = [];
+        if (!r.failed) {
+          if (r.akkord > 0) parts.push('Akkord ' + formatNumber(r.akkord));
+          if (r.timelon > 0) parts.push('Timeløn ' + formatNumber(r.timelon));
+          if (r.diaeter > 0) parts.push('Diæter ' + formatNumber(r.diaeter));
+          parts.push(formatNumber(r.hours) + ' t');
+        }
+        return `
+          <div class="border-t border-slate-100 py-2.5 cursor-pointer" onclick="viewEmployeeData('${r.uid}', '${safeName}')">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm font-bold text-slate-800 truncate">${escapeHtml(r.name)}</span>
+              <span class="text-sm font-extrabold text-slate-900 whitespace-nowrap">${r.failed ? '-' : formatKrWhole(r.total)}</span>
+            </div>
+            <div class="text-[10px] ${r.failed ? 'text-red-500 font-semibold' : 'text-slate-500'} mt-0.5">${r.failed ? 'Kunne ikke hentes' : parts.join(' · ')}</div>
+          </div>
+        `;
+      }).join('');
+
       el.innerHTML = `
-        <div class="overflow-x-auto">
+        <div class="sm:hidden">
+          ${mobileRows}
+          <div class="border-t-2 border-slate-200 pt-2.5 flex items-center justify-between font-extrabold text-sm text-slate-900">
+            <span>Samlet</span><span class="text-emerald-600">${formatKrWhole(totals.total)}${failedCount > 0 ? '*' : ''}</span>
+          </div>
+        </div>
+        <div class="hidden sm:block overflow-x-auto">
           <table class="w-full text-xs min-w-[500px]">
             <thead>
               <tr class="text-[10px] uppercase tracking-wider text-slate-400 text-right">
@@ -6992,12 +7407,12 @@
         if (!st) {
           detail = 'Henter...';
           amount = '-';
-        } else if (st.dkk === 0 && st.hours === 0) {
+        } else if (st.akkord === 0 && st.timelon === 0 && st.hours === 0) {
           detail = 'Ingen registreringer endnu';
           amount = '-';
         } else {
           detail = `${st.people} ${st.people === 1 ? 'medarbejder' : 'medarbejdere'} · ${formatNumber(st.hours)} timer`;
-          amount = formatKrWhole(st.dkk);
+          amount = formatKrWhole(st.akkord);
         }
 
         const linked = wasteReports.filter(r => r.caseId === c.id);
@@ -7021,6 +7436,7 @@
               <span class="text-slate-500">Registreret akkord</span>
               <span class="font-bold text-slate-900">${amount}</span>
             </div>
+            ${st && st.timelon > 0 ? `<div class="flex items-center justify-between mt-0.5 text-[10px] text-slate-400"><span>Heraf ikke i akkord: timeløn</span><span>${formatKrWhole(st.timelon)}</span></div>` : ''}
             ${wasteTag}
           </button>
         `;
@@ -7049,6 +7465,8 @@
       });
       const ok = sorted.filter(r => !r.failed);
       aoa.push([]);
+      const missingCount = sorted.filter(r => r.failed).length;
+      if (missingCount > 0) aoa.push([`OBS: Ufuldstændig - ${missingCount} medarbejders data kunne ikke hentes`]);
       aoa.push(['Samlet',
         r2(ok.reduce((s, r) => s + r.akkord, 0)),
         r2(ok.reduce((s, r) => s + r.timelon, 0)),
@@ -7063,6 +7481,503 @@
       XLSX.utils.book_append_sheet(wb, ws, 'Lønoversigt');
       XLSX.writeFile(wb, `Virksomhed_Lønperiode_${dateToLocalString(start)}_${dateToLocalString(end)}.xlsx`);
       showToast('Lønoversigt eksporteret');
+    }
+
+    // ==========================================
+    // TIL GODE (saldo pr. medarbejder i en virksomhed)
+    // Poster gemmes under companies/{id}/credits/{medarbejder}/entries.
+    // Saldoen gemmes ALDRIG som et tal, men regnes altid ud fra posterne -
+    // så den ikke kan komme ud af trit med det, medarbejderen kan se.
+    // Kun administratorer kan oprette/slette poster; en medarbejder kan kun
+    // læse sine egne. Bilag (ved fradrag) ligger i en undersamling, så
+    // listen ikke skal hente filerne, før man åbner dem.
+    // ==========================================
+    const CREDITS_FILE_MAX_CHARS = 950000; // holder hver fil-post under Firestores 1 MiB-grænse
+
+    let creditsUnsub = null;
+    let creditsCompanyId = null;     // hvilken virksomhed tilstanden hører til
+    let creditsViewAdmin = null;     // om fanen sidst blev opbygget som administrator (opdager rolleskift)
+    let creditsViewUid = null;       // medarbejder hvis konto vises (admin: valgt, medarbejder: sig selv)
+    let creditsViewName = '';
+    let creditsEntries = [];
+    let creditsListState = 'loading'; // 'loading' | 'ok' | 'error'
+    let creditsOverview = null;      // admin: [{ uid, name, balance, failed }]
+    let creditsOverviewError = false;
+    let creditsOverviewToken = 0;
+    let creditsModalType = 'add';
+    let creditsPendingFile = null;   // { name, type, size, data }
+    let creditsSaving = false;
+    let creditsFileUrl = null;       // blob-url til bilagsvisning (ryddes ved lukning)
+
+    function getCreditsLedgerRef(uid) {
+      return db.collection('companies').doc(myCompanyId).collection('credits').doc(uid).collection('entries');
+    }
+
+    function detachCreditsListener() {
+      if (creditsUnsub) { creditsUnsub(); creditsUnsub = null; }
+    }
+
+    function resetCreditsState() {
+      detachCreditsListener();
+      creditsViewUid = null;
+      creditsViewName = '';
+      creditsEntries = [];
+      creditsListState = 'loading';
+      creditsOverview = null;
+      creditsOverviewError = false;
+      creditsOverviewToken++;
+    }
+
+    function roundMoney(n) { return Math.round((n || 0) * 100) / 100; }
+
+    function sumCreditsBalance(list) {
+      return roundMoney(list.reduce((s, e) => s + (e.type === 'add' ? e.amount : -e.amount), 0));
+    }
+
+    function formatCreditsDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      if (isNaN(d.getTime())) return dateStr || '';
+      return `${d.getDate()}. ${getDanishMonthName(d.getMonth())} ${d.getFullYear()}`;
+    }
+
+    // Kaldes når fanen åbnes.
+    function loadCredits() {
+      if (!db || !currentUser || !myCompanyId) { renderCredits(); return; }
+      if (creditsCompanyId !== myCompanyId) { resetCreditsState(); creditsCompanyId = myCompanyId; }
+      creditsViewAdmin = isWasteAdmin();
+
+      if (isWasteAdmin()) {
+        if (creditsViewUid) openCreditsPerson(creditsViewUid, creditsViewName);
+        else loadCreditsOverview();
+      } else {
+        openCreditsPerson(currentUser.uid, currentUser.displayName || '');
+      }
+    }
+
+    // Administrator: alle medarbejdere med deres saldo.
+    function loadCreditsOverview() {
+      detachCreditsListener();
+      creditsViewUid = null;
+      creditsOverview = null;
+      creditsOverviewError = false;
+      const token = ++creditsOverviewToken;
+      renderCredits();
+
+      db.collection('companies').doc(myCompanyId).collection('employees').get().then(snapshot => {
+        const people = snapshot.docs.map(d => ({ uid: d.id, name: d.data().name || d.data().email || 'Ukendt' }));
+        return Promise.all(people.map(p =>
+          getCreditsLedgerRef(p.uid).get()
+            .then(snap => ({ uid: p.uid, name: p.name, balance: sumCreditsBalance(snap.docs.map(d => d.data())), failed: false }))
+            .catch(err => {
+              console.error('Kunne ikke hente til gode for ' + p.name + ':', err);
+              return { uid: p.uid, name: p.name, balance: 0, failed: true };
+            })
+        ));
+      }).then(rows => {
+        if (token !== creditsOverviewToken) return;
+        creditsOverview = rows;
+        renderCredits();
+      }).catch(err => {
+        if (token !== creditsOverviewToken) return;
+        console.error('Kunne ikke hente medarbejdere til "Til gode":', err);
+        creditsOverviewError = true;
+        renderCredits();
+      });
+    }
+
+    // Åbner én persons konto (live, så ændringer vises med det samme).
+    function openCreditsPerson(uid, name) {
+      detachCreditsListener();
+      creditsViewUid = uid;
+      creditsViewName = name;
+      creditsEntries = [];
+      creditsListState = 'loading';
+      renderCredits();
+
+      const forUid = uid;
+      creditsUnsub = getCreditsLedgerRef(uid).onSnapshot(snapshot => {
+        if (creditsViewUid !== forUid) return;
+        creditsEntries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        creditsListState = 'ok';
+        renderCredits();
+      }, err => {
+        console.error('Kunne ikke hente til gode:', err);
+        if (creditsViewUid !== forUid) return;
+        creditsListState = 'error';
+        renderCredits();
+      });
+    }
+
+    function closeCreditsPerson() {
+      loadCreditsOverview();
+    }
+
+    function renderCredits() {
+      const body = document.getElementById('creditsBody');
+      if (!body) return;
+
+      if (!myCompanyId) {
+        body.innerHTML = '<div class="bg-white rounded-2xl p-6 border border-slate-200/80 text-center text-sm text-slate-500">Til gode virker kun, når du er med i en virksomhed.</div>';
+        return;
+      }
+
+      if (isWasteAdmin() && !creditsViewUid) body.innerHTML = renderCreditsOverviewHtml();
+      else body.innerHTML = renderCreditsLedgerHtml();
+
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function creditsBalanceClass(balance) {
+      return balance > 0 ? 'text-emerald-600' : balance < 0 ? 'text-red-600' : 'text-slate-500';
+    }
+
+    function renderCreditsOverviewHtml() {
+      if (creditsOverviewError) {
+        return '<p class="text-red-600 bg-red-50 border border-red-200 rounded-xl text-center py-3 px-3 text-xs font-semibold">Kunne ikke hente medarbejderne. Tjek din forbindelse, og prøv igen.</p>';
+      }
+      if (!creditsOverview) return '<p class="text-xs text-slate-400 text-center py-6">Henter...</p>';
+      if (creditsOverview.length === 0) return '<p class="text-xs text-slate-400 text-center py-6">Ingen medarbejdere i virksomheden endnu.</p>';
+
+      const rows = creditsOverview.slice().sort((a, b) => a.name.localeCompare(b.name, 'da'));
+      const missing = rows.filter(r => r.failed).length;
+      const total = roundMoney(rows.reduce((s, r) => s + r.balance, 0));
+
+      return `
+        <div class="bg-slate-900 rounded-2xl p-4 text-white shadow-md">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Samlet til gode hos alle medarbejdere</div>
+          <div class="text-2xl font-black mt-1">${formatCurrency(total)}${missing > 0 ? '*' : ''}</div>
+          ${missing > 0 ? `<div class="text-[11px] text-red-300 mt-1">Ufuldstændig: ${missing} ${missing === 1 ? 'medarbejders' : 'medarbejderes'} saldo kunne ikke hentes.</div>` : ''}
+        </div>
+        <div class="bg-white rounded-2xl px-4 border border-slate-200/80 shadow-sm">
+          ${rows.map(r => {
+            const safeName = escapeHtml(r.name).replace(/'/g, "\\'");
+            return `
+              <button onclick="openCreditsPerson('${r.uid}', '${safeName}')" class="w-full flex items-center justify-between gap-3 py-3.5 border-b border-slate-100 last:border-b-0 text-left">
+                <span class="text-sm font-bold text-slate-800 truncate">${escapeHtml(r.name)}</span>
+                <span class="flex items-center gap-2 flex-shrink-0">
+                  <span class="text-sm font-extrabold ${r.failed ? 'text-red-500' : creditsBalanceClass(r.balance)}">${r.failed ? 'Kunne ikke hentes' : formatCurrency(r.balance)}</span>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>
+                </span>
+              </button>`;
+          }).join('')}
+        </div>
+        <p class="text-[10px] text-slate-400">Tryk på en medarbejder for at se posteringerne og tilføje eller trække fra.</p>
+      `;
+    }
+
+    function renderCreditsLedgerHtml() {
+      const isAdmin = isWasteAdmin();
+      const isOwnView = creditsViewUid === (currentUser && currentUser.uid);
+      const header = isAdmin ? `
+        <button onclick="closeCreditsPerson()" class="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i> Alle medarbejdere
+        </button>` : '';
+
+      if (creditsListState === 'loading') return header + '<p class="text-xs text-slate-400 text-center py-6">Henter...</p>';
+      if (creditsListState === 'error') {
+        return header + '<p class="text-red-600 bg-red-50 border border-red-200 rounded-xl text-center py-3 px-3 text-xs font-semibold">Kunne ikke hente posteringerne. Tjek din forbindelse, og prøv igen.</p>';
+      }
+
+      // Kronologisk (dato, derefter oprettelsestidspunkt) for en korrekt løbende saldo.
+      const asc = creditsEntries.slice().sort((a, b) =>
+        String(a.date).localeCompare(String(b.date)) || String(a.createdAt).localeCompare(String(b.createdAt)));
+      let running = 0;
+      const withBalance = asc.map(e => {
+        running = roundMoney(running + (e.type === 'add' ? e.amount : -e.amount));
+        return { e, after: running };
+      });
+      const balance = running;
+      const rowsDesc = withBalance.slice().reverse();
+
+      const label = isAdmin && !isOwnView ? `${escapeHtml(creditsViewName)} har til gode` : 'Du har til gode';
+      const balanceNote = balance < 0 ? 'Negativ saldo: der er trukket mere fra, end der er tilføjet.' : '';
+
+      const adminButtons = isAdmin ? `
+        <div class="grid grid-cols-2 gap-2.5">
+          <button onclick="openCreditsModal('add')" class="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5">
+            <i data-lucide="plus" class="w-4 h-4"></i> Tilføj beløb
+          </button>
+          <button onclick="openCreditsModal('deduct')" class="py-3 rounded-xl bg-white border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold flex items-center justify-center gap-1.5">
+            <i data-lucide="minus" class="w-4 h-4"></i> Træk fra
+          </button>
+        </div>` : '';
+
+      const list = rowsDesc.length === 0
+        ? '<p class="text-xs text-slate-400 text-center py-6">Der er endnu ikke registreret noget.</p>'
+        : rowsDesc.map(({ e, after }) => {
+            const isAdd = e.type === 'add';
+            const att = e.attachment
+              ? `<button onclick="openCreditsFile('${creditsViewUid}', '${e.id}')" class="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-700"><i data-lucide="paperclip" class="w-3.5 h-3.5"></i> Se bilag</button>`
+              : '';
+            const del = isAdmin
+              ? `<button onclick="deleteCreditEntry('${e.id}')" class="mt-1.5 ml-3 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Slet</button>`
+              : '';
+            return `
+              <div class="py-3 border-b border-slate-100 last:border-b-0">
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isAdd ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}">
+                    <i data-lucide="${isAdd ? 'plus' : 'minus'}" class="w-4 h-4"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-sm font-bold text-slate-900 break-words">${escapeHtml(e.description)}</div>
+                    <div class="text-[10px] text-slate-500">${formatCreditsDate(e.date)}${e.createdByName ? ' · ' + escapeHtml(e.createdByName) : ''}</div>
+                    <div>${att}${del}</div>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <div class="text-sm font-extrabold ${isAdd ? 'text-emerald-600' : 'text-red-600'}">${isAdd ? '+' : '-'}${formatCurrency(e.amount)}</div>
+                    <div class="text-[10px] text-slate-400">Saldo ${formatCurrency(after)}</div>
+                  </div>
+                </div>
+              </div>`;
+          }).join('');
+
+      return `
+        ${header}
+        <div class="bg-slate-900 rounded-2xl p-4 text-white shadow-md">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">${label}</div>
+          <div class="text-3xl font-black mt-1 ${balance < 0 ? 'text-red-300' : ''}">${formatCurrency(balance)}</div>
+          <div class="text-[11px] text-slate-400 mt-1">${balanceNote || 'Summen af alle posteringer herunder.'}</div>
+        </div>
+        ${adminButtons}
+        <div class="bg-white rounded-2xl px-4 border border-slate-200/80 shadow-sm">${list}</div>
+      `;
+    }
+
+    // ---------- Tilføj / træk fra ----------
+    function openCreditsModal(type) {
+      if (!isWasteAdmin() || !creditsViewUid) return;
+      creditsModalType = type;
+      creditsPendingFile = null;
+      creditsSaving = false;
+
+      const isAdd = type === 'add';
+      document.getElementById('creditsModalTitle').textContent = isAdd ? 'Tilføj beløb' : 'Træk fra';
+      document.getElementById('creditsModalPerson').textContent = creditsViewName;
+      document.getElementById('creditsDesc').value = '';
+      document.getElementById('creditsAmount').value = '';
+      document.getElementById('creditsDate').value = dateToLocalString(new Date());
+      document.getElementById('creditsFile').value = '';
+      document.getElementById('creditsFileInfo').textContent = '';
+      document.getElementById('creditsFileBlock').classList.toggle('hidden', isAdd);
+
+      const submit = document.getElementById('creditsSubmitBtn');
+      submit.textContent = isAdd ? 'Tilføj' : 'Træk fra';
+      submit.disabled = false;
+      submit.classList.toggle('bg-emerald-600', isAdd);
+      submit.classList.toggle('hover:bg-emerald-700', isAdd);
+      submit.classList.toggle('bg-red-600', !isAdd);
+      submit.classList.toggle('hover:bg-red-700', !isAdd);
+
+      document.getElementById('creditsModal').classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeCreditsModal() {
+      document.getElementById('creditsModal').classList.add('hidden');
+      creditsPendingFile = null;
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function loadImageElement(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Kunne ikke læse billedet'));
+        img.src = src;
+      });
+    }
+
+    // Billeder skaleres/komprimeres, så de passer i en Firestore-post uden
+    // at kræve Firebase Storage. Et kamerabillede ender typisk på 150-400 KB.
+    async function compressImageToDataUrl(file) {
+      const img = await loadImageElement(await readFileAsDataUrl(file));
+      const attempts = [[1600, 0.8], [1400, 0.7], [1200, 0.6], [1000, 0.5], [800, 0.45]];
+      for (const [maxDim, quality] of attempts) {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const url = canvas.toDataURL('image/jpeg', quality);
+        if (url.length <= CREDITS_FILE_MAX_CHARS) return url;
+      }
+      throw new Error('too-big');
+    }
+
+    async function handleCreditsFileChange(input) {
+      const info = document.getElementById('creditsFileInfo');
+      creditsPendingFile = null;
+      const file = input.files && input.files[0];
+      if (!file) { info.textContent = ''; return; }
+
+      info.className = 'text-[11px] text-slate-500 mt-1.5';
+      info.textContent = 'Klargør fil...';
+      try {
+        let data;
+        let type;
+        let name = file.name;
+        if (file.type.startsWith('image/')) {
+          data = await compressImageToDataUrl(file);
+          type = 'image/jpeg';
+          name = name.replace(/\.[^.]+$/, '') + '.jpg';
+        } else if (file.type === 'application/pdf') {
+          data = await readFileAsDataUrl(file);
+          type = 'application/pdf';
+          if (data.length > CREDITS_FILE_MAX_CHARS) throw new Error('pdf-too-big');
+        } else {
+          throw new Error('wrong-type');
+        }
+        creditsPendingFile = { name, type, size: Math.round(data.length * 0.75), data };
+        info.className = 'text-[11px] text-emerald-600 font-semibold mt-1.5';
+        info.textContent = `${name} (${Math.max(1, Math.round(creditsPendingFile.size / 1024))} KB) er klar til at blive vedhæftet`;
+      } catch (err) {
+        input.value = '';
+        info.className = 'text-[11px] text-red-600 font-semibold mt-1.5';
+        info.textContent = err.message === 'pdf-too-big'
+          ? 'PDF-filen er for stor (maks. ca. 700 KB). Tag i stedet et billede af bilaget.'
+          : err.message === 'wrong-type'
+            ? 'Kun billeder og PDF-filer kan vedhæftes.'
+            : 'Filen kunne ikke bruges. Prøv et billede eller en mindre PDF.';
+      }
+    }
+
+    function handleSaveCredit(event) {
+      event.preventDefault();
+      if (creditsSaving || !isWasteAdmin() || !creditsViewUid || !db) return;
+
+      const description = document.getElementById('creditsDesc').value.trim();
+      const amount = roundMoney(parseDecimal(document.getElementById('creditsAmount').value));
+      const date = document.getElementById('creditsDate').value;
+
+      if (!description) { showToast('Skriv, hvad beløbet er for', 'error'); return; }
+      if (!amount || isNaN(amount) || amount <= 0) { showToast('Indtast et beløb større end 0', 'error'); return; }
+      if (amount > 10000000) { showToast('Beløbet er for stort', 'error'); return; }
+      if (!date) { showToast('Vælg en dato', 'error'); return; }
+
+      const type = creditsModalType;
+      const file = type === 'deduct' ? creditsPendingFile : null;
+      const entryRef = getCreditsLedgerRef(creditsViewUid).doc();
+      const batch = db.batch();
+
+      batch.set(entryRef, {
+        type,
+        amount,
+        description,
+        date,
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser.uid,
+        createdByName: currentUser.displayName || currentUser.email || '',
+        attachment: file ? { name: file.name, type: file.type, size: file.size } : null
+      });
+      if (file) {
+        batch.set(entryRef.collection('files').doc('main'), { data: file.data, name: file.name, type: file.type });
+      }
+
+      creditsSaving = true;
+      const submit = document.getElementById('creditsSubmitBtn');
+      submit.disabled = true;
+      submit.textContent = 'Gemmer...';
+
+      batch.commit().then(() => {
+        creditsSaving = false;
+        closeCreditsModal();
+        showToast(type === 'add' ? 'Beløb tilføjet' : 'Beløb trukket fra');
+      }).catch(err => {
+        console.error('Kunne ikke gemme postering:', err);
+        creditsSaving = false;
+        submit.disabled = false;
+        submit.textContent = type === 'add' ? 'Tilføj' : 'Træk fra';
+        showToast('Kunne ikke gemme - prøv igen', 'error');
+      });
+    }
+
+    function deleteCreditEntry(entryId) {
+      if (!isWasteAdmin() || !creditsViewUid || !db) return;
+      const uid = creditsViewUid;
+      showConfirmModal(
+        'Slet postering?',
+        'Posteringen (og et eventuelt bilag) fjernes, og saldoen regnes om. Medarbejderen kan ikke længere se den. Bruges kun til rettelse af fejl.',
+        () => {
+          const ref = getCreditsLedgerRef(uid).doc(entryId);
+          const batch = db.batch();
+          batch.delete(ref.collection('files').doc('main'));
+          batch.delete(ref);
+          batch.commit()
+            .then(() => showToast('Posteringen er slettet'))
+            .catch(err => {
+              console.error('Kunne ikke slette postering:', err);
+              showToast('Kunne ikke slette - prøv igen', 'error');
+            });
+        }
+      );
+    }
+
+    // ---------- Bilag ----------
+    function dataUrlToBlob(dataUrl) {
+      const parts = dataUrl.split(',');
+      const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'application/octet-stream';
+      const bin = atob(parts[1]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return new Blob([arr], { type: mime });
+    }
+
+    function openCreditsFile(uid, entryId) {
+      const modal = document.getElementById('creditsFileModal');
+      const content = document.getElementById('creditsFileContent');
+      const link = document.getElementById('creditsFileDownload');
+      content.innerHTML = '<p class="text-xs text-slate-400 text-center py-8">Henter bilag...</p>';
+      link.classList.add('hidden');
+      modal.classList.remove('hidden');
+
+      getCreditsLedgerRef(uid).doc(entryId).collection('files').doc('main').get().then(doc => {
+        if (!doc.exists) {
+          content.innerHTML = '<p class="text-xs text-red-600 text-center py-8">Bilaget blev ikke fundet.</p>';
+          return;
+        }
+        const f = doc.data();
+        const blob = dataUrlToBlob(f.data);
+        if (creditsFileUrl) URL.revokeObjectURL(creditsFileUrl);
+        creditsFileUrl = URL.createObjectURL(blob);
+
+        content.innerHTML = '';
+        if (f.type && f.type.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.src = creditsFileUrl;
+          img.alt = f.name || 'Bilag';
+          img.className = 'max-w-full max-h-[65vh] mx-auto rounded-xl';
+          content.appendChild(img);
+        } else {
+          const frame = document.createElement('iframe');
+          frame.src = creditsFileUrl;
+          frame.title = f.name || 'Bilag';
+          frame.className = 'w-full h-[60vh] rounded-xl border border-slate-200';
+          content.appendChild(frame);
+        }
+        link.href = creditsFileUrl;
+        link.download = f.name || 'bilag';
+        link.classList.remove('hidden');
+      }).catch(err => {
+        console.error('Kunne ikke hente bilag:', err);
+        content.innerHTML = '<p class="text-xs text-red-600 text-center py-8">Kunne ikke hente bilaget.</p>';
+      });
+    }
+
+    function closeCreditsFile() {
+      document.getElementById('creditsFileModal').classList.add('hidden');
+      document.getElementById('creditsFileContent').innerHTML = '';
+      if (creditsFileUrl) { URL.revokeObjectURL(creditsFileUrl); creditsFileUrl = null; }
     }
 
     // "Sidst synkroniseret" i et letlæseligt format ("I dag 18:42", "I går
@@ -7350,7 +8265,8 @@
         exportedFor: viewingEmployee ? viewingEmployee.name : 'mig selv',
         entries,
         rates,
-        absences
+        absences,
+        netPaySettings: viewingEmployee ? null : netPaySettings
       };
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -7546,10 +8462,20 @@
         });
       }
 
+      let importedNetPaySettings = false;
+      if (!viewingEmployee && backup.netPaySettings && typeof backup.netPaySettings === 'object' &&
+          Number.isFinite(Number(backup.netPaySettings.monthlyDeduction)) && Number(backup.netPaySettings.monthlyDeduction) >= 0) {
+        netPaySettings = normalizeNetPaySettings(backup.netPaySettings);
+        importedNetPaySettings = saveNetPaySettingsToLocal(currentUser ? currentUser.uid : null);
+        if (importedNetPaySettings && currentUser && syncEnabled) syncNetPaySettingsToCloud(currentUser.uid);
+        renderNetPaySettingsUI();
+      }
+
       saveData();
       refreshAllViews();
 
       const parts = [`${addedEntries} registreringer`, `${addedRates} satser`];
+      if (importedNetPaySettings) parts.push('skattekort-fradrag');
       if (addedAbsences > 0) parts.push(`${addedAbsences} fraværsdage`);
       showToast('Gendannet: ' + parts.join(', '));
       if (skippedInvalidRates > 0) {
@@ -7908,6 +8834,8 @@
         } else {
           currentUser = null;
           syncEnabled = false;
+          netPaySettings = loadNetPaySettingsFromLocal(null);
+          renderNetPaySettingsUI();
           detachRealtimeListeners();
           detachCasesListeners();
           detachWasteReportsListener();
