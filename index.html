@@ -555,6 +555,99 @@
   }
 
 </style>
+
+<style id="akkord-mobile-fixes">
+  /* Små mobilrettelser: behold alle eksisterende funktioner og datahooks. */
+  @media (max-width: 640px) {
+    /* Nettolønnen skal stå på én linje inkl. "kr.". */
+    #overviewFilledState > div:first-child {
+      gap: 8px !important;
+      align-items: stretch;
+    }
+    #overviewFilledState > div:first-child > div:first-child {
+      flex: 1 1 0% !important;
+      min-width: 0 !important;
+      padding: 14px 12px !important;
+    }
+    #overviewPeriodEarned {
+      font-size: clamp(15px, 4.1vw, 20px) !important;
+      white-space: nowrap !important;
+      overflow-wrap: normal !important;
+      letter-spacing: -.055em !important;
+    }
+    #overviewFilledState > div:first-child > button {
+      flex: 0 0 42% !important;
+      width: 42% !important;
+      min-width: 0 !important;
+      padding: 12px 10px !important;
+      overflow: hidden;
+    }
+    #overviewPeriodNet {
+      display: block;
+      max-width: 100%;
+      font-size: clamp(12px, 4.25vw, 17px) !important;
+      line-height: 1.25 !important;
+      white-space: nowrap !important;
+      word-break: keep-all !important;
+      overflow-wrap: normal !important;
+      letter-spacing: -.055em !important;
+      font-variant-numeric: tabular-nums;
+    }
+    #overviewFilledState > div:first-child > button > div:first-child {
+      white-space: nowrap;
+      font-size: 9px !important;
+    }
+    #overviewFilledState > div:first-child > button > div:last-child {
+      white-space: nowrap;
+      font-size: 8px !important;
+    }
+
+    /* Statistikfiltre vises som et overskueligt gitter i stedet for
+       en vandret række, der klipper den sidste knap på telefoner. */
+    #tab-stats #statsSubView-stats > .flex.overflow-x-auto {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px !important;
+      width: 100%;
+      overflow: visible !important;
+      padding-bottom: 0 !important;
+      scrollbar-width: none;
+    }
+    #tab-stats #statsSubView-stats > .flex.overflow-x-auto::-webkit-scrollbar {
+      display: none;
+    }
+    #tab-stats .filter-btn {
+      width: 100%;
+      min-width: 0 !important;
+      min-height: 44px;
+      padding: 9px 8px !important;
+      white-space: normal !important;
+      text-align: center;
+      justify-content: center;
+      line-height: 1.2;
+      font-size: 12px !important;
+      overflow-wrap: anywhere;
+    }
+    #tab-stats #filter-custom {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* Filtre med god kontrast i appens mørke tema. */
+  @media (max-width: 640px) {
+    .dark #tab-stats .filter-btn.bg-slate-200 {
+      background: #1e2b3f !important;
+      color: #c8d4e4 !important;
+      border-color: #34465e !important;
+    }
+    .dark #tab-stats .filter-btn.bg-slate-900 {
+      background: #1d4434 !important;
+      color: #e3fbea !important;
+      border-color: #286747 !important;
+    }
+  }
+</style>
+
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
 
