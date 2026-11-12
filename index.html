@@ -602,35 +602,36 @@
       font-size: 8px !important;
     }
 
-    /* Statistikfiltre vises som et overskueligt gitter i stedet for
-       en vandret række, der klipper den sidste knap på telefoner. */
-    #tab-stats #statsSubView-stats > .flex.overflow-x-auto {
+    /* Kompakt periodevælger: alle syv valg er synlige på to rækker. */
+    .filter-label-compact { display: none; }
+    #tab-stats .stats-period-filters {
       display: grid !important;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px !important;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px !important;
       width: 100%;
       overflow: visible !important;
-      padding-bottom: 0 !important;
+      padding: 0 !important;
       scrollbar-width: none;
     }
-    #tab-stats #statsSubView-stats > .flex.overflow-x-auto::-webkit-scrollbar {
-      display: none;
-    }
-    #tab-stats .filter-btn {
+    #tab-stats .stats-period-filters::-webkit-scrollbar { display: none; }
+    #tab-stats .stats-period-filters .filter-btn {
       width: 100%;
       min-width: 0 !important;
-      min-height: 44px;
-      padding: 9px 8px !important;
-      white-space: normal !important;
+      min-height: 37px;
+      padding: 6px 3px !important;
+      white-space: nowrap !important;
       text-align: center;
       justify-content: center;
-      line-height: 1.2;
-      font-size: 12px !important;
-      overflow-wrap: anywhere;
+      line-height: 1.1;
+      font-size: 10px !important;
+      letter-spacing: -.025em;
+      overflow: hidden;
     }
-    #tab-stats #filter-custom {
-      grid-column: 1 / -1;
-    }
+    #tab-stats #filter-custom { grid-column: auto; }
+    #tab-stats .filter-label-wide { display: none !important; }
+    #tab-stats .filter-label-compact { display: inline !important; }
+    #tab-stats #filter-custom { gap: 3px !important; }
+    #tab-stats #filter-custom i { width: 12px !important; height: 12px !important; flex: 0 0 12px; }
   }
 
   /* Filtre med god kontrast i appens mørke tema. */
@@ -1256,15 +1257,15 @@
         <div id="statsSubView-stats" class="space-y-4">
 
         <!-- Time Filter Pills -->
-        <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          <button onclick="setStatsFilter('today')" id="filter-today" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">I dag</button>
-          <button onclick="setStatsFilter('week')" id="filter-week" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne uge</button>
-          <button onclick="setStatsFilter('month')" id="filter-month" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Denne måned</button>
-          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm">Lønmåned (21.-20.)</button>
-          <button onclick="setStatsFilter('last30')" id="filter-last30" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Sidste 30 dage</button>
-          <button onclick="setStatsFilter('all')" id="filter-all" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700">Altid</button>
-          <button onclick="toggleCustomDatePicker()" id="filter-custom" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700 flex items-center gap-1">
-            <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Vælg periode
+        <div class="stats-period-filters flex gap-1.5 overflow-x-auto pb-1 no-scrollbar" aria-label="Vælg statistikperiode">
+          <button onclick="setStatsFilter('today')" id="filter-today" aria-label="I dag" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700"><span class="filter-label-wide">I dag</span><span class="filter-label-compact">I dag</span></button>
+          <button onclick="setStatsFilter('week')" id="filter-week" aria-label="Denne uge" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700"><span class="filter-label-wide">Denne uge</span><span class="filter-label-compact">Uge</span></button>
+          <button onclick="setStatsFilter('month')" id="filter-month" aria-label="Denne måned" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700"><span class="filter-label-wide">Denne måned</span><span class="filter-label-compact">Måned</span></button>
+          <button onclick="setStatsFilter('paymonth')" id="filter-paymonth" aria-label="Lønmåned fra den 21. til den 20." title="Lønmåned (21.-20.)" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-900 text-white shadow-sm"><span class="filter-label-wide">Lønmåned (21.-20.)</span><span class="filter-label-compact">Løn 21.-20.</span></button>
+          <button onclick="setStatsFilter('last30')" id="filter-last30" aria-label="Sidste 30 dage" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700"><span class="filter-label-wide">Sidste 30 dage</span><span class="filter-label-compact">30 dage</span></button>
+          <button onclick="setStatsFilter('all')" id="filter-all" aria-label="Altid" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700"><span class="filter-label-wide">Altid</span><span class="filter-label-compact">Altid</span></button>
+          <button onclick="toggleCustomDatePicker()" id="filter-custom" aria-label="Vælg en bestemt periode" title="Vælg periode" class="filter-btn px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap bg-slate-200 text-slate-700 flex items-center gap-1">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i><span class="filter-label-wide">Vælg periode</span><span class="filter-label-compact">Vælg dato</span>
           </button>
         </div>
 
