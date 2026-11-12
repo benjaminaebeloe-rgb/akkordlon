@@ -216,6 +216,345 @@
     #navGrid.nav-scroll { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(62px, 1fr); overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
     #navGrid.nav-scroll::-webkit-scrollbar { display: none; }
   </style>
+<style id="akkord-design-refresh">
+
+  /* ==========================================================
+     AKKORDLØN 2.0 — VISUELT DESIGNLAG
+     Kun CSS. Ingen funktioner, datafelter, ID'er eller events ændres.
+     ========================================================== */
+  :root {
+    --app-bg: #f4f6fa;
+    --app-card: #ffffff;
+    --app-border: #e6eaf0;
+    --app-ink: #172033;
+    --app-muted: #778196;
+    --app-navy: #111b2e;
+    --app-green: #16a34a;
+    --app-green-soft: #eaf8ef;
+    --app-radius: 20px;
+    --app-shadow: 0 5px 18px rgba(15, 23, 42, .045), 0 1px 2px rgba(15, 23, 42, .035);
+  }
+
+  html, body { background: var(--app-bg); }
+  body { color: var(--app-ink); letter-spacing: -.012em; }
+  button, input, select, textarea { font: inherit; }
+  button { transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 3px solid rgba(22, 163, 74, .24);
+    outline-offset: 2px;
+  }
+
+  /* Topbar */
+  body > header {
+    background: linear-gradient(112deg, #111b2e 0%, #17243a 55%, #1a2b42 100%) !important;
+    border-bottom: 1px solid rgba(255,255,255,.07) !important;
+    box-shadow: 0 5px 22px rgba(15,23,42,.14) !important;
+  }
+  body > header > div { max-width: 1200px !important; padding-top: 13px !important; padding-bottom: 13px !important; }
+  body > header h1 { letter-spacing: -.045em; font-size: 19px !important; }
+  body > header .w-9.h-9.rounded-xl { border-radius: 13px !important; box-shadow: 0 5px 16px rgba(22,163,74,.22) !important; }
+  #accountBtn { border-radius: 12px !important; }
+  #headerTodayEarned { font-variant-numeric: tabular-nums; }
+
+  /* Desktop shell and sidebar */
+  .flex-1.flex.overflow-hidden { background: var(--app-bg); }
+  aside.hidden.lg\:flex {
+    width: 244px !important;
+    padding: 22px 15px !important;
+    background: #fff !important;
+    border-right: 1px solid var(--app-border) !important;
+    box-shadow: 4px 0 18px rgba(15,23,42,.025);
+    gap: 5px !important;
+  }
+  aside .sidenav-item, aside > button:not(.sidenav-item) {
+    min-height: 43px;
+    border-radius: 12px !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+    letter-spacing: -.01em;
+  }
+  aside .sidenav-item.text-brand-600,
+  aside .sidenav-item.bg-brand-50 {
+    color: #12813c !important;
+    background: #edf8f0 !important;
+    box-shadow: inset 3px 0 0 #16a34a;
+  }
+  aside .sidenav-item:hover, aside > button:not(.sidenav-item):hover { background: #f5f7fa !important; }
+  aside .border-t { border-color: #edf0f4 !important; margin: 11px 4px !important; }
+
+  main.flex-1.overflow-y-auto { background: var(--app-bg); }
+  main.flex-1.overflow-y-auto > div {
+    width: 100%;
+    max-width: 1200px !important;
+    padding: 28px 34px 42px !important;
+  }
+  .tab-content { animation: akkordPageIn .22s ease both; }
+  @keyframes akkordPageIn { from { opacity: .72; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+  .tab-content > div:first-child h2,
+  .tab-content > .flex.items-start h2,
+  .tab-content > .flex.justify-between h2 {
+    color: #172033 !important;
+    font-size: 25px !important;
+    line-height: 1.2;
+    font-weight: 800 !important;
+    letter-spacing: -.045em;
+  }
+  .tab-content > div:first-child p,
+  .tab-content > .flex.items-start p { color: #7a8497 !important; font-size: 12px !important; margin-top: 5px; }
+  .tab-content.space-y-4 { --tw-space-y-reverse: 0; }
+
+  /* Consistent cards */
+  .tab-content .bg-white.rounded-2xl,
+  .tab-content .bg-white.rounded-xl {
+    border-color: var(--app-border) !important;
+    box-shadow: var(--app-shadow) !important;
+  }
+  .tab-content .bg-white.rounded-2xl { border-radius: var(--app-radius) !important; }
+  .tab-content .bg-white.rounded-xl { border-radius: 15px !important; }
+  .tab-content .bg-white.rounded-2xl h3,
+  .tab-content .bg-white.rounded-xl h3 { letter-spacing: .035em; }
+  .tab-content .border-slate-200\/80 { border-color: var(--app-border) !important; }
+  .tab-content .shadow-sm { box-shadow: var(--app-shadow) !important; }
+
+  /* Overview salary hero */
+  #overviewFilledState > div:first-child { gap: 12px !important; }
+  #overviewFilledState > div:first-child > div:first-child {
+    background: linear-gradient(125deg, #111b2e 0%, #1a2b43 100%) !important;
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 22px !important;
+    min-height: 112px;
+    padding: 20px 22px !important;
+    box-shadow: 0 10px 24px rgba(15,23,42,.13) !important;
+    position: relative;
+    overflow: hidden;
+  }
+  #overviewFilledState > div:first-child > div:first-child::after {
+    content: "";
+    position: absolute;
+    width: 170px; height: 170px;
+    right: -58px; top: -92px;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 50%;
+    box-shadow: 0 0 0 22px rgba(255,255,255,.025), 0 0 0 46px rgba(255,255,255,.018);
+    pointer-events: none;
+  }
+  #overviewFilledState > div:first-child > div:first-child > div:first-child {
+    font-size: 10px !important; letter-spacing: .12em !important; color: #a8b4c6 !important;
+  }
+  #overviewPeriodEarned { font-size: clamp(25px, 3vw, 34px) !important; letter-spacing: -.05em; font-variant-numeric: tabular-nums; }
+  #overviewFilledState > div:first-child > button {
+    flex-basis: 30% !important;
+    min-width: 174px;
+    border-radius: 22px !important;
+    padding: 17px 18px !important;
+    background: linear-gradient(145deg, #1d314b 0%, #243c59 100%) !important;
+    border: 1px solid rgba(255,255,255,.075);
+    box-shadow: 0 10px 24px rgba(15,23,42,.10) !important;
+  }
+  #overviewPeriodNet { font-size: clamp(19px, 2.2vw, 27px) !important; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+  #overviewNetBreakdown { border-radius: 17px !important; border-color: var(--app-border) !important; box-shadow: var(--app-shadow) !important; }
+  #overviewFilledState > .bg-white { border-radius: 18px !important; }
+  #overviewTodayEarned { font-variant-numeric: tabular-nums; }
+  #overviewRecentEntries > div { padding-top: 11px !important; padding-bottom: 11px !important; }
+  #overviewRecentEntries > div:last-child { border-bottom: 0 !important; }
+
+  /* Empty state */
+  #overviewEmptyState { background: #fff; border: 1px dashed #d9e2eb; border-radius: 22px; padding: 42px 22px !important; box-shadow: var(--app-shadow); }
+  #overviewEmptyState > div:first-child { width: 68px; height: 68px; border-radius: 20px !important; }
+
+  /* Main action buttons */
+  .tab-content button.bg-brand-600,
+  .tab-content button.bg-brand-600:hover {
+    box-shadow: 0 5px 14px rgba(22,163,74,.16) !important;
+  }
+  .tab-content button.bg-brand-600 { border-radius: 13px !important; }
+  .tab-content button.bg-slate-900 { border-radius: 13px !important; }
+
+  /* Registration screen and form */
+  #tab-register > .lg\:grid { gap: 26px !important; }
+  #tab-register .bg-gradient-to-r.from-slate-900 {
+    border-radius: 20px !important;
+    padding: 21px 22px !important;
+    background: linear-gradient(120deg, #111b2e, #20334d) !important;
+    box-shadow: 0 8px 20px rgba(15,23,42,.12) !important;
+  }
+  #logForm {
+    border-radius: 20px !important;
+    padding: 22px !important;
+    border-color: var(--app-border) !important;
+    box-shadow: 0 7px 24px rgba(15,23,42,.055) !important;
+    gap: 20px !important;
+  }
+  #logForm label { color: #596579 !important; font-size: 10px !important; letter-spacing: .09em; }
+  #logForm input, #logForm select, #logForm textarea,
+  #customDatePicker input, #tab-settings input, #tab-settings select {
+    background: #f8fafc !important;
+    border: 1px solid #e1e7ef !important;
+    border-radius: 12px !important;
+    min-height: 43px;
+    transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+  #logForm input:focus, #logForm select:focus,
+  #customDatePicker input:focus { background: #fff !important; border-color: #55b879 !important; box-shadow: 0 0 0 3px rgba(22,163,74,.10) !important; }
+  #logForm .bg-slate-900.rounded-xl {
+    background: linear-gradient(135deg, #111b2e, #1b2b42) !important;
+    border-radius: 17px !important;
+    padding: 18px !important;
+  }
+  #logForm button[type="submit"] { min-height: 50px; font-size: 14px !important; border-radius: 14px !important; }
+  #repeatLastDayBtn { border-radius: 12px !important; border-color: #dfe6ee !important; }
+  #desktopTodayEarned { letter-spacing: -.05em; }
+
+  /* Statistics and history */
+  #statsSubNav-stats, #statsSubNav-history { border-radius: 12px !important; min-height: 42px; }
+  #statsSubNav-stats.bg-slate-900, #statsSubNav-history.bg-slate-900 { background: #17243a !important; }
+  .filter-btn { border-radius: 10px !important; padding: 8px 12px !important; border: 1px solid transparent; }
+  .filter-btn.bg-slate-900 { background: #17243a !important; border-color: #17243a !important; }
+  .filter-btn.bg-slate-200 { background: #fff !important; color: #627086 !important; border-color: #e5eaf0 !important; }
+  #tab-stats .grid.grid-cols-2.lg\:grid-cols-4 > div {
+    border-radius: 17px !important;
+    padding: 17px !important;
+    min-height: 112px;
+  }
+  #tab-stats .grid.grid-cols-2.lg\:grid-cols-4 > div > div:nth-child(2) {
+    font-size: clamp(19px, 2vw, 25px) !important;
+    letter-spacing: -.045em;
+    font-variant-numeric: tabular-nums;
+  }
+  #tab-stats .h-56 { min-height: 230px; }
+
+  /* Company overview */
+  #tab-company { max-width: 1120px !important; margin-left: auto !important; margin-right: auto !important; }
+  #tab-company > .bg-slate-900.rounded-2xl {
+    background: linear-gradient(115deg, #111b2e, #1b2c45) !important;
+    border-radius: 17px !important;
+    box-shadow: 0 7px 20px rgba(15,23,42,.11) !important;
+  }
+  #tab-company > .grid.grid-cols-3 > div {
+    border-radius: 17px !important;
+    min-height: 112px;
+    padding: 16px !important;
+    box-shadow: var(--app-shadow) !important;
+  }
+  #tab-company > .bg-white.rounded-2xl { border-radius: 19px !important; padding: 20px !important; }
+  #companyPayrollTable { overflow-x: auto; }
+
+  /* Lists, filters and secondary pages */
+  #tab-cases .bg-white, #tab-waste .bg-white, #tab-settings .bg-white,
+  #tab-employees .bg-white, #tab-rates .bg-white, #tab-export .bg-white {
+    border-radius: 17px !important;
+  }
+  #tab-settings button.w-full { min-height: 58px; border-radius: 15px !important; padding: 15px 17px !important; }
+  #tab-settings button.w-full:hover { border-color: #b9dec5 !important; background: #fbfefc !important; transform: translateY(-1px); }
+  #tab-rates .bg-white, #tab-cases .bg-white { transition: box-shadow .18s ease, border-color .18s ease; }
+  #tab-cases input, #tab-waste input, #tab-waste select,
+  #tab-rates input, #tab-employees input { border-radius: 12px !important; }
+
+  /* Bottom navigation */
+  nav.lg\:hidden.bg-white.fixed.bottom-0 {
+    background: rgba(255,255,255,.96) !important;
+    border-top: 1px solid #e7ebf1 !important;
+    box-shadow: 0 -6px 24px rgba(15,23,42,.055) !important;
+    backdrop-filter: blur(16px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #navGrid { height: 68px !important; max-width: 620px !important; }
+  #navGrid .nav-item { position: relative; gap: 1px; }
+  #navGrid .nav-item i { width: 20px !important; height: 20px !important; }
+  #navGrid .nav-item span.font-semibold, #navGrid .nav-item > span:last-child { font-size: 10px !important; letter-spacing: -.01em; }
+  #navGrid .nav-item.text-brand-600 { color: #13813e !important; }
+  #navGrid .nav-item.text-brand-600::before {
+    content: ""; position: absolute; top: 5px; width: 36px; height: 27px;
+    border-radius: 10px; background: #eaf7ee; z-index: 0;
+  }
+  #navGrid .nav-item > i, #navGrid .nav-item > span { position: relative; z-index: 1; }
+
+  /* Modals and transient panels */
+  [id$="Modal"] > div, .modal-content {
+    border-radius: 22px !important;
+    border: 1px solid rgba(226,232,240,.85);
+    box-shadow: 0 24px 70px rgba(15,23,42,.22) !important;
+  }
+  #viewingEmployeeBanner, #installBanner { box-shadow: 0 6px 20px rgba(15,23,42,.12) !important; }
+
+  /* Small details */
+  .waste-badge-dot { box-shadow: 0 0 0 2px #fff; }
+  .tab-content .text-slate-400 { color: #8993a5; }
+  .tab-content .text-slate-500 { color: #748095; }
+  .tab-content .text-slate-700 { color: #48556a; }
+  .tab-content .text-slate-900 { color: #172033; }
+  .tab-content .rounded-lg { border-radius: 11px; }
+  .tab-content .rounded-xl { --tw-border-radius: 13px; }
+
+  /* Dark theme: retain current dark appearance, only refine surfaces */
+  html.dark, html.dark body, .dark .flex-1.flex.overflow-hidden,
+  .dark main.flex-1.overflow-y-auto { background: #0c1422 !important; }
+  .dark aside.hidden.lg\:flex,
+  .dark .tab-content .bg-white.rounded-2xl,
+  .dark .tab-content .bg-white.rounded-xl,
+  .dark nav.lg\:hidden.bg-white.fixed.bottom-0 { background-color: #172235 !important; }
+  .dark aside.hidden.lg\:flex { border-color: #26354a !important; }
+  .dark aside .sidenav-item.text-brand-600,
+  .dark aside .sidenav-item.bg-brand-50 { background: rgba(22,163,74,.15) !important; color: #7ee2a1 !important; }
+  .dark .tab-content > div:first-child h2,
+  .dark .tab-content > .flex.items-start h2,
+  .dark .tab-content > .flex.justify-between h2 { color: #edf3fb !important; }
+  .dark .tab-content .text-slate-900 { color: #edf3fb !important; }
+  .dark .tab-content .text-slate-800 { color: #e3ebf6 !important; }
+  .dark .tab-content .text-slate-700 { color: #cbd6e5 !important; }
+  .dark .tab-content .text-slate-600 { color: #b8c5d7 !important; }
+  .dark .tab-content .text-slate-500 { color: #9aa9bd !important; }
+  .dark .tab-content .text-slate-400 { color: #8090a7 !important; }
+  .dark .tab-content .bg-white.rounded-2xl,
+  .dark .tab-content .bg-white.rounded-xl { border-color: #29384d !important; }
+  .dark #logForm input, .dark #logForm select, .dark #logForm textarea,
+  .dark #customDatePicker input, .dark #tab-settings input, .dark #tab-settings select {
+    background: #101b2b !important; border-color: #304057 !important; color: #e5edf7 !important;
+  }
+  .dark #overviewEmptyState { background: #172235 !important; border-color: #34465f !important; }
+  .dark #navGrid .nav-item.text-brand-600::before { background: rgba(22,163,74,.17); }
+  .dark nav.lg\:hidden.bg-white.fixed.bottom-0 { border-color: #29384d !important; }
+  .dark #tab-company > .grid.grid-cols-3 > div { background: #172235 !important; }
+
+  @media (min-width: 1024px) {
+    main.flex-1.overflow-y-auto > div { padding: 32px 42px 48px !important; }
+    #tab-overview #overviewFilledState { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); gap: 16px !important; align-items: start; }
+    #overviewFilledState > div:first-child,
+    #overviewFilledState > #overviewNetBreakdown,
+    #overviewFilledState > #overviewMissingDaysWarning,
+    #overviewFilledState > button { grid-column: 1 / -1; }
+    #overviewFilledState > div:has(#overviewTodayEarned) { grid-column: 1; }
+    #overviewFilledState > div:has(#overviewRecentEntries) { grid-column: 2; grid-row: 3 / span 2; }
+    #overviewFilledState > div:has(#overviewTodayEarned),
+    #overviewFilledState > div:has(#overviewRecentEntries) { min-width: 0; }
+    #tab-company > .grid.grid-cols-3 { gap: 14px !important; }
+    #tab-company > .bg-white.rounded-2xl { margin-bottom: 2px; }
+  }
+  @media (max-width: 1023px) {
+    main.flex-1.overflow-y-auto > div { padding: 20px 16px 28px !important; }
+    .tab-content > div:first-child h2,
+    .tab-content > .flex.items-start h2,
+    .tab-content > .flex.justify-between h2 { font-size: 22px !important; }
+    #overviewFilledState > div:first-child > div:first-child { min-height: 104px; padding: 16px !important; }
+    #overviewFilledState > div:first-child > button { min-width: 0; flex-basis: 36% !important; padding: 13px !important; }
+    #logForm { padding: 17px !important; }
+    #tab-company > .grid.grid-cols-3 { gap: 8px !important; }
+    #tab-company > .grid.grid-cols-3 > div { padding: 12px !important; min-height: 100px; }
+  }
+  @media (max-width: 390px) {
+    #overviewFilledState > div:first-child { gap: 8px !important; }
+    #overviewFilledState > div:first-child > div:first-child { padding: 13px !important; }
+    #overviewPeriodEarned { font-size: 22px !important; }
+    #overviewPeriodNet { font-size: 17px !important; }
+    #overviewFilledState > div:first-child > button { padding: 11px !important; }
+    #navGrid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tab-content { animation: none !important; }
+    button { transition: none !important; }
+  }
+
+</style>
 </head>
 <body class="h-full flex flex-col text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
 
